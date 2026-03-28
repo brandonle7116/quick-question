@@ -75,8 +75,11 @@ Use a table to show module-to-module dependencies at a glance:
 - Run DFS on the dependency graph to detect cycles
 - If cycles exist, list the full circular path
 
-**Layer violation detection:**
-Read the project's `AGENTS.md` for the defined architecture layers and dependency direction. If no layer definition exists, infer layers from the dependency graph (modules with no dependencies are Layer 0, their dependents are Layer 1, etc.).
+**Layer violation detection (try in priority order):**
+1. **Infer from .asmdef dependency graph** (default) — modules with no dependencies are Layer 0, modules depending only on Layer 0 are Layer 1, etc. This is the most accurate, reflecting actual code state
+2. **Analyze using statements** — if no .asmdef files exist (pure directory-based project), scan `using` statements in .cs files, aggregate modules by namespace, and build a dependency graph from the using references
+3. **Read from AGENTS.md** — if neither of the above can determine layers, read the manually defined architecture layers in `AGENTS.md` as a reference
+
 Detect any cases where a lower layer depends on a higher layer.
 
 ### 7. Output Health Summary
