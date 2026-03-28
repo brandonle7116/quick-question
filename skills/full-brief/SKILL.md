@@ -23,7 +23,7 @@ Arguments: $ARGUMENTS
 ## Output Files
 
 All files go to the same directory, sharing the same timestamp:
-- `Docs/qq/<branch-name>/arch-review_<timestamp>.md`
-- `Docs/qq/<branch-name>/pr-review_<timestamp>.md`
-- `Docs/qq/<branch-name>/timeline-arch_<timestamp>.md`
-- `Docs/qq/<branch-name>/timeline-code-review_<timestamp>.md`
+- `Docs/<branch-name>/arch-review_<timestamp>.md`
+- `Docs/<branch-name>/pr-review_<timestamp>.md`
+- `Docs/<branch-name>/timeline-arch_<timestamp>.md`
+- `Docs/<branch-name>/timeline-review_<timestamp>.md`

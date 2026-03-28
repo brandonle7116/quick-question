@@ -74,4 +74,4 @@ There is no build step, test suite, or package manager for this repo itself. The
 - Skills are each a directory under `skills/<name>/` containing `SKILL.md`
 - Hook scripts in `scripts/hooks/` follow the naming pattern `codex-review-gate-{check,set,count}.sh`
 - Comments in shell scripts are in Chinese (author preference); code and user-facing output are in English
-- The `install.sh` output references old skill names (`/qq-ut`, `/qq-cp`) — these map to the current plugin skill names (`/qq:test`, `/qq:commit-push`)
+- The `install.sh` output now uses the current plugin skill names (`/qq:test`, `/qq:commit-push`, etc.)
