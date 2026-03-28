@@ -51,7 +51,7 @@ get_json_float() {
     echo "$json" | sed -n "s/.*\"$field\" *: *\([0-9.]*\).*/\1/p" | head -1
 }
 
-# 通过 EvalServer HTTP 触发测试并等待结果
+# 通过 tykit HTTP 触发测试并等待结果
 trigger_editor_tests() {
     local platform="$1"
     local filter="${2:-}"
@@ -73,7 +73,7 @@ trigger_editor_tests() {
     local port
     port=$(get_eval_port)
     if [ -z "$port" ]; then
-        echo -e "${RED}EvalServer unreachable${NC}"
+        echo -e "${RED}tykit unreachable${NC}"
         return 2
     fi
 
@@ -108,7 +108,7 @@ trigger_editor_tests() {
     done
 
     if [ -z "$run_id" ]; then
-        echo -e "${RED}Failed to start tests (EvalServer not responding)${NC}"
+        echo -e "${RED}Failed to start tests (tykit not responding)${NC}"
         return 2
     fi
 
@@ -348,7 +348,7 @@ fi
 EXIT_CODE=0
 
 if [ $FORCE_BATCH -eq 0 ] && is_editor_open; then
-    echo -e "${CYAN}Unity Editor detected, triggering tests via EvalServer${NC}"
+    echo -e "${CYAN}Unity Editor detected, triggering tests via tykit${NC}"
     echo ""
     if [ "$PLATFORM" = "All" ]; then
         trigger_editor_tests "EditMode" "$FILTER" "$ASSEMBLY" "$TIMEOUT" || EXIT_CODE=$?

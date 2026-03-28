@@ -87,7 +87,7 @@ fi
 source "$(dirname "$0")/unity-common.sh"
 
 run_evalserver_mode() {
-    # 检查 EvalServer 是否可达
+    # 检查 tykit 是否可达
     [ -f "$PROJECT_DIR/Temp/eval_server.json" ] || return 2
 
     local eval_script
@@ -96,12 +96,12 @@ run_evalserver_mode() {
         return 2
     fi
 
-    echo -e "${CYAN}[smart] Using EvalServer mode${NC}"
+    echo -e "${CYAN}[smart] Using tykit mode${NC}"
     UNITY_PROJECT_DIR="$PROJECT_DIR" bash "$eval_script" --compile "$TIMEOUT"
 }
 
 run_editor_mode() {
-    # 优先尝试 EvalServer（不抢焦点、不依赖 osascript）
+    # 优先尝试 tykit（不抢焦点、不依赖 osascript）
     local rc
     run_evalserver_mode
     rc=$?
@@ -111,7 +111,7 @@ run_editor_mode() {
         return 1
     fi
 
-    # EvalServer 不可用或状态未知，回退到 unity-check（osascript 触发）
+    # tykit 不可用或状态未知，回退到 unity-check（osascript 触发）
     echo -e "${CYAN}[smart] Falling back to unity-check --trigger ${TIMEOUT}${NC}"
     if "$CHECK_SCRIPT" --trigger "$TIMEOUT"; then
         return 0

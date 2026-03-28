@@ -37,14 +37,14 @@
 🧪 **Test Pipeline** — EditMode + PlayMode tests with runtime error checking
 🔍 **Cross-Model Review** — Claude orchestrates, Codex reviews, every finding verified against source
 ⚡ **15 Slash Commands** — test, commit, review, explain, dependency analysis, and more
-🎮 **EvalServer** — HTTP server inside Unity Editor for AI agent control (play/stop/console/run tests)
+🎮 **tykit** — HTTP server inside Unity Editor for AI agent control (play/stop/console/run tests)
 
 ```
 Edit .cs file
      │ (PostToolUse hook)
      ▼
 ┌──────────────────┐
-│  Smart Compile   │──── EvalServer (fast) / Editor trigger / Batch mode
+│  Smart Compile   │──── tykit (fast) / Editor trigger / Batch mode
 └────────┬─────────┘
          ▼
 ┌──────────────────┐
@@ -66,7 +66,7 @@ Edit .cs file
 |-------------|-------|
 | macOS | v1 limitation — Windows/Linux planned for v2 |
 | Git | Required — hooks and review commands depend on it |
-| Unity 2021.3+ | Required by EvalServer (tykit) |
+| Unity 2021.3+ | Required by tykit |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI or IDE extension |
 | curl, python3, jq | `brew install curl python3 jq` |
 | [Codex CLI](https://github.com/openai/codex) | Optional — only for cross-model review |
@@ -83,9 +83,9 @@ In Claude Code:
 
 This gives you all 15 skills and hooks (auto-compile, skill review enforcement). No files are copied into your project — the plugin runs from its cache.
 
-### Step 2: Install EvalServer (Unity package)
+### Step 2: Install tykit (Unity package)
 
-EvalServer (tykit) is the HTTP server that lets Claude control Unity Editor:
+tykit is the HTTP server that lets Claude control Unity Editor:
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
@@ -94,7 +94,7 @@ rm -rf /tmp/qq-install
 ```
 
 The installer handles Unity-specific setup:
-- Adds EvalServer (tykit) to `Packages/manifest.json`
+- Adds tykit to `Packages/manifest.json`
 - Copies shell scripts to `scripts/`
 - Creates `CLAUDE.md` and `AGENTS.md` from templates (only if missing, never overwrites)
 
@@ -152,7 +152,7 @@ Every time Claude edits a `.cs` file, a PostToolUse hook triggers smart compilat
 
 ```mermaid
 flowchart LR
-    A["Edit .cs file"] --> B{EvalServer\navailable?}
+    A["Edit .cs file"] --> B{tykit\navailable?}
     B -->|Yes| C["HTTP compile\n(fast, non-blocking)"]
     B -->|No| D{Editor\nopen?}
     D -->|Yes| E["osascript trigger\n+ poll status"]
@@ -162,7 +162,7 @@ flowchart LR
     F --> G
 ```
 
-### EvalServer (tykit)
+### tykit
 
 An HTTP server that auto-starts inside Unity Editor. Port is determined by project path hash, stored in `Temp/eval_server.json`.
 
@@ -172,7 +172,7 @@ flowchart LR
         A[Shell Scripts]
     end
     subgraph "Unity Editor"
-        B[EvalServer :PORT]
+        B[tykit :PORT]
         C[CompilePipeline]
         D[TestRunner]
         E[Console]
@@ -237,7 +237,7 @@ flowchart LR
 | Auto-compile on edit | ✅ Hook-driven | ❌ Manual |
 | Test pipeline | ✅ EditMode + PlayMode + error check | ❌ Manual |
 | Cross-model review | ✅ Claude + Codex with verification loop | ⚠️ Single model |
-| Runtime Editor control | ✅ EvalServer (HTTP) | ❌ No access |
+| Runtime Editor control | ✅ tykit (HTTP) | ❌ No access |
 | Skill review enforcement | ✅ Stop hook blocks until reviewed | ⚠️ Honor system |
 | Scene restoration | ✅ Auto-restores after PlayMode tests | ❌ Left on test scene |
 
@@ -266,7 +266,7 @@ All review commands classify findings by impact:
 - **macOS only** (v1) — scripts use `osascript`, `/Applications/Unity`, `~/Library/Logs`
 - **Codex CLI required** for cross-model review features
 - **Unity 2021.3+** required by tykit package
-- **EvalServer is localhost-only, no authentication** — acceptable for dev machines, not for shared/CI environments
+- **tykit is localhost-only, no authentication** — acceptable for dev machines, not for shared/CI environments
 - **Console log scraping** for compile verification — use `clear-console` before critical compiles to avoid stale errors
 
 ## Contributing
@@ -289,14 +289,14 @@ Contributions are welcome! Please open an issue or submit a pull request.
 🧪 **测试流水线** — EditMode + PlayMode 测试 + 运行时错误检查
 🔍 **跨模型审阅** — Claude 编排，Codex 审阅，每条发现逐一验证
 ⚡ **15 个斜杠命令** — 测试、提交、审阅、解释、依赖分析等
-🎮 **EvalServer** — Unity Editor 内的 HTTP 服务器，AI agent 可控制
+🎮 **tykit** — Unity Editor 内的 HTTP 服务器，AI agent 可控制
 
 ```
 编辑 .cs 文件
      │ (PostToolUse hook)
      ▼
 ┌──────────────────┐
-│    智能编译      │──── EvalServer（快速）/ Editor 触发 / Batch 模式
+│    智能编译      │──── tykit（快速）/ Editor 触发 / Batch 模式
 └────────┬─────────┘
          ▼
 ┌──────────────────┐
@@ -318,7 +318,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 |------|------|
 | macOS | v1 限制 — Windows/Linux 计划在 v2 支持 |
 | Git | 必需 — hooks 和审阅命令依赖 git |
-| Unity 2021.3+ | EvalServer (tykit) 要求 |
+| Unity 2021.3+ | tykit 要求 |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI 或 IDE 扩展 |
 | curl, python3, jq | `brew install curl python3 jq` |
 | [Codex CLI](https://github.com/openai/codex) | 可选 — 仅跨模型审阅需要 |
@@ -335,9 +335,9 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 这会安装全部 15 个 skill 和 hooks（自动编译、skill 审阅强制）。不会向你的项目复制任何文件 — 插件从缓存运行。
 
-### 第 2 步：安装 EvalServer（Unity 包）
+### 第 2 步：安装 tykit（Unity 包）
 
-EvalServer (tykit) 是让 Claude 控制 Unity Editor 的 HTTP 服务器：
+tykit 是让 Claude 控制 Unity Editor 的 HTTP 服务器：
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
@@ -346,7 +346,7 @@ rm -rf /tmp/qq-install
 ```
 
 安装器处理 Unity 相关配置：
-- 将 EvalServer (tykit) 添加到 `Packages/manifest.json`
+- 将 tykit 添加到 `Packages/manifest.json`
 - 复制 shell 脚本到 `scripts/`
 - 从模板创建 `CLAUDE.md` 和 `AGENTS.md`（仅在不存在时创建，不会覆盖）
 
@@ -404,7 +404,7 @@ rm -rf /tmp/qq-install
 
 ```mermaid
 flowchart LR
-    A["编辑 .cs 文件"] --> B{EvalServer\n可用？}
+    A["编辑 .cs 文件"] --> B{tykit\n可用？}
     B -->|是| C["HTTP 编译\n（快速，非阻塞）"]
     B -->|否| D{Editor\n已打开？}
     D -->|是| E["osascript 触发\n+ 轮询状态"]
@@ -414,7 +414,7 @@ flowchart LR
     F --> G
 ```
 
-### EvalServer (tykit)
+### tykit
 
 Unity Editor 内自动启动的 HTTP 服务器。端口由项目路径哈希决定，存储在 `Temp/eval_server.json` 中。
 
@@ -424,7 +424,7 @@ flowchart LR
         A[Shell 脚本]
     end
     subgraph "Unity Editor"
-        B[EvalServer :PORT]
+        B[tykit :PORT]
         C[编译管线]
         D[测试运行器]
         E[控制台]
@@ -489,7 +489,7 @@ flowchart LR
 | 编辑即编译 | ✅ Hook 驱动 | ❌ 手动 |
 | 测试流水线 | ✅ EditMode + PlayMode + 错误检查 | ❌ 手动 |
 | 跨模型审阅 | ✅ Claude + Codex 验证循环 | ⚠️ 单模型 |
-| 运行时 Editor 控制 | ✅ EvalServer (HTTP) | ❌ 无法访问 |
+| 运行时 Editor 控制 | ✅ tykit (HTTP) | ❌ 无法访问 |
 | Skill 审阅强制 | ✅ Stop hook 阻止直到审阅完成 | ⚠️ 靠自觉 |
 | 场景恢复 | ✅ PlayMode 测试后自动恢复 | ❌ 停留在测试场景 |
 
@@ -518,7 +518,7 @@ flowchart LR
 - **仅 macOS**（v1）— 脚本使用 `osascript`、`/Applications/Unity`、`~/Library/Logs`
 - **跨模型审阅功能需要 Codex CLI**
 - **Unity 2021.3+**，tykit 包要求
-- **EvalServer 仅限 localhost，无认证** — 适用于开发机，不适用于共享/CI 环境
+- **tykit 仅限 localhost，无认证** — 适用于开发机，不适用于共享/CI 环境
 - **编译验证使用控制台日志抓取** — 关键编译前使用 `clear-console` 避免残留错误
 
 ## 贡献
@@ -541,7 +541,7 @@ flowchart LR
 🧪 **テストパイプライン** — EditMode + PlayMode テスト + ランタイムエラーチェック
 🔍 **クロスモデルレビュー** — Claude が編成、Codex がレビュー、各指摘をソースで検証
 ⚡ **15 個のスラッシュコマンド** — テスト、コミット、レビュー、解説、依存分析など
-🎮 **EvalServer** — Unity Editor 内の HTTP サーバー
+🎮 **tykit** — Unity Editor 内の HTTP サーバー
 
 ## インストール
 
@@ -553,7 +553,7 @@ Claude Code で：
 /plugin install qq@quick-question-marketplace
 ```
 
-### ステップ 2：EvalServer のインストール
+### ステップ 2：tykit のインストール
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
@@ -575,7 +575,7 @@ rm -rf /tmp/qq-install
 🧪 **테스트 파이프라인** — EditMode + PlayMode 테스트 + 런타임 에러 체크
 🔍 **크로스 모델 리뷰** — Claude 오케스트레이션, Codex 리뷰, 각 발견사항 소스 검증
 ⚡ **15개 슬래시 커맨드** — 테스트, 커밋, 리뷰, 설명, 의존성 분석 등
-🎮 **EvalServer** — Unity Editor 내 HTTP 서버
+🎮 **tykit** — Unity Editor 내 HTTP 서버
 
 ## 설치
 
@@ -587,7 +587,7 @@ Claude Code에서:
 /plugin install qq@quick-question-marketplace
 ```
 
-### 2단계: EvalServer 설치
+### 2단계: tykit 설치
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install

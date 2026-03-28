@@ -92,7 +92,7 @@ find_unity_eval() {
     find "$PROJECT_DIR/Library/PackageCache" -name "unity-eval.sh" -path "*/com.tyk.tykit*" 2>/dev/null | head -1
 }
 
-# ── 获取 EvalServer 端口 ──
+# ── 获取 tykit 端口 ──
 get_eval_port() {
     local json_file="$PROJECT_DIR/Temp/eval_server.json"
     if [ -f "$json_file" ]; then

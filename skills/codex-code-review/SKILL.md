@@ -43,7 +43,7 @@ Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
 ./scripts/code-review.sh $ARGUMENTS
 ```
-The script calls `codex exec --sandbox read-only`, with results output to stdout and `Docs/<branch-name>/codex-code-review_<timestamp>.md`.
+The script calls `codex exec --sandbox read-only`, with results output to stdout and `Docs/qq/<branch-name>/codex-code-review_<timestamp>.md`.
 Codex review typically takes 5-10 minutes. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
 Notify the user that the background task has been submitted and will continue processing automatically when complete. You may continue other conversations while waiting.
 
@@ -60,8 +60,10 @@ Read the output file and classify by severity:
 
 Present the summary to the user. **Do not fix code directly — enter the verification step first.**
 
-#### c. Independent Verification (required, parallel subagents)
+#### c. Independent Verification (required, parallel subagents, gate-enforced)
 For each critical and moderate issue, **dispatch a subagent to verify each finding in depth** — do not skim code in the main session and draw quick conclusions. Every finding must be verified against the code, no exceptions.
+
+> **Review Gate:** After the review script runs, a PreToolUse hook blocks Edit/Write on `.cs` and `Docs/*.md` files until at least 1 verification subagent completes. This is a mechanical constraint — you cannot edit code until findings are verified.
 
 **Execution:** Group all findings that need verification, and for each (or a related set), dispatch a subagent using the Agent tool (`subagent_type: "general-purpose"`, `model: "opus"`), running in parallel. Each subagent's prompt must include:
 1. Codex's original finding description (verbatim)
@@ -98,6 +100,12 @@ Do not unilaterally decide "unrelated, so skip" — let the user decide.
 - If two consecutive rounds had no new critical issues → suggest ending the loop
 
 Output `=== Round N/5 ===` at the start of each round.
+
+### 6. Clean Up Gate
+After the review loop ends (for any reason), clean up the gate marker:
+```bash
+rm -f /tmp/claude-codex-review-gate-$PPID
+```
 
 ## Notes
 - The review script is at `./scripts/code-review.sh` and requires Codex CLI to be configured

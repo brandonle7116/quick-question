@@ -261,7 +261,7 @@ Summarize from the `timeline-review` quick reference table:
 
 ### 7. Output
 
-Write three files to `Docs/<branch-name>/`:
+Write three files to `Docs/qq/<branch-name>/`:
 - `timeline-arch_<timestamp>.md`
 - `timeline-review_<timestamp>.md`
 - `REVIEW_GUIDE.md` (no timestamp, overwritten each time)

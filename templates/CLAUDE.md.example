@@ -20,9 +20,9 @@ After every .cs file change, **must** verify compilation passes before reporting
 - If compilation fails, analyze the error, fix it, and recompile until it passes
 - Do not skip this step
 
-## Unity EvalServer (Runtime Editor Control)
+## tykit (Runtime Editor Control)
 
-The project includes an EvalServer (HTTP server) that auto-starts when Unity Editor opens.
+The project includes tykit, an HTTP server that auto-starts when Unity Editor opens.
 Port is determined by project path hash, recorded in `Temp/eval_server.json`.
 
 ### Usage

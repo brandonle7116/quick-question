@@ -103,6 +103,6 @@ echo "  - Codex CLI (optional, for cross-model review): npm install -g @openai/c
 echo ""
 echo "Next steps:"
 echo "  1. Install the qq plugin: /plugin marketplace add tykisgod/quick-question"
-echo "  2. Open Unity — EvalServer will auto-start"
+echo "  2. Open Unity — tykit will auto-start"
 echo "  3. Edit a .cs file — auto-compilation hook will verify"
 echo "  4. Type /qq:test in Claude Code to run tests"

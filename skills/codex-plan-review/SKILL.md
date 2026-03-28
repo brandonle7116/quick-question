@@ -49,8 +49,10 @@ Read `<filename>_review.md` and summarize by severity:
 
 Present the summary to the user. **Do not modify the spec yet — proceed to the verification step first.**
 
-#### 2c. Independent Verification (required, parallel subagents)
+#### 2c. Independent Verification (required, parallel subagents, gate-enforced)
 For each critical and moderate finding, **dispatch a subagent to verify each one in depth** — do not draw conclusions from a quick scan in the main session. Every finding must be verified against the code, no exceptions.
+
+> **Review Gate:** After the review script runs, a PreToolUse hook blocks Edit/Write on `.cs` and `Docs/*.md` files until at least 1 verification subagent completes. This is a mechanical constraint — you cannot edit the document until findings are verified.
 
 **How to execute:** Group all findings to verify, and for each one (or a few related ones) dispatch a subagent using the Agent tool (`subagent_type: "general-purpose"`, `model: "opus"`), running in parallel. Each subagent prompt must include:
 1. The original Codex finding description (verbatim)
@@ -81,6 +83,12 @@ For disproportionate suggestions, require the subagent to flag them as **Confirm
 - If 5 rounds have been completed → output final status and end the loop
 
 Output `=== Round N/5 ===` at the start of each round.
+
+### 7. Clean Up Gate
+After the review loop ends (for any reason), clean up the gate marker:
+```bash
+rm -f /tmp/claude-codex-review-gate-$PPID
+```
 
 ## Notes
 - The review script is at `./scripts/plan-review.sh` and requires Codex CLI to be configured

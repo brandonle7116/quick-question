@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `hooks/hooks.json` — Hook definitions (PreToolUse, PostToolUse, Stop) loaded by the Claude Code plugin system
 - `scripts/` — Bash scripts for compilation, testing, and review (run inside the target Unity project)
 - `skills/` — 15 skill definitions (each has a `SKILL.md`), invoked as `/qq:<name>`
-- `packages/com.tyk.tykit/` — UPM package providing EvalServer (in-process HTTP server for Unity Editor control)
+- `packages/com.tyk.tykit/` — UPM package providing tykit (in-process HTTP server for Unity Editor control)
 - `.claude-plugin/` — Plugin manifest (`plugin.json`, `marketplace.json`)
 - `templates/` — `CLAUDE.md.example` and `AGENTS.md.example` copied into target projects by `install.sh`
 - `install.sh` — Installs scripts, templates, and tykit into a Unity project
@@ -33,13 +33,13 @@ All temp files are keyed by `$PPID` for session isolation (e.g., `/tmp/claude-co
 ### Smart Compilation Stack
 
 `unity-compile-smart.sh` is the orchestrator, choosing the best path:
-1. **EvalServer mode** — HTTP call to in-process Unity server (fastest, non-blocking)
+1. **tykit mode** — HTTP call to in-process Unity server (fastest, non-blocking)
 2. **Editor trigger** — osascript to trigger compile in open Unity (fallback)
 3. **Batch mode** — `Unity -quit -batchmode` (when Editor is closed)
 
-Shared utilities live in `unity-common.sh` (Editor detection, Unity path lookup, EvalServer port discovery).
+Shared utilities live in `unity-common.sh` (Editor detection, Unity path lookup, tykit port discovery).
 
-### EvalServer (tykit)
+### tykit
 
 UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play/stop, console, find/inspect. Port stored in `Temp/eval_server.json` (hash of project path).
 

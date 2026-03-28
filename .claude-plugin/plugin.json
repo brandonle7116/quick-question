@@ -9,6 +9,6 @@
   "homepage": "https://github.com/tykisgod/quick-question",
   "repository": "https://github.com/tykisgod/quick-question",
   "license": "MIT",
-  "keywords": ["unity", "testing", "code-review", "compilation", "evalserver"],
+  "keywords": ["unity", "testing", "code-review", "compilation", "tykit"],
   "hooks": "./hooks/hooks.json"
 }
