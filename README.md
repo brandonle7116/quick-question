@@ -62,19 +62,19 @@ Edit .cs file
 
 ## A Day with qq
 
-> Alex is building a Unity RPG. She just installed qq. Here's her Tuesday.
+> Alex is working on a GTA-style open world game in Unity. 200k lines of C#, 15 service modules, 4 developers. She just installed qq. Here's her Tuesday.
 
 **9:00 AM — Start coding**
 
-Alex asks Claude to add a health regeneration system. Claude writes `HealthRegen.cs`.
+Alex asks Claude to add a vehicle health system — cars should take damage from collisions, catch fire at low HP, and explode. Claude writes `VehicleDamageSystem.cs`, `FireEffect.cs`, and modifies `CollisionHandler.cs`.
 
-She doesn't run any compile command. The moment Claude saves the file, a hook fires:
+She doesn't run any compile command. Each time Claude saves a `.cs` file, a hook fires automatically:
 
 ```
 ⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
 ```
 
-She doesn't even notice. It just works.
+Three files edited, three automatic compiles. She doesn't even notice.
 
 **9:30 AM — Run tests**
 
@@ -83,100 +83,187 @@ She doesn't even notice. It just works.
 ```
 
 ```
-EditMode:  52/52 passed
-PlayMode:  18/18 passed
+EditMode:  186/186 passed
+PlayMode:   42/42 passed
 Runtime errors: 1 found
-  [Error] NullReferenceException at HealthRegen.cs:34
-  Source: HealthRegen.OnEnable() — _playerStats not assigned
+  [Error] NullReferenceException at VehicleDamageSystem.cs:34
+  Source: VehicleDamageSystem.OnEnable() — _rigidbody not assigned
 ```
 
-Even though all tests "passed", qq caught a runtime error hiding in the console. Claude reads the code, fixes the null ref, auto-compiles again. Clean.
+All 228 tests "passed", but qq caught a runtime error hiding in the console — a `GetComponent` that runs before the Rigidbody is ready. Claude reads the code, moves the call to `Start()`, auto-compiles. Clean.
 
-**10:00 AM — Something feels wrong**
-
-The regen formula seems off. Alex isn't sure how the original health system works.
+**10:00 AM — A new team member asks: "How does our damage system work?"**
 
 ```
-/qq:grandma
+/qq:grandma "vehicle damage system"
 ```
 
-> "Imagine your character is a water tank. Max HP is how big the tank is. Damage is someone poking holes. Healing is pouring water back in. Regeneration is a small faucet that's always dripping — slow, but it never stops. What you just built is that faucet."
+> "Imagine every car is a balloon. Crashing into things pokes tiny holes — that's damage. When enough holes open up, air leaks out fast — that's the fire stage. Eventually there's no air left, and the balloon pops — that's the explosion. The armor stat is like how thick the balloon's skin is."
 
-Now she gets it. The regen rate should scale with max HP, not current HP.
+The new dev gets it in 30 seconds.
 
-**11:00 AM — How do others solve this?**
+Later, Alex needs to explain the **module architecture** to the tech lead:
+
+```
+/qq:explain VehicleDamageSystem
+```
+
+Claude reads the source and design docs, then outputs a structured breakdown: responsibilities, dependencies, data flow, and key design decisions. Technical but clear.
+
+**10:30 AM — The fire VFX feels wrong**
+
+Alex isn't sure how other games handle vehicle fire progression.
 
 ```
 /qq:research
 ```
 
-Claude searches open-source RPGs and returns a comparison:
+| Game | Fire Model | Pros | Cons |
+|------|-----------|------|------|
+| GTA V | HP threshold stages (smoke → fire → explosion) | Intuitive, cinematic | Rigid, no player agency |
+| Assassin's Creed | Damage-over-time with spread | Realistic | Complex, hard to balance |
+| Just Cause | Instant explosion at threshold | Simple, satisfying | No warning for player |
 
-| Game | Regen Model | Pros | Cons |
-|------|------------|------|------|
-| Rimworld | Flat rate per tick | Simple | Doesn't scale |
-| Valheim | % of max HP | Scales naturally | Can be too fast at high HP |
-| Diablo-likes | Stat-based (regen stat) | Player agency | Complex |
+Alex picks the GTA V model — three visual stages based on HP thresholds. Proven, players already understand it.
 
-Alex picks the Valheim model. Simple, scales, done.
-
-**2:00 PM — Code review before PR**
+**11:00 AM — Check module dependencies before going deeper**
 
 ```
-/qq:claude-code-review
+/qq:deps
 ```
 
-Claude spawns a reviewer subagent. Before the findings come back, a **Review Gate** activates — Alex can't edit any code until the review is verified.
+Claude scans all `.asmdef` files, generates a Mermaid dependency graph and a matrix table. Alex spots that `VehicleSystem` accidentally depends on `WeaponSystem` — a layer violation. She fixes the dependency before it spreads.
 
 ```
-Review subagent found:
-  [Critical] HealthRegen applies during death state — should check isDead
-  [Medium] Regen tick runs in Update() — should use TickManager for consistency
-  [Suggestion] Consider caching GetComponent<PlayerStats>()
+/qq:deps VehicleSystem
+```
 
-Spawning 2 verification subagents...
+This time just the upstream/downstream of `VehicleSystem` — a focused view showing exactly what it touches.
 
-  [Critical] isDead check: CONFIRMED — HealthRegen.cs:28, no guard
-  [Medium] Update vs TickManager: CONFIRMED — all other systems use TickManager
+**11:30 AM — Check if the design doc is still accurate**
+
+```
+/qq:doc-drift --module vehicle
+```
+
+Claude compares the vehicle design doc against actual code. Found 2 mismatches: the doc says fire starts at 30% HP, code uses 25%. And a planned "repair mechanic" is documented but not implemented yet — marked as "not yet built, not a bug."
+
+**2:00 PM — Cross-model code review before asking the team to review**
+
+```
+/qq:codex-code-review
+```
+
+The diff is sent to Codex for review. ~5 minutes later, findings come back. A **Review Gate** activates — Claude can't edit any code until each finding is verified by an independent subagent.
+
+```
+=== Round 1/5 ===
+
+Codex found:
+  [Critical] VehicleDamageSystem applies damage during respawn — no isDead guard
+  [Medium] FireEffect instantiates VFX every frame — should pool
+  [Suggestion] CollisionHandler.OnCollisionEnter allocates a new List every call
+
+Dispatching 2 verification subagents...
+
+  [Critical] isDead guard: CONFIRMED — VehicleDamageSystem.cs:47, no check
+  [Medium] VFX pooling: CONFIRMED — FireEffect.cs:23, Instantiate in Update
 
 Gate unlocked. Fixing confirmed issues...
-  ✅ Compiled. 52/52 EditMode, 18/18 PlayMode passed.
+  ✅ Compiled. 186/186 EditMode, 42/42 PlayMode passed.
+
+=== Round 2/5 ===
+No [Critical] issues. Review passed.
 ```
 
-The Gate prevented her from "just quickly fixing it" before verification. Every finding was checked against real code first.
+> *Tip: `/qq:claude-code-review` does the same thing without needing Codex CLI — uses Claude subagents instead. Same Gate, same verification loop, no external dependency.*
 
-**3:00 PM — Prepare PR materials**
+**3:00 PM — Generate review materials for the team**
 
 ```
 /qq:full-brief
 ```
 
-Three agents run in parallel. Four documents land in `Docs/qq/`:
+Two agents run in parallel. Four documents land in `Docs/qq/`:
 
 ```
-arch-review    — Mermaid diagram showing HealthRegen → PlayerStats → TickManager
-pr-review      — P0: isDead guard, P1: TickManager migration, P2: caching
-timeline-arch  — Phase 1: base regen, Phase 2: scaling, Phase 3: death guard
+arch-review     — Mermaid diagram: VehicleDamageSystem → Rigidbody, FireEffect → VFXPool
+pr-review       — P0: isDead guard, P1: VFX pooling, P2: List allocation
+timeline-arch   — Phase 1: base damage, Phase 2: fire stages, Phase 3: explosion + respawn
 timeline-review — review items grouped by development phase
 ```
 
-Her reviewer opens the arch diagram, sees the dependency flow, and approves in 10 minutes.
+These aren't PR description copy-paste — they're structured materials for human reviewers. The tech lead opens the arch diagram, traces the dependency flow, then reads the P0 items. Review done in 15 minutes instead of an hour.
 
-**3:30 PM — Ship it**
+**3:30 PM — What did we do today?**
+
+```
+/qq:changes
+```
+
+Claude summarizes: 3 new files, 2 modified, 1 bug fixed (isDead guard), 1 performance fix (VFX pooling). Ready to write the commit messages.
+
+**3:45 PM — Before committing, one more check**
+
+```
+/qq:code-review
+```
+
+A quick project-specific review — checks against the team's own rules in `AGENTS.md`: no `FindObjectOfType` in runtime, no missing `OnDestroy` cleanup, no cross-module dependency violations. Catches that `FireEffect` doesn't unsubscribe from `OnDamageChanged` in `OnDestroy`. Fixed.
+
+**4:00 PM — Ship it**
 
 ```
 /qq:commit-push
 ```
 
-Claude groups changes into 2 logical commits, writes conventional commit messages. Pre-push hook runs tests one last time.
+Claude groups changes into 3 logical commits:
+- `feat: vehicle damage system with HP-based collision damage`
+- `feat: fire VFX stages (smoke → fire → explosion)`
+- `fix: isDead guard + VFX pooling + event cleanup`
+
+Pre-push hook runs tests one last time:
 
 ```
-[pre-push] EditMode 52/52 ✅ PlayMode 18/18 ✅
+[pre-push] EditMode 186/186 ✅ PlayMode 42/42 ✅
 [pre-push] Runtime errors: 0
 All tests passed, push allowed.
 ```
 
-Done. From idea to merged PR, every step had a safety net — and Alex never had to remember to run anything manually.
+**4:15 PM — The repo is getting messy**
+
+Over the past month, design docs, review outputs, and temp specs have piled up everywhere.
+
+```
+/qq:doc-tidy
+```
+
+Claude scans the entire repo, categorizes 47 doc files, and outputs a cleanup plan:
+- 12 temp review files → archive
+- 5 duplicate design docs → merge
+- 3 orphaned docs referencing deleted modules → delete
+- Root directory has 8 files that should be in `Docs/`
+
+Alex reviews the plan, approves, and the repo is clean again.
+
+**End of day**
+
+```
+/qq:timeline
+```
+
+Looking at the branch history, the timeline skill groups 11 commits into 3 semantic phases:
+1. Core damage system (commits 1-4)
+2. Fire VFX stages (commits 5-8)
+3. Bug fixes and cleanup (commits 9-11)
+
+Each phase has its own architecture evolution doc and code review checklist. Perfect for the Friday team review meeting.
+
+---
+
+> Every step had a safety net. Auto-compile caught syntax errors instantly. Tests caught logic bugs. Runtime error checking caught hidden exceptions. Cross-model review caught design flaws. The Gate prevented premature fixes. Pre-push hook was the final checkpoint.
+>
+> Alex never had to remember "which command should I run now." The harness guided her.
 
 ## Prerequisites
 
@@ -497,67 +584,41 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## qq 的一天
 
-> 小明在做一个 Unity RPG 游戏。他刚装好 qq。这是他的周二。
+> 小明在做一个类 GTA 的开放世界游戏。20 万行 C#，15 个模块，4 个开发者。他刚装好 qq。
 
-**9:00 — 开始写代码**
+**9:00 — 写代码**
 
-小明让 Claude 写一个生命回复系统。Claude 写完 `HealthRegen.cs`，他什么都不用做——hook 自动编译：
+让 Claude 写载具伤害系统——碰撞扣血、低血着火、爆炸。Claude 写了 3 个文件，每次保存 hook 自动编译，他什么都不用做。
 
-```
-⚙️ Compiling Unity... ✅ 编译成功 (1.2s)
-```
+**9:30 — 跑测试** — `/qq:test`。186 个测试全过，但 qq 在 console 抓到一个隐藏的 NullRef。Claude 修了。
 
-**9:30 — 跑测试**
+**10:00 — 新人问"伤害系统怎么运作"** — `/qq:grandma "vehicle damage"`。用气球比喻：碰撞戳洞 = 伤害，漏气 = 着火，爆掉 = 爆炸。30 秒搞懂。
 
-```
-/qq:test
-```
+**10:15 — 给技术主管解释架构** — `/qq:explain VehicleDamageSystem`。结构化输出：职责、依赖、数据流、设计决策。
 
-52 个 EditMode + 18 个 PlayMode 全通过，但 qq 在 console 里发现了一个隐藏的 NullReferenceException。Claude 读代码，修复，再编译。干净了。
+**10:30 — 着火效果该怎么做？** — `/qq:research`。搜索业界方案：GTA V 用血量阶段（烟 → 火 → 爆），刺客信条用持续伤害扩散。选 GTA V 方案。
 
-**10:00 — 搞不懂原来的血量系统**
+**11:00 — 检查模块依赖** — `/qq:deps`。发现 VehicleSystem 意外依赖了 WeaponSystem——层级违规。`/qq:deps VehicleSystem` 聚焦看上下游。
 
-```
-/qq:grandma
-```
+**11:30 — 设计文档还准吗？** — `/qq:doc-drift --module vehicle`。文档说 30% 着火，代码写的 25%。标注差异。
 
-> "想象你的角色是一个水桶。最大生命值是桶有多大。受伤是有人戳了个洞。治疗是往里倒水。回复是一个一直在滴的水龙头——慢，但永远不停。你刚写的就是那个水龙头。"
+**14:00 — 跨模型审阅** — `/qq:codex-code-review`。Codex 审阅，Gate 激活，subagent 验证，确认后才能改代码。两轮收敛。
 
-明白了！回复速率应该按最大 HP 算，不是当前 HP。
+> *也可以用 `/qq:claude-code-review`，不需要 Codex CLI，同样的 Gate 和验证流程。*
 
-**11:00 — 别人怎么做的？**
+**15:00 — 生成人工审阅材料** — `/qq:full-brief`。4 份文档：架构图、审阅清单、时间线架构、时间线审阅。不是给 PR 描述用的——是给人类 reviewer 看的结构化材料。技术主管 15 分钟审完。
 
-```
-/qq:research
-```
+**15:30 — 快速项目规则检查** — `/qq:code-review`。按 AGENTS.md 里的团队规则检查：找到 FireEffect 没在 OnDestroy 退订事件。修了。
 
-Claude 搜索开源 RPG，返回对比表：Rimworld 用固定值、Valheim 按最大 HP 百分比、暗黑类用属性点。小明选了 Valheim 方案。
+**15:45 — 今天做了什么？** — `/qq:changes`。3 个新文件，2 个修改，1 个 bug 修复，1 个性能修复。
 
-**14:00 — 提 PR 前审阅**
+**16:00 — 提交** — `/qq:commit-push`。分 3 个 commit，pre-push hook 最后跑一次测试。全绿。
 
-```
-/qq:claude-code-review
-```
+**16:15 — 仓库有点乱** — `/qq:doc-tidy`。扫描 47 个文档文件，分类，输出整理方案：12 个归档、5 个合并、3 个删除。
 
-审阅 subagent 发现 3 个问题。**Review Gate 激活**——验证完之前不能改代码。2 个 subagent 并行验证每条发现，确认后才解锁。修复，编译通过，测试通过。
+**16:30 — 回顾分支** — `/qq:timeline`。11 个 commit 分成 3 个语义阶段，每个阶段有架构演化图和审阅清单。周五团队会议用。
 
-**15:00 — 生成 PR 材料**
-
-```
-/qq:full-brief
-```
-
-三个 agent 并行，产出 4 份文档：架构图、审阅清单、时间线架构、时间线审阅。Reviewer 看了架构图，10 分钟批准。
-
-**15:30 — 提交**
-
-```
-/qq:commit-push
-```
-
-Pre-push hook 最后跑一次测试。全绿。合并。
-
-从想法到合并，每一步都有安全网——小明从不需要记住"该跑什么命令"。
+> 每一步都有安全网。自动编译抓语法错误，测试抓逻辑 bug，运行时检查抓隐藏异常，跨模型审阅抓设计缺陷，Gate 阻止未验证的修复，pre-push 是最后的关卡。小明从不需要记住"该跑什么命令"。
 
 ## 前置条件
 
@@ -812,21 +873,18 @@ rm -rf /tmp/qq-install
 
 ## qq との一日
 
-> アレックスは Unity RPG を開発中。qq をインストールしたばかりの火曜日。
+> GTA 風オープンワールドゲームを開発中。20 万行の C#、15 モジュール、4 人チーム。
 
-**9:00** — コードを書く。Claude が `HealthRegen.cs` を保存した瞬間、hook が自動コンパイル。何も実行する必要なし。
-
-**9:30** — `/qq:test`。テスト全通過、でもランタイムエラーを 1 件発見。Claude が修正、再コンパイル。クリーン。
-
-**10:00** — `/qq:grandma`。HP 回復システムを水道の蛇口に例えて説明。回復率は現在 HP ではなく最大 HP に基づくべきだと気づく。
-
-**11:00** — `/qq:research`。オープンソース RPG の回復モデルを比較。Valheim 方式を採用。
-
-**14:00** — `/qq:claude-code-review`。Review Gate が起動 — 検証完了まで編集ブロック。subagent が各指摘を検証。修正、テスト通過。
-
-**15:00** — `/qq:full-brief`。4 つのドキュメントを並列生成。レビュアーがアーキテクチャ図を見て 10 分で承認。
-
-**15:30** — `/qq:commit-push`。Pre-push hook が最終テスト。全グリーン。マージ完了。
+**9:00** — 車両ダメージシステムを実装。`.cs` 保存のたびに hook が自動コンパイル。
+**9:30** — `/qq:test`。186 テスト全通過、しかしランタイムエラー 1 件発見。修正。
+**10:00** — `/qq:grandma`。新人に風船の比喩でダメージシステムを説明。`/qq:explain` でリードに技術的な解説。
+**10:30** — `/qq:research`。GTA V / アサシンクリード / Just Cause の火災モデルを比較。GTA V 方式を採用。
+**11:00** — `/qq:deps`。モジュール依存グラフで階層違反を発見。`/qq:doc-drift` で設計ドキュメントとコードの乖離を確認。
+**14:00** — `/qq:codex-code-review`。Codex がレビュー、Gate 起動、subagent 検証。（`/qq:claude-code-review` でも同じ品質）
+**15:00** — `/qq:full-brief`。人間レビュアー向け 4 ドキュメント生成。15 分でレビュー完了。
+**15:30** — `/qq:code-review` でプロジェクトルールチェック。`/qq:changes` で今日の変更まとめ。
+**16:00** — `/qq:commit-push`。Pre-push hook 最終テスト。オールグリーン。
+**16:15** — `/qq:doc-tidy` でリポ整理。`/qq:timeline` で金曜チーム会議用の資料生成。
 
 ---
 
@@ -864,18 +922,15 @@ rm -rf /tmp/qq-install
 
 ## qq와 함께하는 하루
 
-> 민수는 Unity RPG를 만들고 있다. qq를 막 설치한 화요일.
+> GTA 스타일 오픈월드 게임 개발 중. 20만 줄 C#, 15개 모듈, 4명 팀.
 
-**9:00** — 코딩 시작. Claude가 `HealthRegen.cs`를 저장하는 순간 hook이 자동 컴파일. 아무것도 실행할 필요 없음.
-
-**9:30** — `/qq:test`. 테스트 전부 통과, 하지만 런타임 에러 1건 발견. Claude가 수정, 재컴파일. 깔끔.
-
-**10:00** — `/qq:grandma`. HP 회복 시스템을 수도꼭지에 비유해서 설명. 회복률은 현재 HP가 아니라 최대 HP 기준이어야 한다는 걸 깨달음.
-
-**11:00** — `/qq:research`. 오픈소스 RPG의 회복 모델 비교. Valheim 방식 채택.
-
-**14:00** — `/qq:claude-code-review`. Review Gate 작동 — 검증 완료 전까지 편집 차단. subagent가 각 지적 검증. 수정, 테스트 통과.
-
-**15:00** — `/qq:full-brief`. 4개 문서 병렬 생성. 리뷰어가 아키텍처 다이어그램 보고 10분 만에 승인.
-
-**15:30** — `/qq:commit-push`. Pre-push hook이 최종 테스트. 올 그린. 머지 완료.
+**9:00** — 차량 데미지 시스템 구현. `.cs` 저장할 때마다 hook이 자동 컴파일.
+**9:30** — `/qq:test`. 186개 테스트 통과, 런타임 에러 1건 발견. 수정.
+**10:00** — `/qq:grandma`. 풍선 비유로 신입에게 데미지 시스템 설명. `/qq:explain`으로 리드에게 기술적 해설.
+**10:30** — `/qq:research`. GTA V / 어쌔신 크리드 / Just Cause 화재 모델 비교. GTA V 방식 채택.
+**11:00** — `/qq:deps`. 모듈 의존성 그래프에서 계층 위반 발견. `/qq:doc-drift`로 설계 문서와 코드 차이 확인.
+**14:00** — `/qq:codex-code-review`. Codex 리뷰, Gate 작동, subagent 검증. (`/qq:claude-code-review`도 동일한 품질)
+**15:00** — `/qq:full-brief`. 인간 리뷰어용 4개 문서 생성. 15분 만에 리뷰 완료.
+**15:30** — `/qq:code-review`로 프로젝트 규칙 체크. `/qq:changes`로 오늘 변경 요약.
+**16:00** — `/qq:commit-push`. Pre-push hook 최종 테스트. 올 그린.
+**16:15** — `/qq:doc-tidy`로 리포 정리. `/qq:timeline`로 금요일 팀 미팅 자료 생성.
