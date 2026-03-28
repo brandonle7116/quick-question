@@ -80,7 +80,13 @@ After the subagent returns, categorize findings by severity:
 
 Present the summary to the user. **Do not fix code yet — proceed to the verification step first.**
 
-#### c. Independent Verification (required, parallel subagents)
+#### c. Independent Verification (required, parallel subagents, gate-enforced)
+
+**Before dispatching subagents, activate the Review Gate:**
+```bash
+touch /tmp/claude-codex-review-gate-$PPID
+```
+This locks Edit/Write on .cs and docs files until verification subagents complete (same gate as Codex review).
 
 For each critical and moderate issue, **dispatch a subagent to verify it in depth** — do not draw conclusions from a quick scan in the main session.
 
@@ -114,6 +120,12 @@ Do not unilaterally decide "unrelated, skip it" — let the user decide.
 - If two consecutive rounds had no new critical issues → suggest ending the loop
 
 Print `=== Round N/5 ===` at the start of each round.
+
+### 6. Clean Up Gate
+After the review loop ends (for any reason), clean up the gate marker:
+```bash
+rm -f /tmp/claude-codex-review-gate-$PPID
+```
 
 ## Notes
 - **Never blindly trust review results** — subagents may misread code or reference wrong line numbers. Every finding must go through the verification step
