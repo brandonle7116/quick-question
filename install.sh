@@ -43,7 +43,7 @@ cp "$SCRIPT_DIR"/scripts/hooks/*.sh "$TARGET/scripts/hooks/"
 chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/hooks/"*.sh
 SCRIPT_COUNT=$(ls "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/hooks/*.sh | wc -l | tr -d ' ')
 echo "  Scripts: $SCRIPT_COUNT files → scripts/ (including hooks/)"
-echo "  Skills + Hooks: provided by the qq plugin (install via /plugin install qq@quick-question-marketplace)"
+echo "  Skills + Hooks: provided by the qq plugin (see Next steps below)"
 
 # ── Templates ──
 if [ ! -f "$TARGET/CLAUDE.md" ]; then
@@ -102,7 +102,9 @@ echo "  - Claude Code CLI (claude)"
 echo "  - Codex CLI (optional, for cross-model review): npm install -g @openai/codex"
 echo ""
 echo "Next steps:"
-echo "  1. Install the qq plugin: /plugin marketplace add tykisgod/quick-question"
+echo "  1. In Claude Code, register the marketplace and install the plugin:"
+echo "       /plugin marketplace add tykisgod/quick-question"
+echo "       /plugin install qq@quick-question-marketplace"
 echo "  2. Open Unity — tykit will auto-start"
 echo "  3. Edit a .cs file — auto-compilation hook will verify"
 echo "  4. Type /qq:test in Claude Code to run tests"
