@@ -552,7 +552,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 # 中文
 
-> 基于 [AI 编程实践：独立开发者的文档驱动方法](https://tyksworks.com/posts/ai-coding-workflow-en/) 的理念开发
+> 基于 [AI 编程实践：独立开发者的文档驱动方法](https://tyksworks.com/posts/ai-coding-workflow-zh/) 的理念开发
 
 ## 功能
 
