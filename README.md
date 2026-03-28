@@ -60,6 +60,124 @@ Edit .cs file
 └──────────────────┘
 ```
 
+## A Day with qq
+
+> Alex is building a Unity RPG. She just installed qq. Here's her Tuesday.
+
+**9:00 AM — Start coding**
+
+Alex asks Claude to add a health regeneration system. Claude writes `HealthRegen.cs`.
+
+She doesn't run any compile command. The moment Claude saves the file, a hook fires:
+
+```
+⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
+```
+
+She doesn't even notice. It just works.
+
+**9:30 AM — Run tests**
+
+```
+/qq:test
+```
+
+```
+EditMode:  52/52 passed
+PlayMode:  18/18 passed
+Runtime errors: 1 found
+  [Error] NullReferenceException at HealthRegen.cs:34
+  Source: HealthRegen.OnEnable() — _playerStats not assigned
+```
+
+Even though all tests "passed", qq caught a runtime error hiding in the console. Claude reads the code, fixes the null ref, auto-compiles again. Clean.
+
+**10:00 AM — Something feels wrong**
+
+The regen formula seems off. Alex isn't sure how the original health system works.
+
+```
+/qq:grandma
+```
+
+> "Imagine your character is a water tank. Max HP is how big the tank is. Damage is someone poking holes. Healing is pouring water back in. Regeneration is a small faucet that's always dripping — slow, but it never stops. What you just built is that faucet."
+
+Now she gets it. The regen rate should scale with max HP, not current HP.
+
+**11:00 AM — How do others solve this?**
+
+```
+/qq:research
+```
+
+Claude searches open-source RPGs and returns a comparison:
+
+| Game | Regen Model | Pros | Cons |
+|------|------------|------|------|
+| Rimworld | Flat rate per tick | Simple | Doesn't scale |
+| Valheim | % of max HP | Scales naturally | Can be too fast at high HP |
+| Diablo-likes | Stat-based (regen stat) | Player agency | Complex |
+
+Alex picks the Valheim model. Simple, scales, done.
+
+**2:00 PM — Code review before PR**
+
+```
+/qq:claude-code-review
+```
+
+Claude spawns a reviewer subagent. Before the findings come back, a **Review Gate** activates — Alex can't edit any code until the review is verified.
+
+```
+Review subagent found:
+  [Critical] HealthRegen applies during death state — should check isDead
+  [Medium] Regen tick runs in Update() — should use TickManager for consistency
+  [Suggestion] Consider caching GetComponent<PlayerStats>()
+
+Spawning 2 verification subagents...
+
+  [Critical] isDead check: CONFIRMED — HealthRegen.cs:28, no guard
+  [Medium] Update vs TickManager: CONFIRMED — all other systems use TickManager
+
+Gate unlocked. Fixing confirmed issues...
+  ✅ Compiled. 52/52 EditMode, 18/18 PlayMode passed.
+```
+
+The Gate prevented her from "just quickly fixing it" before verification. Every finding was checked against real code first.
+
+**3:00 PM — Prepare PR materials**
+
+```
+/qq:full-brief
+```
+
+Three agents run in parallel. Four documents land in `Docs/qq/`:
+
+```
+arch-review    — Mermaid diagram showing HealthRegen → PlayerStats → TickManager
+pr-review      — P0: isDead guard, P1: TickManager migration, P2: caching
+timeline-arch  — Phase 1: base regen, Phase 2: scaling, Phase 3: death guard
+timeline-review — review items grouped by development phase
+```
+
+Her reviewer opens the arch diagram, sees the dependency flow, and approves in 10 minutes.
+
+**3:30 PM — Ship it**
+
+```
+/qq:commit-push
+```
+
+Claude groups changes into 2 logical commits, writes conventional commit messages. Pre-push hook runs tests one last time.
+
+```
+[pre-push] EditMode 52/52 ✅ PlayMode 18/18 ✅
+[pre-push] Runtime errors: 0
+All tests passed, push allowed.
+```
+
+Done. From idea to merged PR, every step had a safety net — and Alex never had to remember to run anything manually.
+
 ## Prerequisites
 
 | Requirement | Notes |
@@ -377,6 +495,70 @@ Contributions are welcome! Please open an issue or submit a pull request.
 └──────────────────┘
 ```
 
+## qq 的一天
+
+> 小明在做一个 Unity RPG 游戏。他刚装好 qq。这是他的周二。
+
+**9:00 — 开始写代码**
+
+小明让 Claude 写一个生命回复系统。Claude 写完 `HealthRegen.cs`，他什么都不用做——hook 自动编译：
+
+```
+⚙️ Compiling Unity... ✅ 编译成功 (1.2s)
+```
+
+**9:30 — 跑测试**
+
+```
+/qq:test
+```
+
+52 个 EditMode + 18 个 PlayMode 全通过，但 qq 在 console 里发现了一个隐藏的 NullReferenceException。Claude 读代码，修复，再编译。干净了。
+
+**10:00 — 搞不懂原来的血量系统**
+
+```
+/qq:grandma
+```
+
+> "想象你的角色是一个水桶。最大生命值是桶有多大。受伤是有人戳了个洞。治疗是往里倒水。回复是一个一直在滴的水龙头——慢，但永远不停。你刚写的就是那个水龙头。"
+
+明白了！回复速率应该按最大 HP 算，不是当前 HP。
+
+**11:00 — 别人怎么做的？**
+
+```
+/qq:research
+```
+
+Claude 搜索开源 RPG，返回对比表：Rimworld 用固定值、Valheim 按最大 HP 百分比、暗黑类用属性点。小明选了 Valheim 方案。
+
+**14:00 — 提 PR 前审阅**
+
+```
+/qq:claude-code-review
+```
+
+审阅 subagent 发现 3 个问题。**Review Gate 激活**——验证完之前不能改代码。2 个 subagent 并行验证每条发现，确认后才解锁。修复，编译通过，测试通过。
+
+**15:00 — 生成 PR 材料**
+
+```
+/qq:full-brief
+```
+
+三个 agent 并行，产出 4 份文档：架构图、审阅清单、时间线架构、时间线审阅。Reviewer 看了架构图，10 分钟批准。
+
+**15:30 — 提交**
+
+```
+/qq:commit-push
+```
+
+Pre-push hook 最后跑一次测试。全绿。合并。
+
+从想法到合并，每一步都有安全网——小明从不需要记住"该跑什么命令"。
+
 ## 前置条件
 
 | 需求 | 说明 |
@@ -628,6 +810,24 @@ rm -rf /tmp/qq-install
 
 前提条件：macOS、Unity 2021.3+、Claude Code、curl/python3/jq、Codex CLI（オプション）
 
+## qq との一日
+
+> アレックスは Unity RPG を開発中。qq をインストールしたばかりの火曜日。
+
+**9:00** — コードを書く。Claude が `HealthRegen.cs` を保存した瞬間、hook が自動コンパイル。何も実行する必要なし。
+
+**9:30** — `/qq:test`。テスト全通過、でもランタイムエラーを 1 件発見。Claude が修正、再コンパイル。クリーン。
+
+**10:00** — `/qq:grandma`。HP 回復システムを水道の蛇口に例えて説明。回復率は現在 HP ではなく最大 HP に基づくべきだと気づく。
+
+**11:00** — `/qq:research`。オープンソース RPG の回復モデルを比較。Valheim 方式を採用。
+
+**14:00** — `/qq:claude-code-review`。Review Gate が起動 — 検証完了まで編集ブロック。subagent が各指摘を検証。修正、テスト通過。
+
+**15:00** — `/qq:full-brief`。4 つのドキュメントを並列生成。レビュアーがアーキテクチャ図を見て 10 分で承認。
+
+**15:30** — `/qq:commit-push`。Pre-push hook が最終テスト。全グリーン。マージ完了。
+
 ---
 
 # 한국어
@@ -661,3 +861,21 @@ rm -rf /tmp/qq-install
 ```
 
 사전 요구사항: macOS, Unity 2021.3+, Claude Code, curl/python3/jq, Codex CLI (선택)
+
+## qq와 함께하는 하루
+
+> 민수는 Unity RPG를 만들고 있다. qq를 막 설치한 화요일.
+
+**9:00** — 코딩 시작. Claude가 `HealthRegen.cs`를 저장하는 순간 hook이 자동 컴파일. 아무것도 실행할 필요 없음.
+
+**9:30** — `/qq:test`. 테스트 전부 통과, 하지만 런타임 에러 1건 발견. Claude가 수정, 재컴파일. 깔끔.
+
+**10:00** — `/qq:grandma`. HP 회복 시스템을 수도꼭지에 비유해서 설명. 회복률은 현재 HP가 아니라 최대 HP 기준이어야 한다는 걸 깨달음.
+
+**11:00** — `/qq:research`. 오픈소스 RPG의 회복 모델 비교. Valheim 방식 채택.
+
+**14:00** — `/qq:claude-code-review`. Review Gate 작동 — 검증 완료 전까지 편집 차단. subagent가 각 지적 검증. 수정, 테스트 통과.
+
+**15:00** — `/qq:full-brief`. 4개 문서 병렬 생성. 리뷰어가 아키텍처 다이어그램 보고 10분 만에 승인.
+
+**15:30** — `/qq:commit-push`. Pre-push hook이 최종 테스트. 올 그린. 머지 완료.
