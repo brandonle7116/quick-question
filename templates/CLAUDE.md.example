@@ -1,0 +1,71 @@
+# CLAUDE.md
+
+## Language
+
+Default response language: English
+
+## Coding Standards
+
+- Do not modify UI code unless explicitly requested
+- Reflection is only allowed in test code and developer tools; never in game runtime logic
+- No unnecessary defensive programming (extra null checks, ?., ?? etc.) — trust internal code contracts
+- Aim for the current best solution — maintainable, well-structured
+- No backward compatibility shims — delete old interfaces and deprecated fields directly
+- No over-engineering — don't add abstraction layers, config options, or generic parameters for hypothetical future needs
+
+## Compile Verification (Required)
+
+After every .cs file change, **must** verify compilation passes before reporting "done":
+- Use `./scripts/unity-compile-smart.sh --timeout 15`
+- If compilation fails, analyze the error, fix it, and recompile until it passes
+- Do not skip this step
+
+## Unity EvalServer (Runtime Editor Control)
+
+The project includes an EvalServer (HTTP server) that auto-starts when Unity Editor opens.
+Port is determined by project path hash, recorded in `Temp/eval_server.json`.
+
+### Usage
+
+```bash
+# Get port
+PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+
+# Ping
+curl -s http://localhost:$PORT/ping
+
+# Send command
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"<command>","args":{...}}' \
+  -H 'Content-Type: application/json'
+```
+
+### Common Commands
+
+```bash
+# Status
+{"command":"status"}
+{"command":"console","args":{"count":20}}
+{"command":"console","args":{"count":20,"filter":"error"}}
+{"command":"compile-status"}
+{"command":"get-compile-result"}
+
+# Tests
+{"command":"run-tests","args":{"mode":"editmode"}}
+{"command":"run-tests","args":{"mode":"playmode"}}
+{"command":"run-tests","args":{"filter":"MyTest"}}
+{"command":"get-test-result"}
+{"command":"get-test-result","args":{"runId":"abc12345"}}
+
+# Editor Control
+{"command":"play"}
+{"command":"stop"}
+{"command":"refresh"}
+{"command":"save-scene"}
+{"command":"clear-console"}
+
+# Find
+{"command":"find","args":{"name":"Ship"}}
+{"command":"find","args":{"type":"Camera"}}
+{"command":"inspect","args":{"id":12345}}
+```

@@ -1,0 +1,23 @@
+Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
+
+Composite command: run /qq-arch-review and /qq-pr-review in sequence, writing output to the same branch directory.
+
+Arguments: $ARGUMENTS
+- No arguments: compare develop...HEAD
+- `--base <branch>`: specify the comparison base branch
+
+## Execution Steps
+
+1. Use two parallel agents to execute respectively:
+   - Agent 1: follow the complete instructions in `.claude/commands/qq-arch-review.md` to generate the architecture change document
+   - Agent 2: follow the complete instructions in `.claude/commands/qq-pr-review.md` to generate the PR review checklist
+
+2. Once both agents complete, inform the user of both file paths
+
+## Output Files
+
+Both files go to the same directory and share the same timestamp:
+- `Docs/<branch-name>/arch-review_<timestamp>.md`
+- `Docs/<branch-name>/pr-review_<timestamp>.md`
+
+Obtain the timestamp once before launching, and share it between both agents.

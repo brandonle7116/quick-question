@@ -1,0 +1,30 @@
+# AGENTS.md — Architecture & Review Rules
+
+## Architecture Layers
+
+Define your project's dependency layers here. Example:
+
+```
+Common (L0) ← Service (L1) ← GameSystem (L2) ← Application (L3)
+```
+
+Dependencies must flow downward. No circular dependencies between layers.
+
+## Anti-Patterns
+
+List project-specific anti-patterns that code review should detect. Example:
+
+1. `FindObjectOfType` in runtime code — use Registry/Manager singletons instead (Editor code is exempt)
+2. Raw SQL queries — use ORM
+3. Mutable global state — ensure multi-instance isolation
+4. Missing event unsubscription in OnDestroy
+
+## Module Boundaries
+
+Describe your .asmdef or module boundaries here. Example:
+
+| Module | Depends On | Must Not Depend On |
+|--------|-----------|-------------------|
+| Common | (none) | anything above |
+| Service | Common | GameSystem, Application |
+| GameSystem | Common, Service | Application |
