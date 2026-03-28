@@ -76,19 +76,18 @@ if [ -f "$MANIFEST" ]; then
   if grep -q "com.tyk.tykit" "$MANIFEST"; then
     echo "  tykit: already in manifest.json"
   else
-    # Add tykit as git dependency
-    TYKIT_URL="https://github.com/tykisgod/tykit.git"
-    TYKIT_HASH=$(cd "$SCRIPT_DIR/packages/com.tyk.tykit" && git log --format=%H -1 2>/dev/null || echo "main")
-    # Insert before the closing brace of dependencies
-    python3 -c "
-import json
-with open('$MANIFEST') as f:
+    # Add tykit as git dependency (hash pinned to tested release)
+    TYKIT_REF="https://github.com/tykisgod/tykit.git#b14919953fd8f655be05a929b69c9d71d6556ebe"
+    python3 - "$MANIFEST" "$TYKIT_REF" << 'PYEOF'
+import json, sys
+manifest_path, tykit_ref = sys.argv[1], sys.argv[2]
+with open(manifest_path) as f:
     m = json.load(f)
-m['dependencies']['com.tyk.tykit'] = '$TYKIT_URL#$TYKIT_HASH'
-with open('$MANIFEST', 'w') as f:
+m['dependencies']['com.tyk.tykit'] = tykit_ref
+with open(manifest_path, 'w') as f:
     json.dump(m, f, indent=2)
     f.write('\n')
-"
+PYEOF
     echo "  tykit: added to manifest.json"
   fi
 else

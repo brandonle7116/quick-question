@@ -12,4 +12,4 @@ Review changes from the most recent interaction (skills, configs, settings, and 
    - Redundancy (unnecessary blank lines, duplicate content)
 3. If issues are found, fix them directly
 4. Output a brief review conclusion
-5. Clear the skill change marker: `rm -f /tmp/claude-skill-modified-marker`
+5. Clear the skill change marker: `rm -f /tmp/claude-skill-modified-*`

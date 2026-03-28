@@ -162,6 +162,8 @@ The default `/qq-st` only runs EditMode + PlayMode tests. To add scenario tests 
 - **macOS only** (v1) — scripts use osascript, /Applications/Unity, ~/Library/Logs
 - **Codex CLI required** for cross-model review features
 - **Unity 2021.3+** required by tykit package
+- **EvalServer is localhost-only, no authentication** — any local process can send commands. This is acceptable for development machines but not for shared/CI environments
+- **Compile verification via EvalServer uses console log scraping** — may occasionally misreport if old errors are in the console buffer. Use `clear-console` before critical compiles
 
 ---
 

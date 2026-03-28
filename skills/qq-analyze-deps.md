@@ -6,7 +6,7 @@ Analyze the .asmdef dependency relationships of all Service modules in the proje
 
 ### 1. Collect All .asmdef Files
 
-Use Glob to find `Assets/Scripts/Service/**/*.asmdef`, excluding Tests and Editor asmdefs (filenames containing `.Tests.`, `.Editor.`, or `.PlayModeTests.`).
+Use Glob to find `Assets/**/*.asmdef`, excluding Tests and Editor asmdefs (filenames containing `.Tests.`, `.Editor.`, or `.PlayModeTests.`).
 
 ### 2. Build GUID → Name Mapping
 

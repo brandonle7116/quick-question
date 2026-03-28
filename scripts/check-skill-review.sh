@@ -6,7 +6,8 @@
 # 2. /qq-self-review deletes the marker file after review
 # 3. This Stop hook checks if the marker file exists; if so, blocks
 
-MARKER="/tmp/claude-skill-modified-marker"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+MARKER="/tmp/claude-skill-modified-$(echo "$PROJECT_DIR" | md5sum | cut -c1-8 2>/dev/null || md5 -q -s "$PROJECT_DIR" | cut -c1-8)"
 
 # Read stdin (Stop hook input)
 INPUT=$(cat)
