@@ -125,14 +125,17 @@ After installation, open your Unity project and start Claude Code:
 |---------|-------------|
 | **Testing** | |
 | `/qq:test` | Run unit/integration tests with error checking |
-| `/qq:st` | Full test pipeline (EditMode → PlayMode → error check) |
-| **Code Review** | |
-| `/qq:codex-code-review` | Cross-model code review (Codex + verification loop) |
+| **Code Review (Codex)** | *Requires [Codex CLI](https://github.com/openai/codex)* |
+| `/qq:codex-code-review` | Cross-model code review (Claude + Codex with verification) |
 | `/qq:codex-plan-review` | Cross-model design document review |
+| **Code Review (Claude-only)** | *No extra tools needed* |
+| `/qq:claude-code-review` | Deep code review using Claude subagents |
+| `/qq:claude-plan-review` | Deep design document review using Claude subagents |
+| **Code Review (Quick)** | |
 | `/qq:code-review` | Project-specific review (reads your `AGENTS.md` rules) |
 | `/qq:self-review` | Review skill/config changes for quality |
 | **Analysis** | |
-| `/qq:brief` | Architecture diff + PR checklist (2 docs from 1 skill) |
+| `/qq:brief` | Architecture diff + PR checklist (2 docs) |
 | `/qq:timeline` | Commit history timeline with phase analysis (2 docs) |
 | `/qq:full-brief` | Run brief + timeline in parallel (4 docs total) |
 | `/qq:deps` | `.asmdef` dependency graph + matrix + health check |
@@ -143,6 +146,7 @@ After installation, open your Unity project and start Claude Code:
 | `/qq:research` | Search open-source solutions for current problem |
 | `/qq:changes` | Summarize all changes in current conversation |
 | `/qq:doc-tidy` | Scan repo docs, analyze organization, suggest cleanup |
+| `/qq:doc-drift` | Compare design docs vs code, find inconsistencies |
 
 ## How It Works
 
