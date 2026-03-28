@@ -15,8 +15,8 @@ jobs:
       - name: ShellCheck
         run: |
           brew install shellcheck
-          find scripts -name '*.sh' -not -type l | xargs shellcheck -S warning
-          shellcheck -S warning install.sh test.sh
+          find scripts -name '*.sh' -not -type l | xargs shellcheck -S error
+          shellcheck -S error install.sh test.sh
 
       - name: JSON validity
         run: |

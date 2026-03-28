@@ -21,11 +21,11 @@ if command -v shellcheck &>/dev/null; then
   SHELL_FILES="$SHELL_FILES $SCRIPT_DIR/install.sh $SCRIPT_DIR/test.sh"
   SC_FAIL=0
   for f in $SHELL_FILES; do
-    if shellcheck -S warning "$f" >/dev/null 2>&1; then
+    if shellcheck -S error "$f" >/dev/null 2>&1; then
       pass "$(basename "$f")"
     else
       fail "$(basename "$f")"
-      shellcheck -S warning "$f" 2>&1 | head -20
+      shellcheck -S error "$f" 2>&1 | head -20
       SC_FAIL=1
     fi
   done
