@@ -36,7 +36,7 @@
 - **Auto-compile** — every `.cs` edit triggers compilation automatically via hook
 - **Test pipeline** — EditMode + PlayMode tests with runtime error checking
 - **Cross-model review** — Claude orchestrates, Codex reviews, each finding verified against source
-- **22 slash commands** — covering design, planning, implementation, review, testing, analysis, and shipping
+- **22 skills** — covering design, planning, implementation, review, testing, analysis, and shipping
 - **tykit** — HTTP server inside Unity Editor that any AI agent can control
 
 ## Lifecycle Pipeline
