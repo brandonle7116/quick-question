@@ -151,210 +151,98 @@ flowchart TD
     H -->|No| I["✅ Done"]
 ```
 
-## A Day with qq
+## Scenarios
 
-> Alex is working on a GTA-style open world game in Unity. 200k lines of C#, 15 service modules, 4 developers. She just installed qq. Here's her Tuesday.
+### 1. Build a feature from scratch
 
-**9:00 AM — Start coding**
-
-Alex asks Claude to add a vehicle health system — cars should take damage from collisions, catch fire at low HP, and explode. Claude writes `VehicleDamageSystem.cs`, `FireEffect.cs`, and modifies `CollisionHandler.cs`.
-
-She doesn't run any compile command. Each time Claude saves a `.cs` file, a hook fires automatically:
+> Solo developer. One-line requirement: "add a food system."
 
 ```
-⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
+/qq:go "add a food system"
 ```
 
-Three files edited, three automatic compiles. She doesn't even notice.
+qq suggests `/qq:design`. Asks 3 questions (reference games? data format? MVP?), writes a design doc.
 
-**9:30 AM — Run tests**
+→ "Design ready. Run `/qq:plan`?" — reads the design, explores the codebase, outputs a 6-step implementation plan with file paths and interfaces.
 
-```
-/qq:test
-```
+→ "Plan ready. Run `/qq:execute`?" — creates `IFoodSource` interface (direct write), implements `HungerSystem` and `FoodContainer` (parallel subagents), wires into existing `NeedSystem`. Each `.cs` save auto-compiles via hook.
 
-```
-EditMode:  186/186 passed
-PlayMode:   42/42 passed
-Runtime errors: 1 found
-  [Error] NullReferenceException at VehicleDamageSystem.cs:34
-  Source: VehicleDamageSystem.OnEnable() — _rigidbody not assigned
-```
+→ "Run `/qq:best-practice`?" — catches `GetComponent` in `Update` and a missing event unsubscription. Fixed.
 
-All 228 tests "passed", but qq caught a runtime error hiding in the console — a `GetComponent` that runs before the Rigidbody is ready. Claude reads the code, moves the call to `Start()`, auto-compiles. Clean.
+→ "Run `/qq:test`?" — all green. → "Run `/qq:commit-push`?"
 
-**10:00 AM — A new team member asks: "How does our damage system work?"**
+**Or skip all prompts:** `/qq:go --auto "add a food system"` runs everything end-to-end.
+
+---
+
+### 2. Review code before merging
+
+> Team developer. 400 lines of C# across 5 files. Ready for review.
 
 ```
-/qq:grandma "vehicle damage system"
+/qq:go
 ```
 
-> "Imagine every car is a balloon. Crashing into things pokes tiny holes — that's damage. When enough holes open up, air leaks out fast — that's the fire stage. Eventually there's no air left, and the balloon pops — that's the explosion. The armor stat is like how thick the balloon's skin is."
+qq detects uncommitted `.cs` changes. Suggests `/qq:best-practice`. Catches a `public` field that should be `[SerializeField] private` and a missing `CompareTag`. Fixed in 30 seconds.
 
-The new dev gets it in 30 seconds.
+→ "Run `/qq:codex-code-review`?" — diff sent to Codex. Review Gate locks edits. Subagents verify: 1 critical confirmed (no `isDead` guard during respawn), 1 false positive rejected. Fix applied, gate unlocks.
 
-Later, Alex needs to explain the **module architecture** to the tech lead:
+→ "Run `/qq:doc-drift`?" — design doc says fire starts at 30% HP, code uses 25%. Doc updated.
 
-```
-/qq:explain VehicleDamageSystem
-```
+→ "Run `/qq:commit-push`?" — pre-push hook runs tests. All green. Pushed.
 
-Claude reads the source and design docs, then outputs a structured breakdown: responsibilities, dependencies, data flow, and key design decisions. Technical but clear.
+---
 
-**10:30 AM — The fire VFX feels wrong**
+### 3. Understand a large codebase
 
-Alex isn't sure how other games handle vehicle fire progression.
+> New team member. Day one on a 200k-line Unity project.
 
 ```
-/qq:research
+/qq:grandma "task system"
+```
+> "Imagine a restaurant. Each crew member is a waiter. The task system is the manager who looks at all the tables, decides who's closest and free, and assigns them. Urgent tables jump the queue."
+
+Now the technical version:
+
+```
+/qq:explain TaskSystem
 ```
 
-| Game | Fire Model | Pros | Cons |
-|------|-----------|------|------|
-| GTA V | HP threshold stages (smoke → fire → explosion) | Intuitive, cinematic | Rigid, no player agency |
-| Assassin's Creed | Damage-over-time with spread | Realistic | Complex, hard to balance |
-| Just Cause | Instant explosion at threshold | Simple, satisfying | No warning for player |
-
-Alex picks the GTA V model — three visual stages based on HP thresholds. Proven, players already understand it.
-
-**11:00 AM — Check module dependencies before going deeper**
+Outputs: responsibilities, key classes, data flow, lifecycle hooks, design decisions.
 
 ```
 /qq:deps
 ```
 
-Claude scans all `.asmdef` files, generates a Mermaid dependency graph and a matrix table. Alex spots that `VehicleSystem` accidentally depends on `WeaponSystem` — a layer violation. She fixes the dependency before it spreads.
-
-```
-/qq:deps VehicleSystem
-```
-
-This time just the upstream/downstream of `VehicleSystem` — a focused view showing exactly what it touches.
-
-**11:30 AM — Check if the design doc is still accurate**
-
-```
-/qq:doc-drift --module vehicle
-```
-
-Claude compares the vehicle design doc against actual code. Found 2 mismatches: the doc says fire starts at 30% HP, code uses 25%. And a planned "repair mechanic" is documented but not implemented yet — marked as "not yet built, not a bug."
-
-**2:00 PM — Cross-model code review before asking the team to review**
-
-```
-/qq:codex-code-review
-```
-
-The diff is sent to Codex for review. ~5 minutes later, findings come back. A **Review Gate** activates — Claude can't edit any code until each finding is verified by an independent subagent.
-
-```
-=== Round 1/5 ===
-
-Codex found:
-  [Critical] VehicleDamageSystem applies damage during respawn — no isDead guard
-  [Medium] FireEffect instantiates VFX every frame — should pool
-  [Suggestion] CollisionHandler.OnCollisionEnter allocates a new List every call
-
-Dispatching 2 verification subagents...
-
-  [Critical] isDead guard: CONFIRMED — VehicleDamageSystem.cs:47, no check
-  [Medium] VFX pooling: CONFIRMED — FireEffect.cs:23, Instantiate in Update
-
-Gate unlocked. Fixing confirmed issues...
-  ✅ Compiled. 186/186 EditMode, 42/42 PlayMode passed.
-
-=== Round 2/5 ===
-No [Critical] issues. Review passed.
-```
-
-> *Tip: `/qq:claude-code-review` does the same thing without needing Codex CLI — uses Claude subagents instead. Same Gate, same verification loop, no external dependency.*
-
-**3:00 PM — Generate review materials for the team**
-
-```
-/qq:full-brief
-```
-
-Two agents run in parallel. Four documents land in `Docs/qq/`:
-
-```
-arch-review     — Mermaid diagram: VehicleDamageSystem → Rigidbody, FireEffect → VFXPool
-pr-review       — P0: isDead guard, P1: VFX pooling, P2: List allocation
-timeline-arch   — Phase 1: base damage, Phase 2: fire stages, Phase 3: explosion + respawn
-timeline-review — review items grouped by development phase
-```
-
-These aren't PR description copy-paste — they're structured materials for human reviewers. The tech lead opens the arch diagram, traces the dependency flow, then reads the P0 items. Review done in 15 minutes instead of an hour.
-
-**3:30 PM — What did we do today?**
-
-```
-/qq:changes
-```
-
-Claude summarizes: 3 new files, 2 modified, 1 bug fixed (isDead guard), 1 performance fix (VFX pooling). Ready to write the commit messages.
-
-**3:45 PM — Before committing, one more check**
-
-```
-/qq:best-practice
-```
-
-A quick project-specific review — checks against the team's own rules in `AGENTS.md`: no `FindObjectOfType` in runtime, no missing `OnDestroy` cleanup, no cross-module dependency violations. Catches that `FireEffect` doesn't unsubscribe from `OnDamageChanged` in `OnDestroy`. Fixed.
-
-**4:00 PM — Ship it**
-
-```
-/qq:commit-push
-```
-
-Claude groups changes into 3 logical commits:
-- `feat: vehicle damage system with HP-based collision damage`
-- `feat: fire VFX stages (smoke → fire → explosion)`
-- `fix: isDead guard + VFX pooling + event cleanup`
-
-Pre-push hook runs tests one last time:
-
-```
-[pre-push] EditMode 186/186 ✅ PlayMode 42/42 ✅
-[pre-push] Runtime errors: 0
-All tests passed, push allowed.
-```
-
-**4:15 PM — The repo is getting messy**
-
-Over the past month, design docs, review outputs, and temp specs have piled up everywhere.
-
-```
-/qq:doc-tidy
-```
-
-Claude scans the entire repo, categorizes 47 doc files, and outputs a cleanup plan:
-- 12 temp review files → archive
-- 5 duplicate design docs → merge
-- 3 orphaned docs referencing deleted modules → delete
-- Root directory has 8 files that should be in `Docs/`
-
-Alex reviews the plan, approves, and the repo is clean again.
-
-**End of day**
-
-```
-/qq:timeline
-```
-
-Looking at the branch history, the timeline skill groups 11 commits into 3 semantic phases:
-1. Core damage system (commits 1-4)
-2. Fire VFX stages (commits 5-8)
-3. Bug fixes and cleanup (commits 9-11)
-
-Each phase has its own architecture evolution doc and code review checklist. Perfect for the Friday team review meeting.
+Mermaid dependency graph of all `.asmdef` modules. `TaskSystem` depends on `NavigationSystem` and `NeedSystem` but not `CombatSystem` — clean boundaries.
 
 ---
 
-> Every step had a safety net. Auto-compile caught syntax errors instantly. Tests caught logic bugs. Runtime error checking caught hidden exceptions. Cross-model review caught design flaws. The Gate prevented premature fixes. Pre-push hook was the final checkpoint.
->
-> Alex never had to remember "which command should I run now." The harness guided her.
+### 4. Control Unity from any tool (tykit standalone)
+
+> CI/tool developer. Not using Claude Code. Just needs to talk to Unity via HTTP.
+
+```json
+"com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
+```
+
+```bash
+PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+
+# Compile
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"compile-status"}' -H 'Content-Type: application/json'
+
+# Run tests
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"run-tests","args":{"mode":"editmode"}}' -H 'Content-Type: application/json'
+
+# Read errors
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"console","args":{"count":50,"filter":"error"}}' -H 'Content-Type: application/json'
+```
+
+tykit is just HTTP. Use it from Python, GitHub Actions, or any AI agent. See [tykit API Reference](docs/tykit-api.md) for all 13 commands.
 
 ## tykit
 
