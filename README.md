@@ -32,12 +32,11 @@
 
 ## What It Does
 
-- **Lifecycle-aware routing** — `/qq:go` detects where you are (design? implementing? reviewing?) and suggests the next step
-- **Auto-compile** — every `.cs` edit triggers compilation automatically via hook
-- **Test pipeline** — EditMode + PlayMode tests with runtime error checking
-- **Cross-model review** — Claude orchestrates, Codex reviews, each finding verified against source
-- **22 skills** — covering design, planning, implementation, review, testing, analysis, and shipping
-- **tykit** — HTTP server inside Unity Editor that any AI agent can control
+**`/qq:go` — lifecycle-aware routing.** Detects where you are in the dev cycle and suggests the next step. Design doc exists? It suggests planning. Code written? It suggests review. Tests pass? It suggests shipping. Use `--auto` to run the full pipeline hands-free.
+
+**tykit — Unity Editor under AI control.** An HTTP server inside Unity Editor that any AI agent can call. Compile, run tests, control Play Mode, read console logs, find and inspect GameObjects — all via `curl`. No SDK, no UI automation. Works standalone or with qq.
+
+Plus: auto-compilation on every `.cs` edit, EditMode + PlayMode test pipelines, cross-model code review (Claude + Codex with verification), and 22 skills covering the full dev lifecycle.
 
 ## Lifecycle Pipeline
 
