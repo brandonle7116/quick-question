@@ -50,6 +50,6 @@ All notable changes to quick-question are documented here.
 - Initial release — Unity Agent Harness for Claude Code
 - Core skills: test, st, commit-push, codex-code-review, codex-plan-review, code-review, self-review, explain, research, changes
 - Hook system: auto-compile, skill review enforcement
-- EvalServer (tykit) UPM package
+- tykit UPM package
 - `install.sh` installer
 - Claude Code Plugin format (plugin.json, marketplace.json)

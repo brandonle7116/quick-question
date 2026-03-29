@@ -41,7 +41,7 @@ Shared utilities live in `unity-common.sh` (Editor detection, Unity path lookup,
 
 ### tykit
 
-UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play/stop, console, find/inspect. Port stored in `Temp/eval_server.json` (hash of project path).
+UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play/stop, console, find/inspect. Port stored in `Temp/tykit.json` (hash of project path).
 
 ### Cross-Model Review (Codex Tribunal)
 

@@ -32,8 +32,8 @@ find_unity_eval() {
 }
 
 # ── 获取 tykit 端口 ──
-get_eval_port() {
-    local json_file="$PROJECT_DIR/Temp/eval_server.json"
+get_tykit_port() {
+    local json_file="$PROJECT_DIR/Temp/tykit.json"
     if [ -f "$json_file" ]; then
         python3 -c "import json; print(json.load(open('$json_file'))['port'])" 2>/dev/null
     fi

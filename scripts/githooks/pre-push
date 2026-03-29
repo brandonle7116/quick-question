@@ -22,7 +22,7 @@ if [ -f "$EDITOR_LOG" ]; then
     BASELINE=$(wc -l < "$EDITOR_LOG")
 fi
 
-PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/Temp/eval_server.json'))['port'])" 2>/dev/null || true)
+PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/Temp/tykit.json'))['port'])" 2>/dev/null || true)
 if [ -n "$PORT" ]; then
     curl -s --connect-timeout 3 --max-time 5 -X POST "http://localhost:$PORT/" \
         -d '{"command":"clear-console"}' -H 'Content-Type: application/json' >/dev/null 2>&1 || true

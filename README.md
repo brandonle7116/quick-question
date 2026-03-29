@@ -217,7 +217,7 @@ tykit is a standalone HTTP server inside Unity Editor. Any AI agent can control 
 **Or with qq** — where it powers auto-compilation and testing behind the scenes.
 
 ```bash
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 
 # Compile
 curl -s -X POST http://localhost:$PORT/ \
@@ -557,7 +557,7 @@ tykit 是 Unity Editor 内的独立 HTTP 服务器。任何 AI agent 都可以�
 **或配合 qq** — 在后台驱动自动编译和测试。
 
 ```bash
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 
 # 编译
 curl -s -X POST http://localhost:$PORT/ \

@@ -71,7 +71,7 @@ trigger_editor_tests() {
     echo ""
 
     local port
-    port=$(get_eval_port)
+    port=$(get_tykit_port)
     if [ -z "$port" ]; then
         echo -e "${RED}tykit unreachable${NC}"
         return 2

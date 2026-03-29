@@ -86,9 +86,9 @@ fi
 # 公共函数（is_editor_open_for_project, find_unity_eval 等）
 source "$(dirname "$0")/unity-common.sh"
 
-run_evalserver_mode() {
+run_tykit_mode() {
     # 检查 tykit 是否可达
-    [ -f "$PROJECT_DIR/Temp/eval_server.json" ] || return 2
+    [ -f "$PROJECT_DIR/Temp/tykit.json" ] || return 2
 
     local eval_script
     eval_script=$(find_unity_eval)
@@ -103,7 +103,7 @@ run_evalserver_mode() {
 run_editor_mode() {
     # 优先尝试 tykit（不抢焦点、最快路径）
     local rc
-    run_evalserver_mode
+    run_tykit_mode
     rc=$?
     if [ "$rc" -eq 0 ]; then
         return 0

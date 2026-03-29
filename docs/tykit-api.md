@@ -12,13 +12,13 @@ No need to install quick-question. Just add one line to your Unity project's `Pa
 "com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
 ```
 
-Open Unity — tykit starts automatically. Port is stored in `Temp/eval_server.json`.
+Open Unity — tykit starts automatically. Port is stored in `Temp/tykit.json`.
 
 ## What You Can Do
 
 **Run tests and get results:**
 ```bash
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 
 # Start EditMode tests
 curl -s -X POST http://localhost:$PORT/ \

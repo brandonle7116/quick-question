@@ -6,7 +6,7 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Run Unity unit/integration tests and check for runtime errors.
 
-> **Unity Backend:** This skill supports multiple backends. If MCP tools are available (`run_tests` from mcp-unity, or `tests-run` from Unity-MCP), use them instead of the tykit/script commands below. If no MCP tools are available, use tykit's EvalServer as documented here. To discover tykit commands: `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` where PORT comes from `Temp/eval_server.json`.
+> **Unity Backend:** This skill supports multiple backends. If MCP tools are available (`run_tests` from mcp-unity, or `tests-run` from Unity-MCP), use them instead of the tykit/script commands below. If no MCP tools are available, use tykit as documented here. To discover tykit commands: `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` where PORT comes from `Temp/tykit.json`.
 
 Arguments: $ARGUMENTS
 - (no arguments): Run both EditMode and PlayMode
@@ -24,22 +24,101 @@ Examples:
 
 ## Steps
 
-### 1. Clear Console + Mark Editor.log position
+### 1. tykit Health Check
+
+Before using tykit, verify it's reachable and talking to the correct Unity instance.
+
+#### 1a. Read port + PID
+
+```bash
+TYKIT_JSON="Temp/tykit.json"
+if [ ! -f "$TYKIT_JSON" ]; then
+  echo "tykit.json not found — Unity Editor may not be running"
+  # STOP: ask user to open Unity for this project via Unity Hub
+fi
+PORT=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['port'])")
+TYKIT_PID=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['pid'])")
+```
+
+#### 1b. Verify PID is the main Unity Editor (not a Worker)
+
+The most common port-stealing culprit is `AssetImportWorker` — it can overwrite `tykit.json` with its own PID, leaving the port pointing at a process that isn't running TykitServer.
+
+```bash
+# macOS; on Windows use: wmic process where "ProcessId=$TYKIT_PID" get CommandLine
+PROC_ARGS=$(ps -p "$TYKIT_PID" -o args= 2>/dev/null || true)
+if [ -z "$PROC_ARGS" ]; then
+  echo "PID $TYKIT_PID is dead — tykit.json is stale"
+  # STOP: delete stale tykit.json, ask user to reopen Unity
+fi
+IS_WORKER=$(echo "$PROC_ARGS" | grep -cE "AssetImportWorker|UnityPackageManager|UnityHelper" || true)
+if [ "$IS_WORKER" -ne 0 ]; then
+  echo "PID $TYKIT_PID is a subprocess ($PROC_ARGS), not the main Unity Editor"
+  # STOP: ask user to restart Unity manually (never kill — risks Library corruption)
+fi
+```
+
+#### 1c. GET health check (`/ping`)
+
+```bash
+PING=$(curl -s --connect-timeout 3 --max-time 5 "http://localhost:$PORT/ping" 2>/dev/null) || true
+if [ -z "$PING" ]; then
+  echo "tykit on port $PORT not responding to /ping"
+  # STOP: ask user to check Unity window for modal dialogs
+fi
+```
+
+#### 1d. POST health check (`compile-status`)
+
+`/ping` responds from the listener thread without touching Unity API. A modal dialog or domain reload can block the main thread, causing POST commands to hang while `/ping` still works. Verify POST works:
+
+```bash
+CS=$(curl -s --connect-timeout 5 --max-time 15 -X POST "http://localhost:$PORT/" \
+  -d '{"command":"compile-status"}' -H 'Content-Type: application/json' 2>/dev/null) || true
+if [ -z "$CS" ]; then
+  echo "tykit POST timed out — ping works but commands do not"
+  # Diagnose by priority:
+  # 1. Re-check PID (step 1b) — Worker is the #1 cause
+  # 2. Check for Unity modal dialogs blocking the main thread
+  # 3. Wait 30s for domain reload to finish, then retry
+fi
+echo "tykit healthy: port=$PORT pid=$TYKIT_PID"
+```
+
+**Diagnostic table:**
+
+| Symptom | Likely cause | Action |
+|---------|-------------|--------|
+| `tykit.json` missing | Unity not running or never opened this project | Ask user to open Unity via Unity Hub |
+| PID dead | Unity closed but `tykit.json` not cleaned up | Delete stale `tykit.json`, ask user to reopen |
+| PID is AssetImportWorker | Worker subprocess stole the port on restart | Ask user to restart Unity manually |
+| PID is UnityPackageManager/UnityHelper | Other Unity subprocess inherited the port | Ask user to restart Unity manually |
+| `/ping` timeout | Unity hung or not listening | Ask user to check Unity window |
+| `/ping` OK but POST timeout | Modal dialog blocking main thread, or domain reload in progress | Re-verify PID (step 1b) → check for dialogs → wait 30s retry |
+
+**Rules:**
+- **Never `kill` Unity** (including Workers) — risks Library corruption and cascade failures
+- **Never hardcode Unity paths** — use `find_unity` from `unity-common.sh` or let the user specify
+- **Never launch Unity from command line** — easy to pick wrong version; ask user to open via Unity Hub
+- If health check fails, **stop and report** — do not attempt workarounds
+
+> **MCP backends:** Skip this step entirely — MCP tools manage their own connection.
+
+### 2. Clear Console + Mark Editor.log position
 
 ```bash
 source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
 EDITOR_LOG="$(qq_get_editor_log_path)"
 BASELINE=$(wc -l < "$EDITOR_LOG")
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])" 2>/dev/null)
 if [ -n "$PORT" ]; then
   curl -s --connect-timeout 5 --max-time 15 -X POST http://localhost:$PORT/ \
     -d '{"command":"clear-console"}' -H 'Content-Type: application/json'
 fi
 ```
 
-> **MCP backends:** Skip this step — neither mcp-unity nor Unity-MCP has a console-clear equivalent. Runtime error checking (Step 3) uses Editor.log directly and does not depend on console state.
+> **MCP backends:** Skip this step — neither mcp-unity nor Unity-MCP has a console-clear equivalent. Runtime error checking (Step 4) uses Editor.log directly and does not depend on console state.
 
-### 2. Run tests
+### 3. Run tests
 
 Select command based on arguments:
 
@@ -56,7 +135,7 @@ Select command based on arguments:
 
 > **MCP backends:** Use `run_tests` (mcp-unity) or `tests-run` (Unity-MCP) instead of the scripts above. Pass mode, filter, assembly, and timeout as tool parameters. When no mode argument is given, preserve the sequencing: run EditMode first, check the result, and only proceed to PlayMode if EditMode passes. On failure, apply the same analysis as below.
 
-### 3. Check runtime errors
+### 4. Check runtime errors
 
 Even if all tests pass, runtime errors may still occur. Check via Editor.log (not dependent on the console API buffer):
 

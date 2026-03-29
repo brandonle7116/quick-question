@@ -24,13 +24,13 @@ After every .cs file change, **must** verify compilation passes before reporting
 ## tykit (Runtime Editor Control)
 
 The project includes tykit, an HTTP server that auto-starts when Unity Editor opens.
-Port is determined by project path hash, recorded in `Temp/eval_server.json`.
+Port is determined by project path hash, recorded in `Temp/tykit.json`.
 
 ### Usage
 
 ```bash
 # Get port
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 
 # Ping
 curl -s http://localhost:$PORT/ping
