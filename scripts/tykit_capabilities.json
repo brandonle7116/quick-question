@@ -9,6 +9,7 @@
   "profiles": {
     "standard": [
       "unity_health",
+      "unity_doctor",
       "unity_compile",
       "unity_run_tests",
       "unity_console",
@@ -21,6 +22,7 @@
     ],
     "full": [
       "unity_health",
+      "unity_doctor",
       "unity_compile",
       "unity_run_tests",
       "unity_console",
@@ -38,6 +40,10 @@
     ]
   },
   "preferredProviders": {
+    "diagnostics": [
+      "tykit_direct",
+      "tykit_mcp"
+    ],
     "compile": [
       "tykit_direct",
       "tykit_mcp",
@@ -78,6 +84,13 @@
   "toolAnnotations": {
     "unity_health": {
       "title": "Unity Health",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "unity_doctor": {
+      "title": "Unity Doctor",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
@@ -183,6 +196,16 @@
     }
   },
   "thirdPartyMappings": {
+    "diagnostics": {
+      "mcp_unity": [],
+      "unity_mcp": [],
+      "tykit_direct": [
+        "scripts/qq-doctor.sh"
+      ],
+      "tykit_mcp": [
+        "unity_doctor"
+      ]
+    },
     "compile": {
       "mcp_unity": [
         "recompile_scripts"

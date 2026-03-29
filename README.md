@@ -98,6 +98,12 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
+`install.sh` now does three things for the consumer project by default:
+
+- installs or refreshes the project-local qq scripts
+- wires `.mcp.json` to the built-in `scripts/tykit_mcp.py` bridge
+- adds `./scripts/qq-doctor.sh` so you can inspect direct-path and MCP routing
+
 ## Quick Start
 
 ```bash
@@ -377,6 +383,12 @@ The intended split is:
 - **qq / Claude MCP workflows** should prefer the built-in tykit bridge when using MCP
 - **general-purpose MCP clients** use the tykit bridge
 - **third-party Unity MCP servers** continue to coexist as compatible fallbacks; the bridge uses its own `unity_*` tool namespace and does not override upstream tool names
+
+To inspect which route a consumer project will actually use, run:
+
+```bash
+./scripts/qq-doctor.sh
+```
 
 **tykit remains the canonical backend.** The built-in `tykit_mcp` bridge wraps tykit for MCP hosts. Only third-party MCP backends make tykit optional.
 

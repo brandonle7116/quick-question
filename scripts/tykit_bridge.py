@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -85,6 +86,37 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "warnings": {"type": "array", "items": {"type": "string"}}
             },
             "required": ["ok", "project_dir", "backend", "warnings"]
+        }
+    },
+    "unity_doctor": {
+        "title": "Unity Doctor",
+        "description": "Diagnose qq direct-path readiness, built-in MCP configuration, third-party MCP coexistence, and the effective provider chosen for each capability.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {
+                    "type": "string",
+                    "description": "Optional Unity project root. If omitted, the server tries --project, TYKIT_PROJECT_DIR, then the current working directory."
+                }
+            }
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "category": {"type": "string"},
+                "message": {"type": "string"},
+                "project_dir": {"type": "string"},
+                "claude_plugin_enabled": {"type": "boolean"},
+                "claude_settings_files": {"type": "array", "items": {"type": "string"}},
+                "mcp_config_file": {"type": "string"},
+                "mcp_servers": {"type": "array", "items": {"type": "object"}},
+                "effective_routes": {"type": "object"},
+                "preferred_providers": {"type": "object"},
+                "health": {"type": "object"},
+                "warnings": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["ok", "project_dir", "message", "effective_routes", "warnings", "health"]
         }
     },
     "unity_compile": {
@@ -694,6 +726,8 @@ class TykitBridge:
 
         if tool_name == "unity_health":
             return self.health(args.get("project_dir"))
+        if tool_name == "unity_doctor":
+            return self.doctor(args.get("project_dir"))
         if tool_name == "unity_compile":
             return self.compile(args)
         if tool_name == "unity_run_tests":
@@ -821,6 +855,64 @@ class TykitBridge:
             "warnings": warnings,
             "message": "tykit reachable" if ping_ok and post_ok else "tykit partially unavailable",
             "category": "OK" if ping_ok and post_ok else "TYKIT_UNHEALTHY",
+        }
+
+    def doctor(self, project_dir: str | None = None) -> dict[str, Any]:
+        try:
+            ctx = self.resolve_project(project_dir)
+        except BridgeError as exc:
+            return {
+                **exc.to_result(),
+                "project_dir": project_dir or "",
+                "claude_plugin_enabled": False,
+                "claude_settings_files": [],
+                "mcp_config_file": "",
+                "mcp_servers": [],
+                "effective_routes": {},
+                "preferred_providers": self._config.get("preferredProviders", {}),
+                "health": {},
+                "warnings": [],
+            }
+
+        health = self.health(str(ctx.project_dir))
+        settings_files, claude_plugin_enabled = self.inspect_claude_plugin_state(ctx.project_dir)
+        mcp_path = ctx.project_dir / ".mcp.json"
+        mcp_servers, mcp_warnings = self.inspect_mcp_servers(ctx.project_dir, mcp_path)
+        effective_routes = self.compute_effective_routes(health, mcp_servers)
+
+        warnings = list(mcp_warnings)
+        warnings.extend(health.get("warnings") or [])
+        if not claude_plugin_enabled:
+            warnings.append("qq plugin is not enabled in .claude/settings.json or .claude/settings.local.json")
+        built_in_servers = [item for item in mcp_servers if item.get("provider") == "tykit_mcp"]
+        if not built_in_servers:
+            warnings.append("Built-in tykit MCP is not configured in .mcp.json")
+        elif any(item.get("location") != "project-local" for item in built_in_servers):
+            warnings.append("Built-in tykit MCP is configured, but it does not point at the project-local scripts/tykit_mcp.py")
+        if any(item.get("provider") in {"mcp_unity", "unity_mcp"} for item in mcp_servers):
+            warnings.append("Third-party Unity MCP servers are configured; qq should still prefer the built-in tykit MCP bridge")
+
+        ok = bool(health.get("ok")) and bool(built_in_servers)
+        category = "OK" if ok and claude_plugin_enabled else "WARN"
+        message = "qq direct path and built-in tykit MCP are ready"
+        if not ok:
+            message = "qq routing needs attention"
+        elif not claude_plugin_enabled:
+            message = "Built-in tykit MCP is ready, but the qq plugin is not enabled"
+
+        return {
+            "ok": ok and claude_plugin_enabled,
+            "category": category,
+            "message": message,
+            "project_dir": str(ctx.project_dir),
+            "claude_plugin_enabled": claude_plugin_enabled,
+            "claude_settings_files": [str(path) for path in settings_files],
+            "mcp_config_file": str(mcp_path),
+            "mcp_servers": mcp_servers,
+            "effective_routes": effective_routes,
+            "preferred_providers": self._config.get("preferredProviders", {}),
+            "health": health,
+            "warnings": unique_strings(warnings),
         }
 
     def compile(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -1021,6 +1113,143 @@ class TykitBridge:
         except BridgeError:
             return None
         return self.get_command_catalog(ctx.project_dir)
+
+    def inspect_claude_plugin_state(self, project_dir: Path) -> tuple[list[Path], bool]:
+        settings_files = [
+            project_dir / ".claude" / "settings.json",
+            project_dir / ".claude" / "settings.local.json",
+        ]
+        existing = [path for path in settings_files if path.is_file()]
+        enabled = False
+        for path in existing:
+            data = self.load_optional_json(path)
+            enabled_plugins = data.get("enabledPlugins") if isinstance(data, dict) else None
+            if isinstance(enabled_plugins, dict) and enabled_plugins.get("qq@quick-question-marketplace") is True:
+                enabled = True
+        return existing, enabled
+
+    def inspect_mcp_servers(self, project_dir: Path, mcp_path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+        if not mcp_path.is_file():
+            return [], ["No .mcp.json found in the project root"]
+
+        data = self.load_optional_json(mcp_path)
+        warnings: list[str] = []
+        if not isinstance(data, dict):
+            return [], [f"Failed to parse {mcp_path.name} as JSON"]
+
+        raw_servers = data.get("mcpServers")
+        if not isinstance(raw_servers, dict):
+            return [], [f"{mcp_path.name} does not contain an mcpServers object"]
+
+        servers: list[dict[str, Any]] = []
+        for name, raw in raw_servers.items():
+            if not isinstance(raw, dict):
+                continue
+            command = str(raw.get("command") or "")
+            raw_args = raw.get("args") or []
+            args = [str(item) for item in raw_args] if isinstance(raw_args, list) else []
+            provider, location = self.classify_mcp_server(project_dir, name, command, args)
+            servers.append(
+                {
+                    "name": str(name),
+                    "provider": provider,
+                    "location": location,
+                    "command": command,
+                    "args": args,
+                }
+            )
+        return servers, warnings
+
+    def classify_mcp_server(self, project_dir: Path, name: str, command: str, args: list[str]) -> tuple[str, str]:
+        lowered = " ".join([name, command, *args]).lower()
+        if any(self.is_project_local_bridge_arg(project_dir, arg) for arg in args):
+            return "tykit_mcp", "project-local"
+        if "scripts/tykit_mcp.py" in lowered or "quick-question/scripts/tykit_mcp.py" in lowered:
+            return "tykit_mcp", "repo-local"
+        if "tykit_mcp.py" in lowered:
+            return "tykit_mcp", "external"
+        if "mcp-unity" in lowered or "mcp_unity" in lowered:
+            return "mcp_unity", "third-party"
+        if "unity-mcp" in lowered or "unity_mcp" in lowered:
+            return "unity_mcp", "third-party"
+        return "unknown", "unknown"
+
+    @staticmethod
+    def is_project_local_bridge_arg(project_dir: Path, value: str) -> bool:
+        normalized = value.replace("\\", "/")
+        if normalized in {"scripts/tykit_mcp.py", "./scripts/tykit_mcp.py"}:
+            return True
+        try:
+            path = Path(value).expanduser().resolve()
+        except OSError:
+            return False
+        return path == (project_dir / "scripts" / "tykit_mcp.py").resolve()
+
+    def compute_effective_routes(self, health: dict[str, Any], mcp_servers: list[dict[str, Any]]) -> dict[str, Any]:
+        preferred = self._config.get("preferredProviders", {})
+        routes: dict[str, Any] = {}
+        for capability, order in preferred.items():
+            selected = None
+            for provider in order:
+                if self.provider_available(capability, provider, health, mcp_servers):
+                    selected = provider
+                    break
+            routes[capability] = {
+                "selected": selected or "unavailable",
+                "preferred": order,
+                "reason": self.provider_reason(capability, selected, health, mcp_servers),
+            }
+        return routes
+
+    def provider_available(self, capability: str, provider: str, health: dict[str, Any], mcp_servers: list[dict[str, Any]]) -> bool:
+        health_ok = bool(health.get("ok"))
+        qq_scripts_available = bool(health.get("qq_scripts_available"))
+        providers = {str(item.get("provider")) for item in mcp_servers}
+        if provider == "tykit_direct":
+            if capability in {"compile", "tests.run"}:
+                return qq_scripts_available
+            if capability == "diagnostics":
+                return qq_scripts_available or health_ok
+            if capability in {"console.read", "console.clear", "scene.query"}:
+                return health_ok
+            return False
+        if provider == "tykit_mcp":
+            return health_ok and "tykit_mcp" in providers
+        if provider in {"mcp_unity", "unity_mcp"}:
+            return provider in providers
+        if provider == "raw_tykit":
+            return health_ok
+        return False
+
+    def provider_reason(self, capability: str, provider: str | None, health: dict[str, Any], mcp_servers: list[dict[str, Any]]) -> str:
+        if provider is None:
+            return "No configured backend satisfies this capability"
+        if provider == "tykit_direct":
+            if capability == "diagnostics":
+                return "Project-local qq scripts and/or direct tykit health checks are available"
+            if capability in {"compile", "tests.run"}:
+                return "Project-local qq scripts are installed, so direct fast-path scripts win"
+            return "tykit is healthy, so direct HTTP is available"
+        if provider == "tykit_mcp":
+            built_in = next((item for item in mcp_servers if item.get("provider") == "tykit_mcp"), None)
+            location = built_in.get("location") if built_in else "configured"
+            return f"Built-in tykit MCP is configured ({location}) and tykit is healthy"
+        if provider == "mcp_unity":
+            return "mcp-unity is configured as a compatible fallback"
+        if provider == "unity_mcp":
+            return "Unity-MCP is configured as a compatible fallback"
+        if provider == "raw_tykit":
+            return "tykit is healthy, so raw HTTP fallback remains available"
+        return f"Selected provider: {provider}"
+
+    @staticmethod
+    def load_optional_json(path: Path) -> dict[str, Any] | None:
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
 
     @staticmethod
     def is_unity_project(path: Path) -> bool:
@@ -1570,15 +1799,43 @@ class TykitBridge:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="tykit bridge helper")
+    parser.add_argument("--project", help="Unity project root")
+    parser.add_argument("--profile", choices=["standard", "full"], help="Tool profile to expose")
+    parser.add_argument("--doctor", action="store_true", help="Print doctor diagnostics for the target project")
+    parser.add_argument("--health", action="store_true", help="Print health diagnostics for the target project")
+    parser.add_argument("--tool", choices=sorted(TOOL_DEFINITIONS), help="Call one bridge tool directly")
+    parser.add_argument("--arguments", help="JSON object passed to --tool")
+    args = parser.parse_args()
+
     try:
         bridge = TykitBridge(
-            default_project_dir=os.environ.get("TYKIT_PROJECT_DIR"),
-            profile=os.environ.get("TYKIT_PROFILE"),
+            default_project_dir=args.project or os.environ.get("TYKIT_PROJECT_DIR"),
+            profile=args.profile or os.environ.get("TYKIT_PROFILE"),
         )
+        if args.doctor:
+            print(pretty_json(bridge.doctor(args.project)))
+            return 0
+        if args.health:
+            print(pretty_json(bridge.health(args.project)))
+            return 0
+        if args.tool:
+            tool_args: dict[str, Any] = {}
+            if args.arguments:
+                parsed = json.loads(args.arguments)
+                if not isinstance(parsed, dict):
+                    raise BridgeError("INVALID_ARGUMENT", "--arguments must decode to a JSON object")
+                tool_args = parsed
+            print(pretty_json(bridge.call_tool(args.tool, tool_args)))
+            return 0
+
         print(pretty_json({"tools": bridge.list_tools()}))
         return 0
     except BridgeError as exc:
         print(pretty_json(exc.to_result()))
+        return 1
+    except json.JSONDecodeError as exc:
+        print(pretty_json(BridgeError("INVALID_ARGUMENT", "--arguments must be valid JSON", {"error": str(exc)}).to_result()))
         return 1
 
 

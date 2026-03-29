@@ -12,6 +12,8 @@ If qq / Claude is using MCP, this built-in bridge should be the default MCP back
 
 If you are validating this in a demo or sample project, keep that project on the same install path as real users. See [Consumer Rollout](consumer-rollout.md).
 
+For qq-managed consumer projects, `install.sh` now copies the bridge into `scripts/`, writes `.mcp.json` to point at the project-local `scripts/tykit_mcp.py`, and adds `./scripts/qq-doctor.sh`.
+
 ## Why This Exists
 
 `tykit` is intentionally fast and simple: local HTTP inside the Unity Editor process.
@@ -53,6 +55,7 @@ If your client launches from the Unity project root, `--project` is optional.
 Default profile. Exposes the high-value tools most agents need:
 
 - `unity_health`
+- `unity_doctor`
 - `unity_compile`
 - `unity_run_tests`
 - `unity_console`
@@ -116,6 +119,17 @@ This means qq-installed projects keep their existing behavior, while plain `tyki
 ```json
 {
   "name": "unity_health",
+  "arguments": {
+    "project_dir": "/path/to/project"
+  }
+}
+```
+
+### Doctor
+
+```json
+{
+  "name": "unity_doctor",
   "arguments": {
     "project_dir": "/path/to/project"
   }

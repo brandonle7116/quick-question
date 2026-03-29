@@ -56,13 +56,15 @@ echo ""
 # ── Scripts (needed by hooks, must be in project) ──
 mkdir -p "$TARGET/scripts" "$TARGET/scripts/hooks"
 cp "$SCRIPT_DIR"/scripts/*.sh "$TARGET/scripts/"
+cp "$SCRIPT_DIR"/scripts/*.py "$TARGET/scripts/"
+cp "$SCRIPT_DIR"/scripts/*.json "$TARGET/scripts/"
 cp "$SCRIPT_DIR"/scripts/hooks/*.sh "$TARGET/scripts/hooks/"
 mkdir -p "$TARGET/scripts/platform"
 cp "$SCRIPT_DIR"/scripts/platform/*.sh "$TARGET/scripts/platform/"
 cp "$SCRIPT_DIR"/scripts/hooks/hook-dispatch.cmd "$TARGET/scripts/hooks/" 2>/dev/null || true
-chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/hooks/"*.sh "$TARGET/scripts/platform/"*.sh
-SCRIPT_COUNT=$(ls "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/hooks/*.sh | wc -l | tr -d ' ')
-echo "  Scripts: $SCRIPT_COUNT files → scripts/ (including hooks/)"
+chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/"*.py "$TARGET/scripts/hooks/"*.sh "$TARGET/scripts/platform/"*.sh
+SCRIPT_COUNT=$(find "$TARGET/scripts" -maxdepth 2 -type f | wc -l | tr -d ' ')
+echo "  Scripts: $SCRIPT_COUNT files → scripts/ (including MCP bridge + hooks/)"
 echo "  Skills + Hooks: provided by the qq plugin (see Next steps below)"
 
 # ── Pre-push hook (optional) ──
@@ -91,6 +93,38 @@ else
   echo "  AGENTS.md: already exists — check templates/AGENTS.md.example for review rules you may want to add"
 fi
 
+# ── Built-in MCP bridge ──
+MCP_CONFIG="$TARGET/.mcp.json"
+python3 - "$MCP_CONFIG" << 'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+data = {}
+if config_path.exists():
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        data = {}
+
+if not isinstance(data, dict):
+    data = {}
+
+servers = data.setdefault("mcpServers", {})
+servers["tykit"] = {
+    "command": "python3",
+    "args": [
+        "scripts/tykit_mcp.py",
+        "--project",
+        "."
+    ]
+}
+
+config_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PYEOF
+echo "  MCP: .mcp.json now points tykit to the built-in project-local bridge"
+
 # ── tykit UPM package ──
 MANIFEST="$TARGET/Packages/manifest.json"
 if [ -f "$MANIFEST" ]; then
@@ -98,7 +132,7 @@ if [ -f "$MANIFEST" ]; then
     echo "  tykit: already in manifest.json"
   else
     # Add tykit as git dependency (hash pinned to tested release)
-    TYKIT_REF="https://github.com/tykisgod/tykit.git#05cd2f59f91af37681b8298ec0d1fb81ad388077"
+    TYKIT_REF="https://github.com/tykisgod/tykit.git#12995052e928d64495174f7ac0a9df153fd420cd"
     python3 - "$MANIFEST" "$TYKIT_REF" << 'PYEOF'
 import json, sys
 manifest_path, tykit_ref = sys.argv[1], sys.argv[2]
@@ -137,5 +171,7 @@ echo "  1. In Claude Code, register the marketplace and install the plugin:"
 echo "       /plugin marketplace add tykisgod/quick-question"
 echo "       /plugin install qq@quick-question-marketplace"
 echo "  2. Open Unity — tykit will auto-start"
-echo "  3. Edit a .cs file — auto-compilation hook will verify"
-echo "  4. Type /qq:test in Claude Code to run tests"
+echo "  3. The project-local built-in MCP bridge is now wired in .mcp.json"
+echo "  4. Run ./scripts/qq-doctor.sh to verify direct path + MCP routing"
+echo "  5. Edit a .cs file — auto-compilation hook will verify"
+echo "  6. Type /qq:test in Claude Code to run tests"

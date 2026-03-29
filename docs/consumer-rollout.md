@@ -40,18 +40,19 @@ Local package linking is only for package development and can hide real integrat
 
 - `qq` is installed through the normal project setup flow
 - project scripts come from the normal `qq` install/update path
+- the built-in project-local MCP bridge comes from the normal `qq` install/update path
 - no ad hoc local script copies are required for the feature to work
 
 ### MCP State
 
-- the host points at [`scripts/tykit_mcp.py`](../scripts/tykit_mcp.py)
+- `.mcp.json` points at the consumer project's own `scripts/tykit_mcp.py`
 - the MCP server is launched with the consumer project's path
 - the bridge sees the published `tykit` package, not a local dev checkout
 
 Example:
 
 ```bash
-python3 /path/to/quick-question/scripts/tykit_mcp.py --project /path/to/unity-project
+python3 scripts/tykit_mcp.py --project .
 ```
 
 ## Smoke Test
@@ -62,13 +63,15 @@ Run these checks from the consumer project:
 2. Confirm `Temp/tykit.json` exists.
 3. Run one compile check.
 4. Run one test check.
-5. Run one query tool such as `unity_health` or `unity_query status`.
-6. If using an MCP client, confirm `tools/list` and one `tools/call` succeed.
+5. Run `./scripts/qq-doctor.sh` and confirm it prefers qq direct first, then built-in `tykit_mcp`.
+6. Run one query tool such as `unity_health` or `unity_query status`.
+7. If using an MCP client, confirm `tools/list` and one `tools/call` succeed.
 
 Recommended minimum verification:
 
 - compile passes
 - one targeted test run passes
+- `qq-doctor.sh` reports the built-in bridge as project-local
 - `describe-commands` returns metadata
 - MCP health reports `metadata_available: true`
 
