@@ -101,7 +101,36 @@ FULL_PROMPT="${REVIEW_PROMPT}
 
 Read the CLAUDE.md file at the project root for coding standards.
 Read the AGENTS.md file at the project root for architecture rules (if it exists).
-Read the skills/best-practice/SKILL.md file for the Unity best-practice checklist (18 rules). Check every rule — treat violations as [Critical] or [Medium] based on the severity listed there.
+
+## Unity Best-Practice Checklist (18 rules — check every one)
+
+Anti-Patterns:
+1. [High] FindObjectOfType in runtime code — use Registry/Manager (Editor code exempt)
+2. [Medium] Untyped object[] message parameters — use strongly-typed interfaces
+3. [High] Accessing shared data in Awake/Start — use lifecycle ready callbacks
+4. [High] Caching read-only interface then mutating through it
+5. [Medium] SendMessage/BroadcastMessage — use C# events or interfaces
+6. [Notice] Unsolicited UI code changes
+
+Performance:
+7. [High] GetComponent in Update/FixedUpdate/LateUpdate — cache in Awake/Start
+8. [High] Per-frame heap allocations (new List, string concat, LINQ, closures in Update)
+9. [High] Coroutines started without cleanup in OnDisable
+10. [Medium] gameObject.tag == string comparison — use CompareTag()
+
+Runtime Safety:
+11. [High] Event subscription without matching unsubscription
+12. [Medium] Missing [RequireComponent] for GetComponent dependencies
+
+Architecture:
+13. Circular dependency risk (check using directives)
+14. Missing .asmdef references
+15. [Medium] Incorrect namespace conventions
+16. [Medium] Public fields instead of [SerializeField] private
+
+Code Quality:
+17. Excessive null checks (project style: minimal, trust contracts)
+18. Missing documentation comments on public classes
 
 ---
 

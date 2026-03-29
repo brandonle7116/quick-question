@@ -121,10 +121,13 @@ Add your project's coding standards and anti-patterns here. Example:
 Group output by severity:
 
 ```
-## 🔴 Critical Issues (must fix)
+## 🔴 Critical (High severity — must fix)
 - [file:line] Issue description → suggested fix
 
-## 🟡 Suggestions
+## 🟠 Moderate (Medium severity — should fix)
+- [file:line] Issue description → suggested fix
+
+## 🟡 Suggestions (Notice — nice to fix)
 - [file:line] Issue description → suggested fix
 
 ## ✅ Code Quality Highlights
