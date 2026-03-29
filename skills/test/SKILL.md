@@ -26,15 +26,15 @@ Examples:
 
 ### 1. tykit Health Check
 
-Before using tykit, verify it's reachable and talking to the correct Unity instance.
+Before using tykit, verify it's reachable and talking to the correct Unity instance. **If `tykit.json` is missing, skip this entire step** — the test scripts (Step 3) automatically fall back to batch mode when Unity Editor is not running.
 
 #### 1a. Read port + PID
 
 ```bash
 TYKIT_JSON="Temp/tykit.json"
 if [ ! -f "$TYKIT_JSON" ]; then
-  echo "tykit.json not found — Unity Editor may not be running"
-  # STOP: ask user to open Unity for this project via Unity Hub
+  echo "tykit.json not found — skipping health check, scripts will use batch mode"
+  # SKIP to Step 2 — batch mode does not need tykit
 fi
 PORT=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['port'])")
 TYKIT_PID=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['pid'])")
@@ -77,19 +77,20 @@ CS=$(curl -s --connect-timeout 5 --max-time 15 -X POST "http://localhost:$PORT/"
   -d '{"command":"compile-status"}' -H 'Content-Type: application/json' 2>/dev/null) || true
 if [ -z "$CS" ]; then
   echo "tykit POST timed out — ping works but commands do not"
-  # Diagnose by priority:
+  # STOP: Diagnose by priority:
   # 1. Re-check PID (step 1b) — Worker is the #1 cause
   # 2. Check for Unity modal dialogs blocking the main thread
   # 3. Wait 30s for domain reload to finish, then retry
+else
+  echo "tykit healthy: port=$PORT pid=$TYKIT_PID"
 fi
-echo "tykit healthy: port=$PORT pid=$TYKIT_PID"
 ```
 
 **Diagnostic table:**
 
 | Symptom | Likely cause | Action |
 |---------|-------------|--------|
-| `tykit.json` missing | Unity not running or never opened this project | Ask user to open Unity via Unity Hub |
+| `tykit.json` missing | Unity not running or never opened this project | Skip health check — scripts fall back to batch mode |
 | PID dead | Unity closed but `tykit.json` not cleaned up | Delete stale `tykit.json`, ask user to reopen |
 | PID is AssetImportWorker | Worker subprocess stole the port on restart | Ask user to restart Unity manually |
 | PID is UnityPackageManager/UnityHelper | Other Unity subprocess inherited the port | Ask user to restart Unity manually |
@@ -100,7 +101,8 @@ echo "tykit healthy: port=$PORT pid=$TYKIT_PID"
 - **Never `kill` Unity** (including Workers) — risks Library corruption and cascade failures
 - **Never hardcode Unity paths** — use `find_unity` from `unity-common.sh` or let the user specify
 - **Never launch Unity from command line** — easy to pick wrong version; ask user to open via Unity Hub
-- If health check fails, **stop and report** — do not attempt workarounds
+- If health check fails (except missing `tykit.json`), **stop and report** — do not attempt workarounds
+- If `tykit.json` is missing, **skip to Step 2** — test scripts handle batch mode fallback automatically
 
 > **MCP backends:** Skip this step entirely — MCP tools manage their own connection.
 

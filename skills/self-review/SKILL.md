@@ -45,6 +45,7 @@ Dispatch a subagent (`subagent_type: "general-purpose"`, `model: "opus"`) with a
 
 - If this round had `[Critical]` issues fixed → start next round (back to a)
 - If no `[Critical]` issues → output "Review passed" and proceed to cleanup
+- If two consecutive rounds had no new critical issues → output "Review passed" and proceed to cleanup
 - If 5 rounds completed → output final status and proceed to cleanup
 
 ### 7. Clean up
