@@ -29,29 +29,74 @@ The user may provide: file paths, directories, or "recent changes" to define the
    - Severity: High
    - Alternative: read-only access only
 
-5. **Incorrect namespace conventions**
+5. **SendMessage / BroadcastMessage / SendMessageUpwards**
    - Severity: Medium
-   - Check that namespaces follow the project's established naming scheme
+   - Uses reflection, no compile-time safety, string-based (typos cause silent failures)
+   - Alternative: C# events, UnityEvents, or interface-based dispatch
 
 6. **Unsolicited UI code changes**
    - Severity: Notice
    - UI code should not be modified unless the user explicitly requested it
 
+### Performance
+
+7. **GetComponent in Update / FixedUpdate / LateUpdate**
+   - Severity: High
+   - GetComponent uses native interop + type lookup per call; in hot loops this causes measurable CPU overhead and GC pressure
+   - Alternative: cache component references in Awake/Start or use `[SerializeField]`
+   - Also flag GetComponent inside OnCollision*, OnTrigger*
+
+8. **Per-frame heap allocations**
+   - Severity: High
+   - Flag inside Update/FixedUpdate/LateUpdate: `new List`, `new Dictionary`, string `+` or `$""` interpolation, `.ToString()`, LINQ queries (`.Where`, `.Select`, `.ToList`), lambda closures
+   - Alternative: pre-allocate and reuse, use StringBuilder, use non-alloc APIs
+
+9. **Coroutines started without cleanup**
+   - Severity: High
+   - StartCoroutine without corresponding StopCoroutine or StopAllCoroutines in OnDisable causes orphan coroutines when objects are pooled or re-enabled
+   - Alternative: cache coroutine references, stop in OnDisable
+
+10. **`gameObject.tag ==` string comparison**
+    - Severity: Medium
+    - Allocates a string on the heap every call
+    - Alternative: use `CompareTag()` (allocation-free)
+
+### Runtime Safety
+
+11. **Event subscription without unsubscription**
+    - Severity: High
+    - Every `+=` event subscription must have a matching `-=` unsubscription
+    - Subscribe in OnEnable, unsubscribe in OnDisable; failing to do so causes memory leaks and double-firing
+
+12. **Missing [RequireComponent] for GetComponent dependencies**
+    - Severity: Medium
+    - If Awake/Start calls `GetComponent<T>()` and the result is used without null check, the class should have `[RequireComponent(typeof(T))]`
+    - Makes hidden dependencies explicit and auto-adds them in the Inspector
+
 ### Architecture Checks
 
-7. **Circular dependency risk**
-   - Check that new `using` directives do not violate the project's established dependency direction
+13. **Circular dependency risk**
+    - Check that new `using` directives do not violate the project's established dependency direction
 
-8. **Missing .asmdef references**
-   - If a file uses a namespace from another Service module, verify the corresponding .asmdef reference exists
+14. **Missing .asmdef references**
+    - If a file uses a namespace from another Service module, verify the corresponding .asmdef reference exists
+
+15. **Incorrect namespace conventions**
+    - Severity: Medium
+    - Check that namespaces follow the project's established naming scheme
+
+16. **Public fields instead of [SerializeField] private**
+    - Severity: Medium
+    - Public fields on MonoBehaviours break encapsulation; any script can modify them
+    - Alternative: `[SerializeField] private` for Inspector-assigned fields
 
 ### Code Quality
 
-9. **Excessive null checks**
-   - Project style: minimal null checks, rely on exceptions to surface problems
-   - Only validate at system boundaries (user input, external APIs)
+17. **Excessive null checks**
+    - Project style: minimal null checks, rely on exceptions to surface problems
+    - Only validate at system boundaries (user input, external APIs)
 
-10. **Missing documentation comments**
+18. **Missing documentation comments**
     - Public classes and complex methods should have summary comments
 
 ## Project-Specific Rules
