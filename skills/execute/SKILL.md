@@ -50,32 +50,40 @@ For each step, choose a strategy:
 
 ### Direct Write
 **When:** step touches 1-2 files, or depends on the previous step's output.
+**Why:** maximum coherence — you have full awareness of what was just written. No spawn overhead.
 - Write the code yourself in the main session
 - Auto-compilation hook will verify after each .cs file save
 - If compilation fails, fix immediately before moving to the next step
 
 ### Parallel Subagents
 **When:** step involves 2+ independent files/modules with no cross-dependency.
+**Why:** context hygiene is the primary reason, not speed. Each subagent gets a fresh context window — file reads, compilation output, and intermediate reasoning stay isolated. Research shows all LLMs degrade at ~50K tokens (well before the window limit), so offloading work to subagents preserves reasoning quality in the main session for later steps.
 - Dispatch subagents (`subagent_type: "general-purpose"`, `model: "opus"`) in parallel
 - Each subagent prompt must include:
   1. The relevant section of the plan
   2. Any interfaces/contracts from previous steps that must be implemented against
   3. Project coding standards: read CLAUDE.md
   4. Architecture rules: read AGENTS.md (if it exists)
-  5. Clear output: which files to create/modify, with full implementation
+  5. Unity best-practice rules: read skills/best-practice/SKILL.md
+  6. Clear output: which files to create/modify, with full implementation
+- Assign non-overlapping files to each subagent to avoid merge conflicts
 - After all subagents return, apply their changes and verify compilation
 
 ### Sequential Pipeline
 **When:** step involves multiple files with sequential dependencies (A's interface needed by B, B's output needed by C).
+**Why:** each step needs the previous step's output as input — cannot parallelize.
 - Execute sub-steps one by one in the main session
 - Verify compilation after each sub-step before starting the next
+- Consider using a subagent for each sub-step if the chain is long (4+ steps), to prevent context accumulation
 
 ### Agent Team
-**When:** step is a large-scale refactor touching 10+ files across multiple modules.
-- Break into sub-tasks, assign each to a subagent
+**When:** step is a large-scale refactor touching 10+ files across 3+ independent modules.
+**Why:** specialization — each agent operates in focused context on its domain, producing higher quality than a single agent juggling everything. Research shows 3 focused agents consistently outperform 1 generalist working 3x as long.
+- Break into sub-tasks, assign each to a subagent with `isolation: "worktree"` for file-system isolation
 - Designate one subagent as the "interface definer" that runs first
 - Remaining subagents run in parallel against the defined interfaces
 - Merge results, resolve conflicts, verify compilation
+- Token cost: 4-15x a single session — only use when the task justifies it
 
 ## 4. Per-Step Verification
 
