@@ -6,6 +6,10 @@ on:
     paths:
       - 'packages/com.tyk.tykit/**'
 
+concurrency:
+  group: sync-tykit
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -26,12 +30,12 @@ jobs:
           mkdir -p ~/.ssh
           echo "$TYKIT_DEPLOY_KEY" > ~/.ssh/tykit_deploy
           chmod 600 ~/.ssh/tykit_deploy
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
           cat >> ~/.ssh/config <<SSH
           Host tykit-github
             HostName github.com
             User git
             IdentityFile ~/.ssh/tykit_deploy
-            StrictHostKeyChecking no
           SSH
 
           # Push subtree
