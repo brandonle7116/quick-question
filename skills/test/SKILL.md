@@ -6,7 +6,7 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Run Unity unit/integration tests and check for runtime errors.
 
-> **EvalServer:** This skill uses tykit's EvalServer (HTTP server in Unity Editor). If you need to discover available commands, run `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` where PORT comes from `Temp/eval_server.json`.
+> **Unity Backend:** This skill supports multiple backends. If MCP tools are available (`run_tests` from mcp-unity, or `tests-run` from Unity-MCP), use them instead of the tykit/script commands below. If no MCP tools are available, use tykit's EvalServer as documented here. To discover tykit commands: `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` where PORT comes from `Temp/eval_server.json`.
 
 Arguments: $ARGUMENTS
 - (no arguments): Run both EditMode and PlayMode
@@ -37,6 +37,8 @@ if [ -n "$PORT" ]; then
 fi
 ```
 
+> **MCP backends:** Skip this step — neither mcp-unity nor Unity-MCP has a console-clear equivalent. Runtime error checking (Step 3) uses Editor.log directly and does not depend on console state.
+
 ### 2. Run tests
 
 Select command based on arguments:
@@ -51,6 +53,8 @@ Select command based on arguments:
 - With no arguments, run `unity-unit-test.sh` (EditMode → PlayMode in sequence; skip PlayMode if EditMode fails)
 - With arguments, call `unity-test.sh` and pass all arguments through
 - On failure, analyze the cause and determine whether it was introduced by the current changes or was pre-existing
+
+> **MCP backends:** Use `run_tests` (mcp-unity) or `tests-run` (Unity-MCP) instead of the scripts above. Pass mode, filter, assembly, and timeout as tool parameters. When no mode argument is given, preserve the sequencing: run EditMode first, check the result, and only proceed to PlayMode if EditMode passes. On failure, apply the same analysis as below.
 
 ### 3. Check runtime errors
 
