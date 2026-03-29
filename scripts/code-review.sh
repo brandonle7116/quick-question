@@ -2,7 +2,7 @@
 # code-review.sh — Send code changes to Codex CLI for review
 #
 # Usage:
-#   ./scripts/code-review.sh                           # Default: develop...HEAD
+#   ./scripts/code-review.sh                           # Default: main...HEAD
 #   ./scripts/code-review.sh --base main               # Custom base branch
 #   ./scripts/code-review.sh --commits                 # Last commit only
 #   ./scripts/code-review.sh --ext "*.py"              # Filter by extension
@@ -19,7 +19,7 @@ if ! command -v codex &>/dev/null; then
   exit 1
 fi
 
-BASE_BRANCH="develop"
+BASE_BRANCH="main"
 MODE="branch"
 EXT_FILTER=""
 CUSTOM_PROMPT=""

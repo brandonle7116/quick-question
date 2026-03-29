@@ -129,7 +129,7 @@ After saving, assess the plan and recommend the next step:
 - **Plan is complex or high-risk** → "This touches N modules. I'd recommend `/qq:claude-plan-review` before implementing. Run it?"
 
 **`--auto` mode:** skip asking, take the strictest path automatically:
-- If Open Questions exist → run `/qq:claude-plan-review`
+- If Open Questions exist → run `/qq:claude-plan-review --auto`
 - If no Open Questions → run `/qq:execute <path> --auto`
 
 ## Notes

@@ -7,7 +7,7 @@ Respond in the user's preferred language (detect from their recent messages, or 
 Composite command: run `/qq:brief` and `/qq:timeline` in parallel, generating a complete PR review package.
 
 Arguments: $ARGUMENTS
-- No arguments: compare develop...HEAD
+- No arguments: compare main...HEAD
 - `--base <branch>`: specify the comparison base branch
 
 ## Execution Steps

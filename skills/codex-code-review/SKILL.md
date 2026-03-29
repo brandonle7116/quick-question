@@ -18,7 +18,7 @@ Arguments: $ARGUMENTS
 
 1. **If the user specified a scope** (e.g., "review Phase 8", "review recent changes") → follow user intent
 2. **If code was just modified in this conversation** → use `--files` to review only the recently changed files
-3. **If the user explicitly says "review the entire branch" or there is no context to infer from** → use the default `develop...HEAD`
+3. **If the user explicitly says "review the entire branch" or there is no context to infer from** → use the default `main...HEAD`
 
 **Inference method**:
 - Check the list of .cs files edited/written in this conversation
@@ -115,7 +115,7 @@ After the review loop ends, recommend the next step:
 - **Issues were found and fixed** → "Fixed N issues. Want to run `/qq:test` to make sure nothing broke?"
 - **5 rounds exhausted with remaining issues** → "Some issues remain after 5 rounds. Run `/qq:test` to check impact, or continue fixing manually?"
 
-**`--auto` mode:** skip asking → `/qq:test`
+**`--auto` mode:** skip asking → `/qq:test --auto`
 
 ## Notes
 - The review script is at `./scripts/code-review.sh` and requires Codex CLI to be configured

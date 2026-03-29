@@ -79,5 +79,5 @@ After tests complete, recommend the next step:
 - **Test failures were fixed** → "Fixed N failures. Want to re-run `/qq:test` to confirm, or proceed to `/qq:doc-drift`?"
 
 **`--auto` mode:** skip asking:
-- All pass → `/qq:doc-drift` → `/qq:commit-push`
+- All pass → `/qq:doc-drift --auto` → `/qq:commit-push`
 - Failures → auto-fix → re-run `/qq:test` (max 3 attempts, then stop and ask user)

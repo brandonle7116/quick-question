@@ -6,7 +6,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Explain the architecture and logic of a specified module or design in plain, approachable language.
 
-Arguments: module or design name (e.g., "PlayerController", "inventory system", "save system")
+Arguments: $ARGUMENTS
+- Module or design name (e.g., "PlayerController", "inventory system", "save system")
 
 ## Behavior
 

@@ -2,9 +2,11 @@
 description: Send a design document to a Claude subagent for review, then revise the document based on findings. Automatically loops until no critical issues remain or 5 rounds are complete.
 ---
 
-Respond in the same language the user writes in.
+Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
-The user may provide: a file path. If none is specified, default to reviewing the most recently modified `.md` file under `Docs/`.
+Arguments: $ARGUMENTS
+- A file path to a design document or plan
+- No arguments: default to the most recently modified `.md` file under `Docs/`
 
 ## Execution Flow
 

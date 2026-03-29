@@ -2,7 +2,7 @@
 description: Dispatch a Claude subagent to deeply review code changes, then fix the code based on review findings. Automatically loops until no critical issues remain or 5 rounds are complete.
 ---
 
-Respond in the same language the user writes in.
+Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Arguments: $ARGUMENTS
 - No arguments: **intelligently select the review scope based on context** (see rules below)
@@ -136,7 +136,7 @@ After the review loop ends, recommend the next step:
 - **Issues were found and fixed** → "Fixed N issues. Want to run `/qq:test` to make sure nothing broke?"
 - **5 rounds exhausted with remaining issues** → "Some issues remain after 5 rounds. Run `/qq:test` to check impact, or continue fixing manually?"
 
-**`--auto` mode:** skip asking → `/qq:test`
+**`--auto` mode:** skip asking → `/qq:test --auto`
 
 ## Notes
 - **Never blindly trust review results** — subagents may misread code or reference wrong line numbers. Every finding must go through the verification step

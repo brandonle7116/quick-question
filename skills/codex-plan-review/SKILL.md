@@ -6,7 +6,9 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Send a design document to Codex CLI for review, then revise the document based on the findings. Automatically loops until no critical issues remain or 5 rounds are completed.
 
-The user may provide: a file path. If none is specified, default to the most recently modified .md file under the Docs/ directory.
+Arguments: $ARGUMENTS
+- A file path to a design document or plan
+- No arguments: default to the most recently modified `.md` file under `Docs/`
 
 ## Execution Flow
 

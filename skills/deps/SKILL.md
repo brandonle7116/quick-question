@@ -6,6 +6,10 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Analyze the .asmdef dependency relationships of all modules in the project, outputting a Mermaid diagram + dependency matrix + issue detection.
 
+Arguments: $ARGUMENTS
+- Optional: specific module names to focus on
+- No arguments: analyze all .asmdef files in the project
+
 ## Execution Steps
 
 ### 1. Collect All .asmdef Files

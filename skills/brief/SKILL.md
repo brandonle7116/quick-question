@@ -7,7 +7,7 @@ Respond in the user's preferred language (detect from their recent messages, or 
 Compare the current branch against develop and generate two review documents: architecture change diagram + PR review checklist.
 
 Arguments: $ARGUMENTS
-- No arguments: compare develop...HEAD
+- No arguments: compare main...HEAD
 - `--base <branch>`: specify a custom base branch for comparison
 - `--commits`: only look at the changes from the most recent commit
 

@@ -7,7 +7,7 @@ Respond in the user's preferred language (detect from their recent messages, or 
 Group the current branch's commit history into semantic phases along a timeline, and generate two review documents: architecture evolution + code review.
 
 Arguments: $ARGUMENTS
-- No arguments: diff against develop...HEAD
+- No arguments: diff against main...HEAD
 - `--base <branch>`: specify a custom base branch for comparison
 
 ## Core Concept
