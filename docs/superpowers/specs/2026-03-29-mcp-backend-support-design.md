@@ -19,10 +19,10 @@ Both already work with Claude Code as MCP servers. The problem: quick-question's
 
 | Capability | tykit (curl) | mcp-unity (CoderGamester) | Unity-MCP (IvanMurzak) |
 |-----------|-------------|--------------------------|----------------------|
-| Compile | `compile` | `recompile_scripts` | `script-execute` |
+| Compile | `compile` | `recompile_scripts` | `assets-refresh` |
 | Run tests | `run-tests` | `run_tests` | `tests-run` |
 | Read console | `console` | `get_console_logs` | `console-get-logs` |
-| Clear console | `clear-console` | `send_console_log` (clear) | *(not available — skip)* |
+| Clear console | `clear-console` | *(not available — skip)* | *(not available — skip)* |
 
 This table is the single source of truth. It gets embedded in the CLAUDE.md template so Claude can resolve the correct tool name at runtime.
 
@@ -35,7 +35,7 @@ No hook-level MCP detection. The auto-compile hook (`unity-compile-smart.sh`) st
 MCP detection happens at the Claude reasoning layer:
 
 1. The CLAUDE.md template includes the capability mapping table and explicit instructions:
-   "If you have MCP tools `recompile_scripts` or `script-execute` available, call them after editing .cs files. Otherwise, the auto-compile hook handles compilation automatically via tykit."
+   "If you have MCP tools `recompile_scripts` or `assets-refresh` available, call them after editing .cs files. Otherwise, the auto-compile hook handles compilation automatically via tykit."
 2. Claude knows its own available tools at runtime — no process scanning, no false positives.
 3. Skill prompts (test, etc.) include the same MCP-first logic.
 
@@ -51,24 +51,30 @@ The auto-compile hook tries tykit (fails in ~1s), tries osascript (fails or succ
 
 #### 1. `templates/CLAUDE.md.example`
 
-Add a "MCP Backend" section containing:
+**Revise the "Compile Verification (Required)" section** to be MCP-aware:
+- If MCP compile tools are available (`recompile_scripts` or `assets-refresh`), use those after editing `.cs` files.
+- Otherwise, use `./scripts/unity-compile-smart.sh --timeout 15` as before.
+- This replaces the current unconditional "must run unity-compile-smart.sh" instruction.
+
+**Add a "MCP Backend" section** containing:
 - The capability mapping table (all 4 rows)
-- Instruction: "If you have MCP tools `recompile_scripts` or `script-execute` available, call them after editing .cs files. Otherwise, the auto-compile hook handles compilation automatically via tykit."
 - Note: tykit installation is optional when using an MCP backend
+- Compatibility note: mcp-unity requires Unity 6+; Unity-MCP has no specific version requirement
 
 #### 2. `skills/test/SKILL.md`
 
 Update the test execution section to cover MCP for each step:
-- Step 1 (clear console): if MCP `send_console_log` (clear) or `console-get-logs` available, use it; if not, skip (non-critical)
-- Step 2 (run tests): if MCP `run_tests` or `tests-run` available, use it instead of `unity-test.sh`
+- Step 1 (clear console): tykit-only capability; skip when using MCP backends (non-critical)
+- Step 2 (run tests): if MCP `run_tests` or `tests-run` available, use it instead of `unity-test.sh`. When no mode argument is given, preserve the existing sequencing: run EditMode first via MCP, check the result, and only proceed to PlayMode if EditMode passes.
 - Step 3 (check runtime errors): no change — reads `Editor.log` directly via file, MCP-independent
 
 #### 3. README.md (all 4 languages)
 
 Add a "MCP Support" section explaining:
-- quick-question works with mcp-unity and Unity-MCP out of the box
+- quick-question works with mcp-unity and Unity-MCP as alternative backends to tykit
 - If an MCP server is configured in Claude Code, qq skills use MCP tools for compile/test/console
 - tykit installation becomes optional when using an MCP backend
+- **Compatibility:** mcp-unity requires Unity 6+; Unity-MCP has no specific version requirement. qq itself targets Unity 2021.3+.
 - Link to both MCP projects
 
 #### 4. `scripts/unity-compile-smart.sh`
@@ -83,6 +89,18 @@ No changes. The existing tier system (tykit → osascript → batch) remains as 
 - `unity-compile-smart.sh` — no modifications
 - Review gate, lifecycle routing — pure Claude Code layer, MCP-independent
 - install.sh — still installs tykit; users can choose not to use it
+
+### Migration for existing installs
+
+`install.sh` does not overwrite an existing `CLAUDE.md` (by design — it preserves user customizations). Existing users will not automatically receive the new MCP instructions. Mitigations:
+- `install.sh` already prints a hint: "check templates/CLAUDE.md.example for Unity-specific rules you may want to add"
+- The README MCP section will include the capability mapping table, so users can manually add it
+- This is acceptable: MCP is an opt-in alternative, not a required upgrade
+
+### Known limitations
+
+- **`unity-test.sh` lacks batch fallback when Editor is open but tykit is unreachable.** This affects MCP-only users who use the optional pre-push git hook. The pre-push hook calls `unity-unit-test.sh` → `unity-test.sh`, which exits with code 2 if tykit is unreachable while the Editor is running. Workaround: `git push --no-verify`. This is a pre-existing bug in `unity-test.sh`, not introduced by MCP support — tracked separately.
+- **Clear console has no MCP equivalent.** Neither mcp-unity nor Unity-MCP exposes a console-clear tool. The test skill skips this step when using MCP; runtime error checking still works via `Editor.log` file reading.
 
 ### Risks
 
