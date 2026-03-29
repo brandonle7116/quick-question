@@ -17,7 +17,7 @@ Try in priority order:
 
 1. **User specified a file path** → use it
 2. **Current conversation has a recently generated/reviewed plan** → use it
-3. **Multiple candidates in `Docs/`** → list them, ask the user to pick
+3. **Multiple candidates in `Docs/qq/`** → list them, ask the user to pick
 4. **Nothing found** → ask the user
 
 Unless `--auto` is passed, confirm with the user: "I found this plan: `<path or summary>`. Proceed?"

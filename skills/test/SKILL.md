@@ -74,10 +74,10 @@ tail -n +$((BASELINE + 1)) ~/Library/Logs/Unity/Editor.log | \
 
 After tests complete, recommend the next step:
 
-- **All tests pass, no runtime errors** → "All green. Want to run `/qq:commit-push` to ship it?"
-- **Tests pass but runtime errors found** → "Tests passed but found N runtime errors. Want me to investigate, or `/qq:commit-push` anyway?"
-- **Test failures were fixed** → "Fixed N failures. Want to re-run `/qq:test` to confirm, or `/qq:commit-push`?"
+- **All tests pass, no runtime errors** → "All green. Want to run `/qq:doc-drift` to check docs match the code before committing?"
+- **Tests pass but runtime errors found** → "Tests passed but found N runtime errors. Want me to investigate, or proceed to `/qq:doc-drift`?"
+- **Test failures were fixed** → "Fixed N failures. Want to re-run `/qq:test` to confirm, or proceed to `/qq:doc-drift`?"
 
 **`--auto` mode:** skip asking:
-- All pass → `/qq:commit-push`
+- All pass → `/qq:doc-drift` → `/qq:commit-push`
 - Failures → auto-fix → re-run `/qq:test` (max 3 attempts, then stop and ask user)

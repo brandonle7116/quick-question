@@ -65,6 +65,18 @@ After all subagents return, consolidate into:
 Distinguish "not yet built" from "built wrong", and highlight items needing immediate attention.
 ```
 
+## Handoff
+
+After the drift analysis completes, recommend the next step:
+
+- **No critical drift found** → "Docs and code are in sync. Want to run `/qq:commit-push` to ship it?"
+- **Outdated docs found** → "Found N docs that need updating to match the code. Want me to update them, then `/qq:commit-push`?"
+- **Actual bugs found (code doesn't match design intent)** → "Found N discrepancies that look like bugs. Want me to fix the code and re-run `/qq:test`?"
+
+**`--auto` mode:** skip asking:
+- Outdated docs → auto-update docs → `/qq:commit-push`
+- Actual bugs → fix code → `/qq:test --auto`
+
 ## Notes
 
 - Design docs represent the vision, code represents reality — many "missing" items may be normal for phased development, don't mark everything as P0
