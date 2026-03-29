@@ -60,6 +60,7 @@ You are a senior C#/Unity code reviewer. Review the following code changes acros
 
 Project coding standards: <CLAUDE.md content>
 Architecture rules (if AGENTS.md exists): <AGENTS.md content>
+Unity best-practice checklist: read skills/best-practice/SKILL.md from the plugin directory for the 18-rule checklist. Every rule in that file must be checked — treat violations as [Critical] or [Moderate] based on the severity listed there.
 Code changes: <diff content>
 
 You must read the relevant source files to verify your findings — do not infer context from diff snippets alone.

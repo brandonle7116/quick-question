@@ -1,12 +1,23 @@
 ---
-description: "Perform a project-specific code review on the specified scope."
+description: "Quick Unity best-practice check — run after editing C# files to catch anti-patterns, performance issues, and runtime safety problems."
 ---
 
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
-Perform a project-specific code review on the specified scope.
+Quick best-practice check for Unity C# code. Run this right after editing code — it scans for anti-patterns, performance traps, and runtime safety issues against 18 rules.
 
-The user may provide: file paths, directories, or "recent changes" to define the review scope. If nothing is specified, review files modified in the current git diff.
+Arguments: $ARGUMENTS
+
+## Scope Detection
+
+Intelligently determine what to check:
+
+1. **If the user specified files or a scope** → use that
+2. **If .cs files were edited in this conversation** → check those files
+3. **If there are uncommitted changes** → `git diff --name-only HEAD -- '*.cs'`
+4. **If none of the above** → ask the user what to check
+
+Do NOT review the entire codebase by default. Focus on what just changed.
 
 ## Review Rules
 
@@ -122,8 +133,9 @@ Group output by severity:
 
 ## Execution
 
-1. Determine review scope (user-specified or git diff)
-2. Read all relevant files
-3. Check each rule above
-4. Output results in the format above
-5. If critical issues are found, ask whether to auto-fix them
+1. Determine scope (see Scope Detection above)
+2. Read all relevant .cs files
+3. Check each of the 18 rules above
+4. Also read AGENTS.md (if it exists) for project-specific architecture rules
+5. Output results in the format above
+6. If critical issues are found, ask whether to auto-fix them

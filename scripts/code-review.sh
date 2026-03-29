@@ -101,6 +101,7 @@ FULL_PROMPT="${REVIEW_PROMPT}
 
 Read the CLAUDE.md file at the project root for coding standards.
 Read the AGENTS.md file at the project root for architecture rules (if it exists).
+Read the skills/best-practice/SKILL.md file for the Unity best-practice checklist (18 rules). Check every rule — treat violations as [Critical] or [Medium] based on the severity listed there.
 
 ---
 
