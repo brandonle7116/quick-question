@@ -29,15 +29,7 @@
 
 ---
 
-> **🪟 Windows Support (Preview):** Windows support was added in v1.1 and has not yet been battle-tested in production. It should stabilize over the coming weeks. macOS remains the primary, fully-tested platform. If you hit issues on Windows, please [open an issue](https://github.com/tykisgod/quick-question/issues).
->
-> **🪟 Windows 支持（预览版）：** Windows 支持在 v1.1 中加入，尚未经过生产环境实战验证。预计未来几周逐步稳定。macOS 仍是主要的、经过完整测试的平台。如果你在 Windows 上遇到问题，请[提交 issue](https://github.com/tykisgod/quick-question/issues)。
->
-> **🪟 Windows サポート（プレビュー）：** Windows サポートは v1.1 で追加されましたが、本番環境でのテストはまだ十分ではありません。今後数週間で安定化する予定です。macOS が引き続き主要な完全テスト済みプラットフォームです。Windows で問題が発生した場合は、[issue を作成](https://github.com/tykisgod/quick-question/issues)してください。
->
-> **🪟 Windows 지원 (미리보기):** Windows 지원은 v1.1에서 추가되었으며 아직 프로덕션 환경에서 충분히 검증되지 않았습니다. 앞으로 몇 주에 걸쳐 안정화될 예정입니다. macOS가 주요 테스트 완료 플랫폼입니다. Windows에서 문제가 발생하면 [이슈를 열어](https://github.com/tykisgod/quick-question/issues) 주세요.
-
----
+> 🪟 **Windows support is in preview** — see details in each language section below.
 
 # English
 
@@ -78,7 +70,7 @@ Type `/qq:go` — qq reads your project state and routes you to the right step. 
 
 ## Install
 
-**Requirements:** macOS + Windows (requires [Git for Windows](https://gitforwindows.org/) on Windows), Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex) optional (for cross-model review).
+**Requirements:** macOS + Windows (requires [Git for Windows](https://gitforwindows.org/) on Windows), Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex) optional (for cross-model review). *Windows support is in preview — expect rough edges for the next few weeks.*
 
 **Step 1 — Plugin (skills + hooks):**
 ```
@@ -397,7 +389,7 @@ flowchart LR
 
 ## 安装
 
-**前置条件：** macOS + Windows（Windows 上需要 [Git for Windows](https://gitforwindows.org/)），Unity 2021.3+，[Claude Code](https://docs.anthropic.com/en/docs/claude-code)，curl，python3，jq。[Codex CLI](https://github.com/openai/codex) 可选（用于跨模型审阅）。
+**前置条件：** macOS + Windows（Windows 上需要 [Git for Windows](https://gitforwindows.org/)），Unity 2021.3+，[Claude Code](https://docs.anthropic.com/en/docs/claude-code)，curl，python3，jq。[Codex CLI](https://github.com/openai/codex) 可选（用于跨模型审阅）。*Windows 支持为预览版，未来几周会持续完善。*
 
 **第 1 步 — 插件（skills + hooks）：**
 ```
@@ -705,7 +697,7 @@ flowchart LR
 
 ## インストール
 
-**前提条件：** macOS + Windows（Windows では [Git for Windows](https://gitforwindows.org/) が必要）、Unity 2021.3+、[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、curl、python3、jq。[Codex CLI](https://github.com/openai/codex) はオプション（クロスモデルレビュー用）。
+**前提条件：** macOS + Windows（Windows では [Git for Windows](https://gitforwindows.org/) が必要）、Unity 2021.3+、[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、curl、python3、jq。[Codex CLI](https://github.com/openai/codex) はオプション（クロスモデルレビュー用）。*Windows サポートはプレビュー版です — 今後数週間で安定化予定。*
 
 **ステップ 1 — プラグイン（スキル + フック）：**
 ```
@@ -769,7 +761,7 @@ flowchart LR
 
 ## 설치
 
-**사전 요구사항:** macOS + Windows(Windows에서는 [Git for Windows](https://gitforwindows.org/) 필요), Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex)는 선택(크로스 모델 리뷰용).
+**사전 요구사항:** macOS + Windows(Windows에서는 [Git for Windows](https://gitforwindows.org/) 필요), Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex)는 선택(크로스 모델 리뷰용). *Windows 지원은 미리보기 단계입니다 — 앞으로 몇 주에 걸쳐 안정화 예정.*
 
 **1단계 — 플러그인(스킬 + 훅):**
 ```
