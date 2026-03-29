@@ -771,6 +771,17 @@ rm -rf /tmp/qq-install
 /qq:commit-push               # 出荷
 ```
 
+## MCP サポート
+
+qq はサードパーティの MCP Unity サーバーを tykit の代替として使用できます：
+
+- **[mcp-unity](https://github.com/CoderGamester/mcp-unity)** — Node.js + WebSocket ブリッジ（Unity 6+ 必須）
+- **[Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** — スタンドアロンサーバー、Docker/リモート対応
+
+Claude Code に MCP サーバーが設定されている場合、qq skill は自動的に MCP ツールをコンパイル、テスト、コンソールアクセスに優先使用します。追加設定不要 — Claude が利用可能な MCP ツールをランタイムで検出します。
+
+**互換性：** mcp-unity は Unity 6+ が必要。Unity-MCP にはバージョン制限なし。qq 自体は Unity 2021.3+ をサポート。
+
 ---
 
 # 한국어
@@ -834,3 +845,14 @@ rm -rf /tmp/qq-install
 /qq:codex-code-review         # 크로스 모델 리뷰
 /qq:commit-push               # 배포
 ```
+
+## MCP 지원
+
+qq는 타사 MCP Unity 서버를 tykit의 대안으로 지원합니다:
+
+- **[mcp-unity](https://github.com/CoderGamester/mcp-unity)** — Node.js + WebSocket 브리지 (Unity 6+ 필요)
+- **[Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** — 독립 서버, Docker/원격 지원
+
+Claude Code에 MCP 서버가 설정되어 있으면, qq skill이 자동으로 MCP 도구를 컴파일, 테스트, 콘솔 접근에 우선 사용합니다. 추가 설정 불필요 — Claude가 런타임에 사용 가능한 MCP 도구를 감지합니다.
+
+**호환성:** mcp-unity는 Unity 6+ 필요. Unity-MCP는 버전 제한 없음. qq 자체는 Unity 2021.3+ 지원.
