@@ -30,7 +30,7 @@ cd quick-question
 - Use `set -euo pipefail`
 - Source `unity-common.sh` for shared functions
 - Comments in Chinese (author preference); user-facing output in English
-- Run `shellcheck -S warning` before committing
+- Run `shellcheck -S error` before committing
 
 ## Testing
 

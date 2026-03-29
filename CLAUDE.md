@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**quick-question** is a Claude Code plugin that provides a Unity development harness: auto-compilation hooks, test pipelines, cross-model code review (via Codex CLI), and 15 slash commands (`/qq:*`). It targets macOS with Unity 2021.3+.
+**quick-question** is a Claude Code plugin that provides a Unity development harness: lifecycle-aware routing (`/qq:go`), auto-compilation hooks, test pipelines, cross-model and Claude-only code review, and 22 skills (`/qq:*`). It targets macOS with Unity 2021.3+.
 
 ## Repository Structure
 
 - `hooks/hooks.json` — Hook definitions (PreToolUse, PostToolUse, Stop) loaded by the Claude Code plugin system
 - `scripts/` — Bash scripts for compilation, testing, and review (run inside the target Unity project)
-- `skills/` — 15 skill definitions (each has a `SKILL.md`), invoked as `/qq:<name>`
+- `skills/` — 22 skill definitions (each has a `SKILL.md`), invoked as `/qq:<name>`
 - `packages/com.tyk.tykit/` — UPM package providing tykit (in-process HTTP server for Unity Editor control)
 - `.claude-plugin/` — Plugin manifest (`plugin.json`, `marketplace.json`)
 - `templates/` — `CLAUDE.md.example` and `AGENTS.md.example` copied into target projects by `install.sh`
@@ -66,7 +66,7 @@ shellcheck scripts/*.sh
 python3 -m json.tool hooks/hooks.json > /dev/null
 ```
 
-There is no build step, test suite, or package manager for this repo itself. The scripts and skills are consumed as-is by the plugin system.
+There is no build step or package manager for this repo itself. Run `./test.sh` for self-tests (shellcheck, JSON validation, structural checks, README consistency). The scripts and skills are consumed as-is by the plugin system.
 
 ## Conventions
 

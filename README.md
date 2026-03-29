@@ -6,8 +6,7 @@
 
 <p align="center">
   <strong>Unity Agent Harness for Claude Code</strong><br>
-  Auto-compile, test pipelines, cross-model code review — out of the box.<br><br>
-  Built on the principles from <a href="https://tyksworks.com/posts/ai-coding-workflow-en/">AI Coding in Practice: An Indie Developer's Document-First Approach</a>
+  Auto-compile, test pipelines, cross-model code review — out of the box.
 </p>
 
 <p align="center">
@@ -32,11 +31,22 @@
 
 ## What It Does
 
-**`/qq:go` — lifecycle-aware routing.** Detects where you are in the dev cycle and suggests the next step. Design doc exists? It suggests planning. Code written? It suggests review. Tests pass? It suggests shipping. Use `--auto` to run the full pipeline hands-free.
+**`/qq:go` — lifecycle-aware routing.** Detects where you are in the dev cycle and suggests the next step. Design doc exists? It suggests planning. Code written? It suggests review. Tests pass? It suggests shipping.
 
-**tykit — Unity Editor under AI control.** An HTTP server inside Unity Editor that any AI agent can call. Compile, run tests, control Play Mode, read console logs, find and inspect GameObjects — all via `curl`. No SDK, no UI automation. Works standalone or with qq.
+**tykit — Unity Editor under AI control.** An HTTP server inside Unity Editor that any AI agent can call. Compile, run tests, control Play Mode, read console logs, find and inspect GameObjects — all via `curl`. No SDK needed, no UI automation. Works standalone or with qq.
 
 Plus: auto-compilation on every `.cs` edit, EditMode + PlayMode test pipelines, cross-model code review (Claude + Codex with verification), and 22 skills covering the full dev lifecycle.
+
+## Why quick-question
+
+| | quick-question | Typical AI tools |
+|---|:---:|:---:|
+| Know where you are in the dev cycle | ✅ Lifecycle-aware routing | ❌ You decide |
+| Auto-compile on edit | ✅ Hook-driven | ❌ Manual |
+| Test pipeline | ✅ EditMode + PlayMode + error check | ❌ Manual |
+| Cross-model review | ✅ Claude + Codex with verification | ⚠️ Single model |
+| Control Unity Editor | ✅ tykit (HTTP) | ❌ No access |
+| Pre-push safety | ✅ Optional git hook | ❌ None |
 
 ## Lifecycle Pipeline
 
@@ -54,20 +64,9 @@ flowchart LR
 
 Type `/qq:go` — qq reads your project state and routes you to the right step. Each step suggests the next. Use `--auto` to run the full pipeline hands-free.
 
-## Why quick-question
-
-| | quick-question | Typical AI tools |
-|---|:---:|:---:|
-| Know where you are in the dev cycle | ✅ Lifecycle-aware routing | ❌ You decide |
-| Auto-compile on edit | ✅ Hook-driven | ❌ Manual |
-| Test pipeline | ✅ EditMode + PlayMode + error check | ❌ Manual |
-| Cross-model review | ✅ Claude + Codex with verification | ⚠️ Single model |
-| Control Unity Editor | ✅ tykit (HTTP) | ❌ No access |
-| Pre-push safety | ✅ Optional git hook | ❌ None |
-
 ## Install
 
-**Requirements:** macOS, Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl/python3/jq. [Codex CLI](https://github.com/openai/codex) optional (for cross-model review).
+**Requirements:** macOS, Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex) optional (for cross-model review).
 
 **Step 1 — Plugin (skills + hooks):**
 ```
@@ -76,6 +75,9 @@ Type `/qq:go` — qq reads your project state and routes you to the right step. 
 ```
 
 **Step 2 — tykit (Unity package):**
+
+> Step 2 is optional if you only need the skills — tykit adds direct Unity Editor control.
+
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 /tmp/qq-install/install.sh /path/to/your-unity-project
@@ -98,58 +100,39 @@ Or use any skill directly:
 /qq:commit-push               # Ship it
 ```
 
-## How It Works
+## Commands
 
-### Three layers, each doing one job:
-
-**`/qq:go` routes.** It reads your project state — design docs, implementation plans, uncommitted code, test results — and recommends the right next skill. It never does work itself; it only routes.
-
-```mermaid
-flowchart LR
-    A["Design doc?"] -->|yes| B["/qq:plan"]
-    C["Implementation plan?"] -->|yes| D["/qq:execute"]
-    E["Uncommitted .cs?"] -->|yes| F["/qq:best-practice"]
-    G["Tests passing?"] -->|yes| H["/qq:commit-push"]
-```
-
-**Hooks guard.** They fire automatically — you don't invoke them. Every `.cs` edit triggers compilation. Every code review activates a gate that blocks edits until findings are verified. Every skill change is tracked and must be reviewed before the session ends.
-
-```mermaid
-flowchart LR
-    A["Edit .cs"] -->|PostToolUse| B["Auto-compile"]
-    C["Run review"] -->|PostToolUse| D["Lock edits"]
-    E["Subagent done"] -->|PostToolUse| F["Unlock edits"]
-    G["Session end"] -->|Stop| H["Check: skills reviewed?"]
-```
-
-**tykit bridges.** An HTTP server inside Unity Editor. When qq needs to compile, run tests, or read the console, it talks to tykit. No UI automation, no osascript hacks — just HTTP.
-
-```mermaid
-flowchart LR
-    A["Claude Code"] -->|"HTTP"| B["tykit"]
-    B --> C["Compile"]
-    B --> D["Test"]
-    B --> E["Play/Stop"]
-    B --> F["Console"]
-    B --> G["Inspect"]
-```
-
-### Cross-Model Review (Tribunal)
-
-```mermaid
-flowchart TD
-    A["Codex reviews diff"] --> B["Claude verifies each finding"]
-    B --> C{"Confirmed?"}
-    C -->|No| D["Discard"]
-    C -->|Yes| E{"Over-engineered?"}
-    E -->|Yes| F["Simpler fix"]
-    E -->|No| G["Apply fix"]
-    D --> H{"More issues?"}
-    F --> H
-    G --> H
-    H -->|Yes| A
-    H -->|No| I["✅ Done"]
-```
+| Command | Description |
+|---------|-------------|
+| **Workflow** | |
+| `/qq:go` | Entry point — detect current state, guide you to the right next step |
+| `/qq:design` | Write a game design document from a one-liner, rough draft, or discussion |
+| `/qq:plan` | Generate a technical implementation plan from a design doc or description |
+| `/qq:execute` | Smart implementation — read a plan, pick execution strategy, build step by step |
+| **Testing** | |
+| `/qq:test` | Run unit/integration tests with error checking |
+| **Code Review (Codex)** | *Requires [Codex CLI](https://github.com/openai/codex)* |
+| `/qq:codex-code-review` | Cross-model code review (Claude + Codex with verification) |
+| `/qq:codex-plan-review` | Cross-model design document review |
+| **Code Review (Claude-only)** | *No extra tools needed* |
+| `/qq:claude-code-review` | Deep code review using Claude subagents |
+| `/qq:claude-plan-review` | Deep design document review using Claude subagents |
+| **Code Review (Quick)** | |
+| `/qq:best-practice` | Quick best-practice check — 18 rules for anti-patterns, performance, runtime safety |
+| `/qq:self-review` | Review skill/config changes for quality |
+| **Analysis** | |
+| `/qq:brief` | Architecture diff + PR checklist (2 docs) |
+| `/qq:timeline` | Commit history timeline with phase analysis (2 docs) |
+| `/qq:full-brief` | Run brief + timeline in parallel (4 docs total) |
+| `/qq:deps` | `.asmdef` dependency graph + matrix + health check |
+| `/qq:doc-drift` | Compare design docs vs code, find inconsistencies |
+| **Utilities** | |
+| `/qq:commit-push` | Batch commit and push |
+| `/qq:explain` | Explain module architecture in plain language |
+| `/qq:grandma` | Explain any concept using everyday analogies anyone can understand |
+| `/qq:research` | Search open-source solutions for current problem |
+| `/qq:changes` | Summarize all changes in current conversation |
+| `/qq:doc-tidy` | Scan repo docs, analyze organization, suggest cleanup |
 
 ## Scenarios
 
@@ -165,7 +148,7 @@ qq suggests `/qq:design`. Asks 3 questions (reference games? data format? MVP?),
 
 → "Design ready. Run `/qq:plan`?" — reads the design, explores the codebase, outputs a 6-step implementation plan with file paths and interfaces.
 
-→ "Plan ready. Run `/qq:execute`?" — creates `IFoodSource` interface (direct write), implements `HungerSystem` and `FoodContainer` (parallel subagents), wires into existing `NeedSystem`. Each `.cs` save auto-compiles via hook.
+→ "Plan ready. Run `/qq:execute`?" — creates `IFoodSource` interface, implements `HungerSystem` and `FoodContainer`, wires into existing `NeedSystem`. Each `.cs` save auto-compiles via hook.
 
 → "Run `/qq:best-practice`?" — catches `GetComponent` in `Update` and a missing event unsubscription. Fixed.
 
@@ -216,15 +199,16 @@ Outputs: responsibilities, key classes, data flow, lifecycle hooks, design decis
 
 Mermaid dependency graph of all `.asmdef` modules. `TaskSystem` depends on `NavigationSystem` and `NeedSystem` but not `CombatSystem` — clean boundaries.
 
----
+## tykit
 
-### 4. Control Unity from any tool (tykit standalone)
+tykit is a standalone HTTP server inside Unity Editor. Any AI agent can control Unity via HTTP — compile, run tests, play/stop, read console, inspect GameObjects. No SDK required.
 
-> CI/tool developer. Not using Claude Code. Just needs to talk to Unity via HTTP.
-
+**Use it standalone** (no quick-question needed):
 ```json
 "com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
 ```
+
+**Or with qq** — where it powers auto-compilation and testing behind the scenes.
 
 ```bash
 PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
@@ -244,52 +228,58 @@ curl -s -X POST http://localhost:$PORT/ \
 
 tykit is just HTTP. Use it from Python, GitHub Actions, or any AI agent. See [tykit API Reference](docs/tykit-api.md) for all 13 commands.
 
-## tykit
+## How It Works
 
-tykit is a standalone HTTP server inside Unity Editor. Any AI agent can control Unity via HTTP — compile, run tests, play/stop, read console, inspect GameObjects. No SDK required.
+### Three layers, each doing one job:
 
-**Use it standalone** (no quick-question needed):
-```json
-"com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
+**`/qq:go` routes.** It reads your project state — design docs, implementation plans, uncommitted code, test results — and recommends the right next skill. It never does work itself; it only routes.
+
+```mermaid
+flowchart LR
+    A["Design doc?"] --> B["/qq:plan"]
+    C["Implementation plan?"] --> D["/qq:execute"]
+    E["Uncommitted .cs?"] --> F["/qq:best-practice"]
+    G["Tests passing?"] --> H["/qq:commit-push"]
 ```
 
-**Or with qq** — where it powers auto-compilation and testing behind the scenes.
+**Hooks guard.** They fire automatically — you don't invoke them. Every `.cs` edit triggers compilation. Every code review activates a gate that blocks edits until findings are verified. Every skill change is tracked and must be reviewed before the session ends.
 
-See [tykit API Reference](docs/tykit-api.md) for full documentation, curl examples, and all 13 commands.
+```mermaid
+flowchart LR
+    A["Edit .cs"] -->|PostToolUse| B["Auto-compile"]
+    C["Run review"] -->|PostToolUse| D["Lock edits"]
+    E["Subagent done"] -->|PostToolUse| F["Unlock edits"]
+    G["Session end"] -->|Stop| H["Check: skills reviewed?"]
+```
 
-## Commands
+**tykit bridges.** An HTTP server inside Unity Editor. When qq needs to compile, run tests, or read the console, it talks to tykit. No UI automation — just HTTP.
 
-| Command | Description |
-|---------|-------------|
-| **Workflow** | |
-| `/qq:go` | Entry point — detect current state, guide you to the right next step |
-| `/qq:design` | Write a game design document from a one-liner, rough draft, or discussion |
-| `/qq:plan` | Generate a technical implementation plan from a design doc or description |
-| `/qq:execute` | Smart implementation — read a plan, pick execution strategy, build step by step |
-| **Testing** | |
-| `/qq:test` | Run unit/integration tests with error checking |
-| **Code Review (Codex)** | *Requires [Codex CLI](https://github.com/openai/codex)* |
-| `/qq:codex-code-review` | Cross-model code review (Claude + Codex with verification) |
-| `/qq:codex-plan-review` | Cross-model design document review |
-| **Code Review (Claude-only)** | *No extra tools needed* |
-| `/qq:claude-code-review` | Deep code review using Claude subagents |
-| `/qq:claude-plan-review` | Deep design document review using Claude subagents |
-| **Code Review (Quick)** | |
-| `/qq:best-practice` | Quick best-practice check — 18 rules for anti-patterns, performance, runtime safety |
-| `/qq:self-review` | Review skill/config changes for quality |
-| **Analysis** | |
-| `/qq:brief` | Architecture diff + PR checklist (2 docs) |
-| `/qq:timeline` | Commit history timeline with phase analysis (2 docs) |
-| `/qq:full-brief` | Run brief + timeline in parallel (4 docs total) |
-| `/qq:deps` | `.asmdef` dependency graph + matrix + health check |
-| `/qq:doc-drift` | Compare design docs vs code, find inconsistencies |
-| **Utilities** | |
-| `/qq:commit-push` | Batch commit and push |
-| `/qq:explain` | Explain module architecture in plain language |
-| `/qq:grandma` | Explain any concept using everyday analogies anyone can understand |
-| `/qq:research` | Search open-source solutions for current problem |
-| `/qq:changes` | Summarize all changes in current conversation |
-| `/qq:doc-tidy` | Scan repo docs, analyze organization, suggest cleanup |
+```mermaid
+flowchart LR
+    A["Claude Code"] -->|"HTTP"| B["tykit"]
+    B --> C["Compile"]
+    B --> D["Test"]
+    B --> E["Play/Stop"]
+    B --> F["Console"]
+    B --> G["Inspect"]
+```
+
+### Cross-Model Review (Tribunal)
+
+```mermaid
+flowchart TD
+    A["Codex reviews diff"] --> B["Claude verifies each finding"]
+    B --> C{"Confirmed?"}
+    C -->|No| D["Discard"]
+    C -->|Yes| E{"Over-engineered?"}
+    E -->|Yes| F["Simpler fix"]
+    E -->|No| G["Apply fix"]
+    D --> H{"More issues?"}
+    F --> H
+    G --> H
+    H -->|Yes| A
+    H -->|No| I["✅ Done"]
+```
 
 ## Customization
 
@@ -319,12 +309,14 @@ All review commands classify findings by impact:
 - **Automatic safety nets** — hooks fire without you asking. Compilation, review gates, and skill enforcement are always on.
 - **Loose coupling** — each skill does one thing. The pipeline is advisory ("want to run X next?"), not rigid.
 
+Built on the principles from [AI Coding in Practice: An Indie Developer's Document-First Approach](https://tyksworks.com/posts/ai-coding-workflow-en/).
+
 ## Limitations
 
 - **macOS only** (v1) — scripts use `osascript`, `/Applications/Unity`, `~/Library/Logs`
 - **Codex CLI required** for cross-model review features
 - **Unity 2021.3+** required by tykit package
-- **tykit is localhost-only, no authentication** — acceptable for dev machines, not for shared/CI environments
+- **tykit is localhost-only, no authentication** — acceptable for dev machines, not for shared environments without network controls
 - **Console log scraping** for compile verification — use `clear-console` before critical compiles to avoid stale errors
 
 ## Contributing
@@ -339,293 +331,54 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 # 中文
 
-> 基于 [AI 编程实践：独立开发者的文档驱动方法](https://tyksworks.com/posts/ai-coding-workflow-zh/) 的理念开发
-
 ## 功能
 
-> 设计 → 规划 → 实现 → 审阅 → 测试 → 发布。一条命令启动，全程感知开发阶段。
+**`/qq:go` — 生命周期感知路由。** 检测你在开发周期的哪个阶段，建议下一步。有设计文档？建议规划。代码写好了？建议审阅。测试通过？建议发布。
 
-输入 `/qq:go`，qq 自动判断你在哪个阶段 — 有设计文档？建议规划。有实现计划？建议执行。有未提交代码？建议审阅。每步完成后引导下一步，或用 `--auto` 全自动走完。
+**tykit — AI 控制下的 Unity Editor。** Unity Editor 内的 HTTP 服务器，任何 AI agent 都能调用。编译、运行测试、控制 Play Mode、读取控制台日志、查找和检视 GameObject — 全部通过 `curl`。无需 SDK，无需 UI 自动化。可独立使用，也可配合 qq。
+
+另外：每次 `.cs` 编辑自动编译，EditMode + PlayMode 测试流水线，跨模型代码审阅（Claude + Codex 验证循环），22 个 skill 覆盖完整开发周期。
+
+## 为什么选择 qq
+
+| | quick-question | 传统 AI 工具 |
+|---|:---:|:---:|
+| 感知开发周期阶段 | ✅ 生命周期感知路由 | ❌ 自己决定 |
+| 编辑即编译 | ✅ Hook 驱动 | ❌ 手动 |
+| 测试流水线 | ✅ EditMode + PlayMode + 错误检查 | ❌ 手动 |
+| 跨模型审阅 | ✅ Claude + Codex 验证循环 | ⚠️ 单模型 |
+| 控制 Unity Editor | ✅ tykit (HTTP) | ❌ 无法访问 |
+| 推送前安全检查 | ✅ 可选 git hook | ❌ 无 |
+
+## 生命周期流水线
 
 ```mermaid
 flowchart LR
-    GO["<b>/qq:go</b>\n检测阶段"] --> D["/qq:design"]
-    D --> P["/qq:plan"]
-    P --> PR["/qq:plan-review"]
-    PR --> E["/qq:execute"]
-    E --> BP["/qq:best-practice"]
-    BP --> CR["/qq:code-review"]
-    CR --> T["/qq:test"]
-    T --> DD["/qq:doc-drift"]
-    DD --> CP["/qq:commit-push"]
+    GO["<b>/qq:go</b>"] --> D["设计"]
+    D --> P["规划"]
+    P --> E["执行"]
+    E --> R["审阅"]
+    R --> T["测试"]
+    T --> S["发布"]
 
     style GO fill:#4a9eff,color:#fff
 ```
 
-每步都会问"要继续下一步吗？" — 或使用 `--auto` 全自动运行整条流水线。
-
-### 三层架构
-
-```mermaid
-flowchart TB
-    subgraph GO["🧭 /qq:go — 生命周期感知路由"]
-        G1["检测：设计文档？实现计划？代码改动？测试结果？"]
-        G2["路由到正确的 skill"]
-        G3["22 个 skill 覆盖完整开发周期"]
-    end
-
-    subgraph H["🔧 Hooks — 自动质量守卫"]
-        H1["每次编辑 .cs 自动编译"]
-        H2["审阅门控 — 验证期间阻止代码编辑"]
-        H3["Skill 审阅强制 — 未审阅的改动无法结束会话"]
-    end
-
-    subgraph T["🎮 tykit — Unity Editor 桥接"]
-        T1["Unity Editor 内置 HTTP 服务器"]
-        T2["编译 · 测试 · Play · 控制台 · 检视"]
-        T3["可独立使用 — 任何 AI agent 都能调用"]
-    end
-
-    GO --> H
-    GO --> T
-    H --> T
-```
-
-**`/qq:go`** 编排 — 读取项目状态，引导你到正确的 skill。<br>
-**Hooks** 守卫 — 每次编辑自动触发，确保编译通过、审阅不被跳过。<br>
-**tykit** 桥接 — 通过 HTTP 让 AI 实际控制 Unity Editor，使编译和测试无需 UI 自动化。
-
-## qq 的一天
-
-> 小明在做一个类 GTA 的开放世界游戏，Unity 项目。20 万行 C#，15 个服务模块，4 个开发者。他刚装好 qq。以下是他的周二。
-
-**9:00 — 开始写代码**
-
-小明让 Claude 加一个载具血量系统——车辆碰撞扣血、低血量着火、最终爆炸。Claude 写了 `VehicleDamageSystem.cs`、`FireEffect.cs`，并修改了 `CollisionHandler.cs`。
-
-他不需要跑任何编译命令。每次 Claude 保存 `.cs` 文件，hook 自动触发：
-
-```
-⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
-```
-
-改了三个文件，自动编译了三次。他甚至没注意到。
-
-**9:30 — 跑测试**
-
-```
-/qq:test
-```
-
-```
-EditMode:  186/186 passed
-PlayMode:   42/42 passed
-Runtime errors: 1 found
-  [Error] NullReferenceException at VehicleDamageSystem.cs:34
-  Source: VehicleDamageSystem.OnEnable() — _rigidbody not assigned
-```
-
-228 个测试全"通过"了，但 qq 在 console 里抓到一个隐藏的运行时错误——一个 `GetComponent` 在 Rigidbody 准备好之前就执行了。Claude 读了代码，把调用移到 `Start()`，自动编译。干净了。
-
-**10:00 — 新人问："咱们的伤害系统是怎么运作的？"**
-
-```
-/qq:grandma "vehicle damage system"
-```
-
-> "想象每辆车都是一个气球。撞东西就是在气球上戳小洞——这就是伤害。洞多了，气漏得越来越快——这就是着火阶段。最后气漏完了，气球炸了——这就是爆炸。护甲值就是气球皮的厚度。"
-
-新人 30 秒就懂了。
-
-后来，小明需要给技术主管解释**模块架构**：
-
-```
-/qq:explain VehicleDamageSystem
-```
-
-Claude 读取源码和设计文档，输出结构化解析：职责、依赖关系、数据流、关键设计决策。技术性强但清晰明了。
-
-**10:30 — 着火特效感觉不对**
-
-小明不确定其他游戏是怎么处理载具着火过程的。
-
-```
-/qq:research
-```
-
-| 游戏 | 火焰模型 | 优点 | 缺点 |
-|------|---------|------|------|
-| GTA V | 血量阈值阶段（冒烟 → 着火 → 爆炸） | 直觉化，有电影感 | 僵硬，玩家没有能动性 |
-| 刺客信条 | 持续伤害 + 火焰扩散 | 写实 | 复杂，难平衡 |
-| 正当防卫 | 到阈值直接爆炸 | 简单，爽快 | 玩家没有预警 |
-
-小明选了 GTA V 的方案——基于血量阈值的三个视觉阶段。经过验证的设计，玩家已经习惯了。
-
-**11:00 — 深入之前先检查模块依赖**
-
-```
-/qq:deps
-```
-
-Claude 扫描所有 `.asmdef` 文件，生成 Mermaid 依赖图和矩阵表。小明发现 `VehicleSystem` 意外依赖了 `WeaponSystem`——层级违规。他在问题扩散之前修复了这个依赖。
-
-```
-/qq:deps VehicleSystem
-```
-
-这次只看 `VehicleSystem` 的上下游——聚焦视图，看它到底碰了哪些模块。
-
-**11:30 — 设计文档还准不准？**
-
-```
-/qq:doc-drift --module vehicle
-```
-
-Claude 对比载具设计文档和实际代码。发现 2 处不一致：文档说 30% 血量着火，代码写的是 25%。还有一个计划中的"维修机制"写在文档里但还没实现——标注为"尚未实现，不是 bug"。
-
-**14:00 — 提交人工审阅前，先做跨模型代码审阅**
-
-```
-/qq:codex-code-review
-```
-
-Diff 发送给 Codex 审阅。大约 5 分钟后，审阅结果返回。**审阅门控**激活——在每条发现被独立 subagent 验证之前，Claude 不能编辑任何代码。
-
-```
-=== Round 1/5 ===
-
-Codex found:
-  [Critical] VehicleDamageSystem applies damage during respawn — no isDead guard
-  [Medium] FireEffect instantiates VFX every frame — should pool
-  [Suggestion] CollisionHandler.OnCollisionEnter allocates a new List every call
-
-Dispatching 2 verification subagents...
-
-  [Critical] isDead guard: CONFIRMED — VehicleDamageSystem.cs:47, no check
-  [Medium] VFX pooling: CONFIRMED — FireEffect.cs:23, Instantiate in Update
-
-Gate unlocked. Fixing confirmed issues...
-  ✅ Compiled. 186/186 EditMode, 42/42 PlayMode passed.
-
-=== Round 2/5 ===
-No [Critical] issues. Review passed.
-```
-
-> *提示：`/qq:claude-code-review` 做同样的事情，不需要 Codex CLI——用 Claude subagent 代替。同样的 Gate，同样的验证循环，没有外部依赖。*
-
-**15:00 — 生成人工审阅材料**
-
-```
-/qq:full-brief
-```
-
-两个 agent 并行运行。四份文档落入 `Docs/qq/`：
-
-```
-arch-review     — Mermaid 图：VehicleDamageSystem → Rigidbody, FireEffect → VFXPool
-pr-review       — P0: isDead guard, P1: VFX pooling, P2: List allocation
-timeline-arch   — 阶段 1: 基础伤害, 阶段 2: 着火阶段, 阶段 3: 爆炸 + 重生
-timeline-review — 按开发阶段分组的审阅项
-```
-
-这不是拿来粘贴到 PR 描述里的——而是给人类 reviewer 看的结构化材料。技术主管打开架构图，追踪依赖流，然后看 P0 项。审阅 15 分钟搞定，而不是一个小时。
-
-**15:30 — 今天做了什么？**
-
-```
-/qq:changes
-```
-
-Claude 总结：3 个新文件，2 个修改，1 个 bug 修复（isDead guard），1 个性能修复（VFX pooling）。可以准备写 commit message 了。
-
-**15:45 — 提交之前，再检查一遍**
-
-```
-/qq:best-practice
-```
-
-快速的项目专属审阅——按 `AGENTS.md` 里的团队规则检查：运行时不许用 `FindObjectOfType`，`OnDestroy` 必须清理，不允许跨模块依赖违规。抓到 `FireEffect` 没在 `OnDestroy` 退订 `OnDamageChanged` 事件。修了。
-
-**16:00 — 提交上去**
-
-```
-/qq:commit-push
-```
-
-Claude 把改动分成 3 个逻辑 commit：
-- `feat: vehicle damage system with HP-based collision damage`
-- `feat: fire VFX stages (smoke → fire → explosion)`
-- `fix: isDead guard + VFX pooling + event cleanup`
-
-Pre-push hook 最后跑一次测试：
-
-```
-[pre-push] EditMode 186/186 ✅ PlayMode 42/42 ✅
-[pre-push] Runtime errors: 0
-All tests passed, push allowed.
-```
-
-**16:15 — 仓库有点乱了**
-
-过去一个月，设计文档、审阅输出、临时 spec 到处堆积。
-
-```
-/qq:doc-tidy
-```
-
-Claude 扫描整个仓库，分类 47 个文档文件，输出整理方案：
-- 12 个临时审阅文件 → 归档
-- 5 个重复的设计文档 → 合并
-- 3 个引用已删除模块的孤立文档 → 删除
-- 根目录有 8 个文件应该放到 `Docs/`
-
-小明看了方案，批准执行，仓库又干净了。
-
-**一天结束**
-
-```
-/qq:timeline
-```
-
-回顾分支历史，timeline skill 把 11 个 commit 分成 3 个语义阶段：
-1. 核心伤害系统（commit 1-4）
-2. 着火特效阶段（commit 5-8）
-3. Bug 修复和清理（commit 9-11）
-
-每个阶段有独立的架构演化文档和代码审阅清单。周五团队会议的完美材料。
-
----
-
-> 每一步都有安全网。自动编译当场抓住语法错误。测试抓住逻辑 bug。运行时错误检查抓住隐藏的异常。跨模型审阅抓住设计缺陷。Gate 阻止未验证的修复。Pre-push hook 是最后一道关卡。
->
-> 小明从来不需要想"现在该跑什么命令"。这套工具链在引导他。
-
-## 前置条件
-
-| 需求 | 说明 |
-|------|------|
-| macOS | v1 限制 — Windows/Linux 计划在 v2 支持 |
-| Git | 必需 — hooks 和审阅命令依赖 git |
-| Unity 2021.3+ | tykit 要求 |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI 或 IDE 扩展 |
-| curl, python3, jq | `brew install curl python3 jq` |
-| [Codex CLI](https://github.com/openai/codex) | 可选 — 仅跨模型审阅需要 |
+输入 `/qq:go` — qq 读取项目状态，引导你到正确的步骤。每步完成后建议下一步。使用 `--auto` 全自动走完。
 
 ## 安装
 
-### 第 1 步：安装插件（skills + hooks）
+**前置条件：** macOS，Unity 2021.3+，[Claude Code](https://docs.anthropic.com/en/docs/claude-code)，curl，python3，jq。[Codex CLI](https://github.com/openai/codex) 可选（用于跨模型审阅）。
 
-在 Claude Code 中：
+**第 1 步 — 插件（skills + hooks）：**
 ```
 /plugin marketplace add tykisgod/quick-question
 /plugin install qq@quick-question-marketplace
 ```
 
-这会安装全部 17 个 skill 和 hooks（自动编译、skill 审阅强制）。不会向你的项目复制任何文件 — 插件从缓存运行。
+**第 2 步 — tykit（Unity 包）：**
 
-### 第 2 步：安装 tykit（Unity 包）
-
-tykit 是让 Claude 控制 Unity Editor 的 HTTP 服务器：
+> 第 2 步是可选的 — 如果只需要 skills，可以跳过。tykit 提供直接控制 Unity Editor 的能力。
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
@@ -633,129 +386,20 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
-安装器处理 Unity 相关配置：
-- 将 tykit 添加到 `Packages/manifest.json`
-- 复制 shell 脚本到 `scripts/`
-- 从模板创建 `CLAUDE.md` 和 `AGENTS.md`（仅在不存在时创建，不会覆盖）
-
 ## 快速开始
 
-安装完成后，打开 Unity 项目并启动 Claude Code：
-
 ```bash
-# 运行测试并检查错误
-/qq:test
-
-# 仅运行 PlayMode
-/qq:test play
-
-# 按测试名过滤
-/qq:test --filter "Health"
-
-# 跨模型代码审阅
-/qq:codex-code-review
-
-# 提交并推送
-/qq:commit-push
+/qq:go                  # 我在哪？下一步该做什么？
+/qq:go "add health system"   # 从一个想法开始
+/qq:go --auto design.md      # 全自动流水线，无需确认
 ```
 
-## tykit — Unity Editor HTTP 服务器
-
-tykit 是 Unity Editor 内自动启动的 HTTP 服务器。**任何 AI agent**（Claude Code、Codex、自定义工具）都可以通过简单的 HTTP 调用控制 Unity — 无需 SDK、无需插件 API、无需 UI 自动化。
-
-tykit 可以独立使用，也可以作为 quick-question 的一部分。与 qq 配合时，它驱动自动编译和测试执行。
-
-### 独立安装
-
-不需要安装 quick-question。只需在 Unity 项目的 `Packages/manifest.json` 中加一行：
-
-```json
-"com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
-```
-
-打开 Unity — tykit 自动启动。端口存储在 `Temp/eval_server.json` 中。
-
-### 你能做什么
-
-**运行测试并获取结果：**
+或者直接使用任意 skill：
 ```bash
-PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
-
-# 启动 EditMode 测试
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"run-tests","args":{"mode":"editmode"}}' \
-  -H 'Content-Type: application/json'
-
-# 轮询结果
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"get-test-result"}' \
-  -H 'Content-Type: application/json'
-```
-
-**控制 Play Mode：**
-```bash
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"play"}' -H 'Content-Type: application/json'
-
-# 运行时读取控制台错误
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"console","args":{"count":20,"filter":"error"}}' \
-  -H 'Content-Type: application/json'
-
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"stop"}' -H 'Content-Type: application/json'
-```
-
-**查找和检视 GameObject：**
-```bash
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"find","args":{"name":"Player"}}' \
-  -H 'Content-Type: application/json'
-
-curl -s -X POST http://localhost:$PORT/ \
-  -d '{"command":"inspect","args":{"id":12345}}' \
-  -H 'Content-Type: application/json'
-```
-
-### 完整 API 参考
-
-| 命令 | 参数 | 描述 |
-|------|------|------|
-| `status` | — | Editor 状态概览 |
-| `compile-status` | — | 当前编译状态 |
-| `get-compile-result` | — | 编译结果及错误 |
-| `run-tests` | `mode`, `filter` | 启动 EditMode/PlayMode 测试 |
-| `get-test-result` | `runId`（可选） | 轮询测试结果 |
-| `play` | — | 进入 Play Mode |
-| `stop` | — | 退出 Play Mode |
-| `console` | `count`, `filter` | 读取控制台日志 |
-| `find` | `name` 或 `type` | 查找场景中的 GameObject |
-| `inspect` | `id` | 检视 GameObject 组件 |
-| `refresh` | — | 刷新 AssetDatabase |
-| `save-scene` | — | 保存当前场景 |
-| `clear-console` | — | 清空控制台缓冲 |
-
-### quick-question 如何使用 tykit
-
-qq 的自动编译 hook 触发时，优先走 tykit — 一个 HTTP 调用即可触发增量编译，不抢键盘焦点。如果 tykit 不可用，回退到 osascript 或 batch 模式。`/qq:test` 也通过 tykit 运行测试，实现快速非阻塞执行。这就是 qq 比 batch 模式快得多的原因。
-
-```mermaid
-flowchart LR
-    subgraph "Claude Code"
-        A[Shell 脚本]
-    end
-    subgraph "Unity Editor"
-        B[tykit :PORT]
-        C[编译管线]
-        D[测试运行器]
-        E[控制台]
-        F[场景管理器]
-    end
-    A -->|"HTTP POST"| B
-    B --> C
-    B --> D
-    B --> E
-    B --> F
+/qq:test                      # 运行测试
+/qq:best-practice             # 快速 18 条规则检查
+/qq:codex-code-review         # 跨模型审阅
+/qq:commit-push               # 提交发布
 ```
 
 ## 命令
@@ -792,72 +436,152 @@ flowchart LR
 | `/qq:changes` | 汇总当前会话的所有变更 |
 | `/qq:doc-tidy` | 扫描仓库文档，分析组织问题，建议清理 |
 
+## 场景
+
+### 1. 从零构建功能
+
+> 独立开发者。一句话需求："加个食物系统。"
+
+```
+/qq:go "add a food system"
+```
+
+qq 建议 `/qq:design`。问 3 个问题（参考游戏？数据格式？MVP？），写出设计文档。
+
+→ "设计完成。运行 `/qq:plan`？" — 读取设计文档，探索代码库，输出 6 步实现计划，包含文件路径和接口。
+
+→ "计划就绪。运行 `/qq:execute`？" — 创建 `IFoodSource` 接口，实现 `HungerSystem` 和 `FoodContainer`，接入现有的 `NeedSystem`。每次 `.cs` 保存通过 hook 自动编译。
+
+→ "运行 `/qq:best-practice`？" — 发现 `Update` 里的 `GetComponent` 和缺失的事件退订。已修复。
+
+→ "运行 `/qq:test`？" — 全部通过。→ "运行 `/qq:commit-push`？"
+
+**或跳过所有确认：** `/qq:go --auto "add a food system"` 端到端全自动运行。
+
+---
+
+### 2. 合并前审阅代码
+
+> 团队开发者。5 个文件，400 行 C# 改动。准备审阅。
+
+```
+/qq:go
+```
+
+qq 检测到未提交的 `.cs` 改动。建议 `/qq:best-practice`。发现一个 `public` 字段应该是 `[SerializeField] private`，还有缺失的 `CompareTag`。30 秒修复。
+
+→ "运行 `/qq:codex-code-review`？" — diff 发送给 Codex。审阅门控锁定编辑。子 agent 验证：1 个关键问题确认（重生时无 `isDead` 守卫），1 个误报驳回。修复应用，门控解锁。
+
+→ "运行 `/qq:doc-drift`？" — 设计文档写着 30% 血量着火，代码用的是 25%。文档已更新。
+
+→ "运行 `/qq:commit-push`？" — pre-push hook 运行测试。全部通过。已推送。
+
+---
+
+### 3. 理解大型代码库
+
+> 新团队成员。第一天面对 20 万行 Unity 项目。
+
+```
+/qq:grandma "task system"
+```
+> "想象一家餐厅。每个组员是服务员。任务系统是经理 — 看所有桌子，判断谁最近、谁有空，然后分配。紧急的桌子插队。"
+
+技术版本：
+
+```
+/qq:explain TaskSystem
+```
+
+输出：职责、核心类、数据流、生命周期钩子、设计决策。
+
+```
+/qq:deps
+```
+
+所有 `.asmdef` 模块的 Mermaid 依赖图。`TaskSystem` 依赖 `NavigationSystem` 和 `NeedSystem`，但不依赖 `CombatSystem` — 边界清晰。
+
+## tykit
+
+tykit 是 Unity Editor 内的独立 HTTP 服务器。任何 AI agent 都可以通过 HTTP 控制 Unity — 编译、运行测试、Play/Stop、读取控制台、检视 GameObject。无需 SDK。
+
+**独立使用**（不需要 quick-question）：
+```json
+"com.tyk.tykit": "https://github.com/tykisgod/tykit.git"
+```
+
+**或配合 qq** — 在后台驱动自动编译和测试。
+
+```bash
+PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])")
+
+# 编译
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"compile-status"}' -H 'Content-Type: application/json'
+
+# 运行测试
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"run-tests","args":{"mode":"editmode"}}' -H 'Content-Type: application/json'
+
+# 读取错误
+curl -s -X POST http://localhost:$PORT/ \
+  -d '{"command":"console","args":{"count":50,"filter":"error"}}' -H 'Content-Type: application/json'
+```
+
+tykit 就是 HTTP。可以从 Python、GitHub Actions 或任何 AI agent 调用。完整 API 参见 [tykit API Reference](docs/tykit-api.md)，共 13 个命令。
+
 ## 工作原理
 
-### 自动编译（PostToolUse Hook）
+### 三层架构，各司其职：
 
-每当 Claude 编辑 `.cs` 文件时，PostToolUse hook 触发智能编译：
+**`/qq:go` 路由。** 读取项目状态 — 设计文档、实现计划、未提交代码、测试结果 — 推荐正确的下一个 skill。它自己不做任何工作，只负责路由。
 
 ```mermaid
 flowchart LR
-    A["编辑 .cs 文件"] --> B{tykit\n可用？}
-    B -->|是| C["HTTP 编译\n（快速，非阻塞）"]
-    B -->|否| D{Editor\n已打开？}
-    D -->|是| E["osascript 触发\n+ 轮询状态"]
-    D -->|否| F["Unity -batchmode\n（离线编译）"]
-    C --> G["✅ 结果"]
-    E --> G
-    F --> G
+    A["有设计文档？"] --> B["/qq:plan"]
+    C["有实现计划？"] --> D["/qq:execute"]
+    E["有未提交 .cs？"] --> F["/qq:best-practice"]
+    G["测试通过？"] --> H["/qq:commit-push"]
 ```
 
-### tykit（HTTP 服务器）
+**Hooks 守卫。** 自动触发 — 你不需要调用它们。每次 `.cs` 编辑触发编译。每次代码审阅激活门控，阻止编辑直到发现被验证。每次 skill 改动被追踪，会话结束前必须审阅。
 
-详见上方独立章节 [tykit — Unity Editor HTTP 服务器](#tykit--unity-editor-http-服务器)。
+```mermaid
+flowchart LR
+    A["编辑 .cs"] -->|PostToolUse| B["自动编译"]
+    C["运行审阅"] -->|PostToolUse| D["锁定编辑"]
+    E["子 agent 完成"] -->|PostToolUse| F["解锁编辑"]
+    G["会话结束"] -->|Stop| H["检查：skill 已审阅？"]
+```
+
+**tykit 桥接。** Unity Editor 内的 HTTP 服务器。当 qq 需要编译、运行测试或读取控制台时，它与 tykit 通信。没有 UI 自动化 — 只有 HTTP。
+
+```mermaid
+flowchart LR
+    A["Claude Code"] -->|"HTTP"| B["tykit"]
+    B --> C["编译"]
+    B --> D["测试"]
+    B --> E["Play/Stop"]
+    B --> F["控制台"]
+    B --> G["检视"]
+```
 
 ### 跨模型审阅（Tribunal）
 
-两个 AI 模型互相审阅，自动验证每条发现：
-
 ```mermaid
 flowchart TD
-    A["启动 /qq:codex-code-review"] --> B["Codex 审阅 diff"]
-    B --> C["Claude 派出验证子 agent"]
-    C --> D{"每条发现\n已确认？"}
-    D -->|"未确认"| E["丢弃发现"]
-    D -->|"已确认"| F{"修复方案\n过度设计？"}
-    F -->|"是"| G["采用更简单的方案"]
-    F -->|"否"| H["应用修复"]
-    E --> I{"还有关键\n问题？"}
-    G --> I
-    H --> I
-    I -->|"是（最多 5 轮）"| B
-    I -->|"否"| J["✅ 审阅完成"]
+    A["Codex 审阅 diff"] --> B["Claude 验证每条发现"]
+    B --> C{"已确认？"}
+    C -->|否| D["丢弃"]
+    C -->|是| E{"过度设计？"}
+    E -->|是| F["更简单的修复"]
+    E -->|否| G["应用修复"]
+    D --> H{"还有问题？"}
+    F --> H
+    G --> H
+    H -->|是| A
+    H -->|否| I["✅ 完成"]
 ```
-
-**审阅门控：** 验证子 agent 运行期间，PreToolUse hook 会阻止所有代码编辑 — 防止在发现被确认前过早修复。
-
-### Skill 审阅强制（Stop Hook）
-
-```mermaid
-flowchart LR
-    A["编辑 skill 文件"] -->|"PostToolUse"| B["记录到 /tmp/\n标记文件"]
-    B --> C["会话即将结束..."]
-    C -->|"Stop hook"| D{"标记\n存在？"}
-    D -->|"是"| E["❌ 阻止：先运行\n/qq:self-review"]
-    D -->|"否"| F["✅ 会话结束"]
-```
-
-## 对比
-
-| 特性 | quick-question | 传统 AI 工具 |
-|------|:---:|:---:|
-| 编辑即编译 | ✅ Hook 驱动 | ❌ 手动 |
-| 测试流水线 | ✅ EditMode + PlayMode + 错误检查 | ❌ 手动 |
-| 跨模型审阅 | ✅ Claude + Codex 验证循环 | ⚠️ 单模型 |
-| 运行时 Editor 控制 | ✅ tykit (HTTP) | ❌ 无法访问 |
-| Skill 审阅强制 | ✅ Stop hook 阻止直到审阅完成 | ⚠️ 靠自觉 |
-| 场景恢复 | ✅ PlayMode 测试后自动恢复 | ❌ 停留在测试场景 |
-| 推送前测试门控 | ✅ 可选 git hook | ❌ 无 |
 
 ## 自定义
 
@@ -879,12 +603,22 @@ flowchart LR
 | **P1** | 业务逻辑、性能、错误处理 | 建议审阅 |
 | **P2** | Getter/Setter、日志、配置微调 | 快速扫一眼 |
 
+## 设计原则
+
+- **文档先行** — 先写设计再写代码。`/qq:design` → `/qq:plan` → `/qq:execute` 强制这个顺序。
+- **验证，而非信任** — 跨模型审阅的发现会由子 agent 独立验证，然后才修改代码。
+- **修复要适度** — 每次审阅都包含过度设计检查。如果修复比问题本身还重，用更简单的方案。
+- **自动安全网** — hooks 无需你主动调用就会触发。编译、审阅门控、skill 强制始终开启。
+- **松耦合** — 每个 skill 只做一件事。流水线是建议性的（"要运行 X 吗？"），不是强制的。
+
+基于 [AI 编程实践：独立开发者的文档驱动方法](https://tyksworks.com/posts/ai-coding-workflow-zh/) 的理念开发。
+
 ## 限制
 
 - **仅 macOS**（v1）— 脚本使用 `osascript`、`/Applications/Unity`、`~/Library/Logs`
 - **跨模型审阅功能需要 Codex CLI**
 - **Unity 2021.3+**，tykit 包要求
-- **tykit 仅限 localhost，无认证** — 适用于开发机，不适用于共享/CI 环境
+- **tykit 仅限 localhost，无认证** — 适用于开发机，不适用于未做网络管控的共享环境
 - **编译验证使用控制台日志抓取** — 关键编译前使用 `clear-console` 避免残留错误
 
 ## 贡献
@@ -899,480 +633,126 @@ flowchart LR
 
 # 日本語
 
-> [AI Coding in Practice: An Indie Developer's Document-First Approach](https://tyksworks.com/posts/ai-coding-workflow-en/) (English) の思想に基づいて開発
-
 ## 機能
 
-> 編集 → コンパイル → テスト → レビュー → リリース。完全自動化。
+**`/qq:go` — ライフサイクル対応ルーティング。** 開発サイクルのどこにいるかを検出し、次のステップを提案する。設計ドキュメントがある？計画を提案。コード実装済み？レビューを提案。テスト通過？出荷を提案。
 
-🔧 **自動コンパイル** — .cs ファイル編集後に自動コンパイル検証<br>
-🧪 **テストパイプライン** — EditMode + PlayMode テスト + ランタイムエラーチェック<br>
-🔍 **クロスモデルレビュー** — Claude が編成、Codex がレビュー、各指摘をソースで検証<br>
-⚡ **22 個のスラッシュコマンド** — テスト、コミット、レビュー、解説、依存分析など<br>
-🎮 **tykit** — Unity Editor 内の HTTP サーバー（play/stop/console/テスト実行）
+**tykit — AI が制御する Unity Editor。** Unity Editor 内の HTTP サーバー。あらゆる AI エージェントから呼び出せる。コンパイル、テスト実行、Play Mode 制御、コンソールログ読み取り、GameObject の検索・検査 — すべて `curl` で。SDK 不要、UI 自動化不要。qq なしでも単独で動作する。
+
+さらに：`.cs` 編集ごとの自動コンパイル、EditMode + PlayMode テストパイプライン、クロスモデルコードレビュー（Claude + Codex + 検証）、開発ライフサイクル全体をカバーする 22 個のスキル。
+
+## ライフサイクルパイプライン
+
+```mermaid
+flowchart LR
+    GO["<b>/qq:go</b>"] --> D["設計"]
+    D --> P["計画"]
+    P --> E["実装"]
+    E --> R["レビュー"]
+    R --> T["テスト"]
+    T --> S["出荷"]
+
+    style GO fill:#4a9eff,color:#fff
+```
+
+`/qq:go` と入力すると、qq がプロジェクト状態を読み取り、適切なステップにルーティングする。各ステップが次を提案。`--auto` で全パイプラインを自動実行。
 
 ## インストール
 
-### ステップ 1：プラグインのインストール
+**前提条件：** macOS、Unity 2021.3+、[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、curl、python3、jq。[Codex CLI](https://github.com/openai/codex) はオプション（クロスモデルレビュー用）。
 
-Claude Code で：
+**ステップ 1 — プラグイン（スキル + フック）：**
 ```
 /plugin marketplace add tykisgod/quick-question
 /plugin install qq@quick-question-marketplace
 ```
 
-### ステップ 2：tykit のインストール
+**ステップ 2 — tykit（Unity パッケージ）：**
+
+> ステップ 2 はオプション。スキルだけ使うなら不要 — tykit は Unity Editor の直接制御を追加する。
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
-/tmp/qq-install/install.sh /path/to/unity-project
+/tmp/qq-install/install.sh /path/to/your-unity-project
 rm -rf /tmp/qq-install
 ```
 
-前提条件：macOS、Unity 2021.3+、Claude Code、curl/python3/jq、Codex CLI（オプション）
+## クイックスタート
 
-## qq との一日
-
-> ユウキは GTA 風のオープンワールドゲームを Unity で開発中。20 万行の C#、15 のサービスモジュール、4 人のチーム。qq をインストールしたばかり。彼の火曜日を追ってみよう。
-
-**9:00 — コーディング開始**
-
-ユウキは Claude に車両ヘルスシステムの追加を依頼する——衝突でダメージ、低 HP で発火、最終的に爆発。Claude は `VehicleDamageSystem.cs`、`FireEffect.cs` を作成し、`CollisionHandler.cs` を修正する。
-
-コンパイルコマンドを実行する必要はない。Claude が `.cs` ファイルを保存するたびに、hook が自動的に起動する：
-
-```
-⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
+```bash
+/qq:go                  # 今どこ？次に何をすべき？
+/qq:go "add health system"   # アイデアからスタート
+/qq:go --auto design.md      # 全パイプライン自動実行
 ```
 
-3 つのファイルを編集、3 回の自動コンパイル。気づきすらしない。
-
-**9:30 — テスト実行**
-
+または任意のスキルを直接使用：
+```bash
+/qq:test                      # テスト実行
+/qq:best-practice             # 18 ルールのクイックチェック
+/qq:codex-code-review         # クロスモデルレビュー
+/qq:commit-push               # 出荷
 ```
-/qq:test
-```
-
-```
-EditMode:  186/186 passed
-PlayMode:   42/42 passed
-Runtime errors: 1 found
-  [Error] NullReferenceException at VehicleDamageSystem.cs:34
-  Source: VehicleDamageSystem.OnEnable() — _rigidbody not assigned
-```
-
-228 テスト全て「通過」したが、qq がコンソールに潜むランタイムエラーを検出した——Rigidbody の準備が完了する前に `GetComponent` が実行されていた。Claude がコードを読み、呼び出しを `Start()` に移動、自動コンパイル。クリーン。
-
-**10:00 — 新メンバーが聞く：「ダメージシステムってどう動いてるの？」**
-
-```
-/qq:grandma "vehicle damage system"
-```
-
-> 「車はぜんぶ風船だと思って。何かにぶつかると小さな穴が開く——それがダメージ。穴がたくさん開くと空気がどんどん抜ける——それが発火段階。最後に空気がなくなると、風船が割れる——それが爆発。装甲値は風船の皮の厚さだよ。」
-
-新メンバーは 30 秒で理解した。
-
-その後、ユウキは**モジュールアーキテクチャ**をテックリードに説明する必要がある：
-
-```
-/qq:explain VehicleDamageSystem
-```
-
-Claude はソースコードと設計ドキュメントを読み、構造化された解析を出力する：責務、依存関係、データフロー、主要な設計判断。技術的だが明快。
-
-**10:30 — 炎の VFX がしっくりこない**
-
-他のゲームが車両の発火をどう処理しているか、ユウキにはよくわからない。
-
-```
-/qq:research
-```
-
-| ゲーム | 火災モデル | 長所 | 短所 |
-|--------|-----------|------|------|
-| GTA V | HP 閾値ステージ（煙 → 炎 → 爆発） | 直感的、映画的 | 固定的、プレイヤーの介入余地なし |
-| アサシン クリード | 継続ダメージ + 延焼 | リアル | 複雑、バランス調整が困難 |
-| ジャストコーズ | 閾値で即座に爆発 | シンプル、爽快 | プレイヤーへの警告なし |
-
-ユウキは GTA V モデルを選択——HP 閾値に基づく 3 つのビジュアルステージ。実証済み、プレイヤーも既に理解しているパターン。
-
-**11:00 — 深く進む前にモジュール依存をチェック**
-
-```
-/qq:deps
-```
-
-Claude は全 `.asmdef` ファイルをスキャンし、Mermaid 依存グラフとマトリクステーブルを生成。ユウキは `VehicleSystem` が `WeaponSystem` に誤って依存していることを発見——レイヤー違反。拡散する前に修正。
-
-```
-/qq:deps VehicleSystem
-```
-
-今度は `VehicleSystem` の上流・下流だけ——何に触れているかが正確にわかる焦点ビュー。
-
-**11:30 — 設計ドキュメントはまだ正確か？**
-
-```
-/qq:doc-drift --module vehicle
-```
-
-Claude は車両設計ドキュメントと実際のコードを比較。2 つの不一致を発見：ドキュメントでは 30% HP で発火と記載、コードは 25% を使用。さらに「修理メカニクス」が文書化されているが未実装——「未実装、バグではない」と記録。
-
-**14:00 — チームレビュー依頼前に、クロスモデルコードレビュー**
-
-```
-/qq:codex-code-review
-```
-
-diff が Codex に送信されレビューされる。約 5 分後、結果が返ってくる。**レビューゲート**が起動——各指摘が独立した subagent に検証されるまで、Claude はコードを編集できない。
-
-```
-=== Round 1/5 ===
-
-Codex found:
-  [Critical] VehicleDamageSystem applies damage during respawn — no isDead guard
-  [Medium] FireEffect instantiates VFX every frame — should pool
-  [Suggestion] CollisionHandler.OnCollisionEnter allocates a new List every call
-
-Dispatching 2 verification subagents...
-
-  [Critical] isDead guard: CONFIRMED — VehicleDamageSystem.cs:47, no check
-  [Medium] VFX pooling: CONFIRMED — FireEffect.cs:23, Instantiate in Update
-
-Gate unlocked. Fixing confirmed issues...
-  ✅ Compiled. 186/186 EditMode, 42/42 PlayMode passed.
-
-=== Round 2/5 ===
-No [Critical] issues. Review passed.
-```
-
-> *ヒント：`/qq:claude-code-review` は Codex CLI なしで同じことを行う——Claude subagent を使用。同じ Gate、同じ検証ループ、外部依存なし。*
-
-**15:00 — チーム向けレビュー資料を生成**
-
-```
-/qq:full-brief
-```
-
-2 つの agent が並列実行。4 つのドキュメントが `Docs/qq/` に生成される：
-
-```
-arch-review     — Mermaid 図：VehicleDamageSystem → Rigidbody, FireEffect → VFXPool
-pr-review       — P0: isDead guard, P1: VFX pooling, P2: List allocation
-timeline-arch   — Phase 1: 基礎ダメージ, Phase 2: 発火ステージ, Phase 3: 爆発 + リスポーン
-timeline-review — 開発フェーズごとにグループ化されたレビュー項目
-```
-
-これは PR 説明にコピペするものではない——人間レビュアーのための構造化された資料。テックリードはアーキテクチャ図を開き、依存フローをたどり、P0 項目を読む。1 時間ではなく 15 分でレビュー完了。
-
-**15:30 — 今日何をした？**
-
-```
-/qq:changes
-```
-
-Claude がまとめる：新規ファイル 3、変更 2、バグ修正 1（isDead guard）、パフォーマンス修正 1（VFX pooling）。コミットメッセージを書く準備完了。
-
-**15:45 — コミット前に、もう一度チェック**
-
-```
-/qq:best-practice
-```
-
-プロジェクト固有のクイックレビュー——`AGENTS.md` のチームルールに基づくチェック：ランタイムで `FindObjectOfType` 禁止、`OnDestroy` でのクリーンアップ漏れなし、クロスモジュール依存違反なし。`FireEffect` が `OnDestroy` で `OnDamageChanged` を解除していないことを検出。修正。
-
-**16:00 — 出荷**
-
-```
-/qq:commit-push
-```
-
-Claude は変更を 3 つの論理コミットに分割：
-- `feat: vehicle damage system with HP-based collision damage`
-- `feat: fire VFX stages (smoke → fire → explosion)`
-- `fix: isDead guard + VFX pooling + event cleanup`
-
-Pre-push hook が最終テストを実行：
-
-```
-[pre-push] EditMode 186/186 ✅ PlayMode 42/42 ✅
-[pre-push] Runtime errors: 0
-All tests passed, push allowed.
-```
-
-**16:15 — リポが散らかってきた**
-
-この一ヶ月で、設計ドキュメント、レビュー出力、一時的な仕様書があちこちに散乱。
-
-```
-/qq:doc-tidy
-```
-
-Claude はリポジトリ全体をスキャンし、47 のドキュメントファイルを分類、整理プランを出力：
-- 一時レビューファイル 12 件 → アーカイブ
-- 重複した設計ドキュメント 5 件 → マージ
-- 削除済みモジュールを参照する孤立ドキュメント 3 件 → 削除
-- ルートディレクトリに `Docs/` に移すべきファイル 8 件
-
-ユウキがプランを確認、承認。リポは再びクリーンに。
-
-**一日の終わり**
-
-```
-/qq:timeline
-```
-
-ブランチ履歴を振り返り、timeline skill が 11 コミットを 3 つのセマンティックフェーズに分類：
-1. コアダメージシステム（コミット 1-4）
-2. 発火 VFX ステージ（コミット 5-8）
-3. バグ修正とクリーンアップ（コミット 9-11）
-
-各フェーズにアーキテクチャ進化ドキュメントとコードレビューチェックリストが付属。金曜のチームレビュー会議に最適な資料。
-
----
-
-> すべてのステップにセーフティネットがあった。自動コンパイルが構文エラーを即座にキャッチ。テストがロジックバグをキャッチ。ランタイムエラーチェックが隠れた例外をキャッチ。クロスモデルレビューが設計上の欠陥をキャッチ。Gate が未検証の修正を防止。Pre-push hook が最後の関門。
->
-> ユウキは「今どのコマンドを実行すべきか」を考える必要がなかった。ツールチェインが導いてくれた。
 
 ---
 
 # 한국어
 
-> [AI Coding in Practice: An Indie Developer's Document-First Approach](https://tyksworks.com/posts/ai-coding-workflow-en/) (English)의 철학을 기반으로 개발
-
 ## 기능
 
-> 편집 → 컴파일 → 테스트 → 리뷰 → 배포. 완전 자동화.
+**`/qq:go` — 라이프사이클 인식 라우팅.** 개발 주기에서 현재 위치를 감지하고 다음 단계를 제안한다. 설계 문서가 있다면? 계획을 제안. 코드가 작성되었다면? 리뷰를 제안. 테스트가 통과했다면? 배포를 제안.
 
-🔧 **자동 컴파일** — .cs 파일 편집 후 자동 컴파일 검증<br>
-🧪 **테스트 파이프라인** — EditMode + PlayMode 테스트 + 런타임 에러 체크<br>
-🔍 **크로스 모델 리뷰** — Claude 오케스트레이션, Codex 리뷰, 각 발견사항 소스 검증<br>
-⚡ **22개 슬래시 커맨드** — 테스트, 커밋, 리뷰, 설명, 의존성 분석 등<br>
-🎮 **tykit** — Unity Editor 내 HTTP 서버(play/stop/console/테스트 실행)
+**tykit — AI가 제어하는 Unity Editor.** Unity Editor 내부의 HTTP 서버. 어떤 AI 에이전트에서든 호출할 수 있다. 컴파일, 테스트 실행, Play Mode 제어, 콘솔 로그 읽기, GameObject 검색 및 검사 — 모두 `curl`로. SDK 불필요, UI 자동화 불필요. qq 없이도 단독으로 동작한다.
+
+추가 기능: `.cs` 편집마다 자동 컴파일, EditMode + PlayMode 테스트 파이프라인, 크로스 모델 코드 리뷰(Claude + Codex + 검증), 전체 개발 라이프사이클을 커버하는 22개 스킬.
+
+## 라이프사이클 파이프라인
+
+```mermaid
+flowchart LR
+    GO["<b>/qq:go</b>"] --> D["설계"]
+    D --> P["계획"]
+    P --> E["구현"]
+    E --> R["리뷰"]
+    R --> T["테스트"]
+    T --> S["배포"]
+
+    style GO fill:#4a9eff,color:#fff
+```
+
+`/qq:go`를 입력하면 qq가 프로젝트 상태를 읽고 적절한 단계로 라우팅한다. 각 단계가 다음을 제안. `--auto`로 전체 파이프라인을 자동 실행.
 
 ## 설치
 
-### 1단계: 플러그인 설치
+**사전 요구사항:** macOS, Unity 2021.3+, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), curl, python3, jq. [Codex CLI](https://github.com/openai/codex)는 선택(크로스 모델 리뷰용).
 
-Claude Code에서:
+**1단계 — 플러그인(스킬 + 훅):**
 ```
 /plugin marketplace add tykisgod/quick-question
 /plugin install qq@quick-question-marketplace
 ```
 
-### 2단계: tykit 설치
+**2단계 — tykit(Unity 패키지):**
+
+> 2단계는 선택사항. 스킬만 사용한다면 불필요 — tykit은 Unity Editor 직접 제어를 추가한다.
 
 ```bash
 git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
-/tmp/qq-install/install.sh /path/to/unity-project
+/tmp/qq-install/install.sh /path/to/your-unity-project
 rm -rf /tmp/qq-install
 ```
 
-사전 요구사항: macOS, Unity 2021.3+, Claude Code, curl/python3/jq, Codex CLI (선택)
+## 빠른 시작
 
-## qq와 함께하는 하루
-
-> 민수는 GTA 스타일 오픈월드 게임을 Unity로 개발 중이다. C# 20만 줄, 서비스 모듈 15개, 개발자 4명. qq를 방금 설치했다. 그의 화요일을 따라가 보자.
-
-**9:00 — 코딩 시작**
-
-민수가 Claude에게 차량 체력 시스템 추가를 요청한다 — 충돌 시 데미지, 저체력에서 발화, 최종적으로 폭발. Claude가 `VehicleDamageSystem.cs`, `FireEffect.cs`를 작성하고, `CollisionHandler.cs`를 수정한다.
-
-컴파일 명령을 직접 실행할 필요가 없다. Claude가 `.cs` 파일을 저장할 때마다 hook이 자동으로 실행된다:
-
-```
-⚙️ Compiling Unity... ✅ Compilation successful (1.2s)
+```bash
+/qq:go                  # 지금 어디? 다음에 뭘 해야 하지?
+/qq:go "add health system"   # 아이디어에서 시작
+/qq:go --auto design.md      # 전체 파이프라인 자동 실행
 ```
 
-파일 3개 편집, 자동 컴파일 3번. 알아차리지도 못한다.
-
-**9:30 — 테스트 실행**
-
+또는 아무 스킬이나 직접 사용:
+```bash
+/qq:test                      # 테스트 실행
+/qq:best-practice             # 18개 규칙 빠른 점검
+/qq:codex-code-review         # 크로스 모델 리뷰
+/qq:commit-push               # 배포
 ```
-/qq:test
-```
-
-```
-EditMode:  186/186 passed
-PlayMode:   42/42 passed
-Runtime errors: 1 found
-  [Error] NullReferenceException at VehicleDamageSystem.cs:34
-  Source: VehicleDamageSystem.OnEnable() — _rigidbody not assigned
-```
-
-228개 테스트가 전부 "통과"했지만, qq가 콘솔에 숨어 있던 런타임 에러를 잡아냈다 — Rigidbody가 준비되기 전에 `GetComponent`가 실행된 것이다. Claude가 코드를 읽고 호출을 `Start()`로 이동, 자동 컴파일. 깔끔.
-
-**10:00 — 신입이 묻는다: "데미지 시스템이 어떻게 돌아가요?"**
-
-```
-/qq:grandma "vehicle damage system"
-```
-
-> "모든 차가 풍선이라고 생각해 봐. 뭔가에 부딪히면 작은 구멍이 뚫려 — 그게 데미지야. 구멍이 많아지면 바람이 점점 빠져 — 그게 발화 단계야. 결국 바람이 다 빠지면 풍선이 빵 터져 — 그게 폭발이야. 장갑 수치는 풍선 껍질의 두께라고 생각하면 돼."
-
-신입은 30초 만에 이해했다.
-
-나중에 민수는 **모듈 아키텍처**를 테크 리드에게 설명해야 한다:
-
-```
-/qq:explain VehicleDamageSystem
-```
-
-Claude가 소스 코드와 설계 문서를 읽고, 구조화된 분석을 출력한다: 책임, 의존 관계, 데이터 흐름, 핵심 설계 결정. 기술적이지만 명확하다.
-
-**10:30 — 화재 VFX가 어딘가 어색하다**
-
-민수는 다른 게임들이 차량 화재 진행을 어떻게 처리하는지 확신이 없다.
-
-```
-/qq:research
-```
-
-| 게임 | 화재 모델 | 장점 | 단점 |
-|------|----------|------|------|
-| GTA V | HP 임계값 단계 (연기 → 화재 → 폭발) | 직관적, 영화 같은 연출 | 경직, 플레이어 개입 여지 없음 |
-| 어쌔신 크리드 | 지속 데미지 + 번짐 | 사실적 | 복잡, 밸런싱 어려움 |
-| 저스트 코즈 | 임계값 도달 시 즉시 폭발 | 단순, 통쾌 | 플레이어에게 경고 없음 |
-
-민수는 GTA V 모델을 선택 — HP 임계값 기반 3단계 비주얼. 검증된 설계, 플레이어들이 이미 익숙한 패턴이다.
-
-**11:00 — 더 깊이 들어가기 전에 모듈 의존성 점검**
-
-```
-/qq:deps
-```
-
-Claude가 모든 `.asmdef` 파일을 스캔하고, Mermaid 의존성 그래프와 매트릭스 테이블을 생성한다. 민수는 `VehicleSystem`이 `WeaponSystem`에 실수로 의존하고 있는 것을 발견 — 레이어 위반이다. 문제가 퍼지기 전에 수정한다.
-
-```
-/qq:deps VehicleSystem
-```
-
-이번에는 `VehicleSystem`의 상류/하류만 — 정확히 어떤 모듈과 연결되어 있는지 보여주는 집중 뷰.
-
-**11:30 — 설계 문서가 아직 정확한가?**
-
-```
-/qq:doc-drift --module vehicle
-```
-
-Claude가 차량 설계 문서와 실제 코드를 비교한다. 불일치 2건 발견: 문서에는 30% HP에서 발화라고 되어 있지만, 코드는 25%를 사용. 또한 "수리 메커닉"이 문서화되어 있지만 아직 미구현 — "아직 구현 안 됨, 버그 아님"으로 표기.
-
-**14:00 — 팀 리뷰 요청 전, 크로스 모델 코드 리뷰**
-
-```
-/qq:codex-code-review
-```
-
-diff가 Codex에 전송되어 리뷰된다. 약 5분 후 결과가 돌아온다. **리뷰 게이트**가 활성화된다 — 각 발견 사항이 독립적인 subagent에 의해 검증될 때까지 Claude는 코드를 편집할 수 없다.
-
-```
-=== Round 1/5 ===
-
-Codex found:
-  [Critical] VehicleDamageSystem applies damage during respawn — no isDead guard
-  [Medium] FireEffect instantiates VFX every frame — should pool
-  [Suggestion] CollisionHandler.OnCollisionEnter allocates a new List every call
-
-Dispatching 2 verification subagents...
-
-  [Critical] isDead guard: CONFIRMED — VehicleDamageSystem.cs:47, no check
-  [Medium] VFX pooling: CONFIRMED — FireEffect.cs:23, Instantiate in Update
-
-Gate unlocked. Fixing confirmed issues...
-  ✅ Compiled. 186/186 EditMode, 42/42 PlayMode passed.
-
-=== Round 2/5 ===
-No [Critical] issues. Review passed.
-```
-
-> *팁: `/qq:claude-code-review`는 Codex CLI 없이 같은 일을 한다 — Claude subagent를 사용. 같은 Gate, 같은 검증 루프, 외부 의존성 없음.*
-
-**15:00 — 팀을 위한 리뷰 자료 생성**
-
-```
-/qq:full-brief
-```
-
-2개의 agent가 병렬 실행. 4개의 문서가 `Docs/qq/`에 생성된다:
-
-```
-arch-review     — Mermaid 다이어그램: VehicleDamageSystem → Rigidbody, FireEffect → VFXPool
-pr-review       — P0: isDead guard, P1: VFX pooling, P2: List allocation
-timeline-arch   — Phase 1: 기본 데미지, Phase 2: 화재 단계, Phase 3: 폭발 + 리스폰
-timeline-review — 개발 단계별로 그룹화된 리뷰 항목
-```
-
-이건 PR 설명에 복사 붙여넣기 하는 게 아니다 — 인간 리뷰어를 위한 구조화된 자료다. 테크 리드가 아키텍처 다이어그램을 열고, 의존성 흐름을 추적하고, P0 항목을 읽는다. 1시간이 아니라 15분에 리뷰 완료.
-
-**15:30 — 오늘 뭘 했지?**
-
-```
-/qq:changes
-```
-
-Claude가 요약한다: 신규 파일 3개, 수정 2개, 버그 수정 1개 (isDead guard), 성능 수정 1개 (VFX pooling). 커밋 메시지를 쓸 준비 완료.
-
-**15:45 — 커밋하기 전에, 한 번 더 확인**
-
-```
-/qq:best-practice
-```
-
-프로젝트 전용 빠른 리뷰 — `AGENTS.md`의 팀 규칙에 따른 점검: 런타임에서 `FindObjectOfType` 금지, `OnDestroy` 클린업 누락 불가, 크로스 모듈 의존성 위반 금지. `FireEffect`가 `OnDestroy`에서 `OnDamageChanged` 이벤트를 해제하지 않은 것을 잡아냈다. 수정.
-
-**16:00 — 출시**
-
-```
-/qq:commit-push
-```
-
-Claude가 변경 사항을 3개의 논리적 커밋으로 분리:
-- `feat: vehicle damage system with HP-based collision damage`
-- `feat: fire VFX stages (smoke → fire → explosion)`
-- `fix: isDead guard + VFX pooling + event cleanup`
-
-Pre-push hook이 마지막으로 테스트를 실행:
-
-```
-[pre-push] EditMode 186/186 ✅ PlayMode 42/42 ✅
-[pre-push] Runtime errors: 0
-All tests passed, push allowed.
-```
-
-**16:15 — 리포가 지저분해졌다**
-
-지난 한 달간 설계 문서, 리뷰 결과물, 임시 스펙이 여기저기 쌓였다.
-
-```
-/qq:doc-tidy
-```
-
-Claude가 리포지토리 전체를 스캔하고, 47개 문서 파일을 분류하고, 정리 계획을 출력한다:
-- 임시 리뷰 파일 12개 → 아카이브
-- 중복된 설계 문서 5개 → 병합
-- 삭제된 모듈을 참조하는 고아 문서 3개 → 삭제
-- 루트 디렉토리에 `Docs/`로 옮겨야 할 파일 8개
-
-민수가 계획을 검토하고 승인. 리포가 다시 깔끔해졌다.
-
-**하루의 끝**
-
-```
-/qq:timeline
-```
-
-브랜치 히스토리를 되돌아보며, timeline skill이 11개 커밋을 3개의 의미적 단계로 분류:
-1. 코어 데미지 시스템 (커밋 1-4)
-2. 화재 VFX 단계 (커밋 5-8)
-3. 버그 수정과 정리 (커밋 9-11)
-
-각 단계에 아키텍처 진화 문서와 코드 리뷰 체크리스트가 포함. 금요일 팀 리뷰 미팅을 위한 완벽한 자료.
-
----
-
-> 모든 단계에 안전망이 있었다. 자동 컴파일이 문법 에러를 즉시 잡았다. 테스트가 로직 버그를 잡았다. 런타임 에러 체크가 숨은 예외를 잡았다. 크로스 모델 리뷰가 설계 결함을 잡았다. Gate가 미검증 수정을 막았다. Pre-push hook이 마지막 관문이었다.
->
-> 민수는 "지금 어떤 명령을 실행해야 하지"라고 고민할 필요가 없었다. 도구 체인이 그를 이끌었다.
