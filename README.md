@@ -29,6 +29,16 @@
 
 ---
 
+> **🪟 Windows Support (Preview):** Windows support was added in v1.1 and has not yet been battle-tested in production. It should stabilize over the coming weeks. macOS remains the primary, fully-tested platform. If you hit issues on Windows, please [open an issue](https://github.com/tykisgod/quick-question/issues).
+>
+> **🪟 Windows 支持（预览版）：** Windows 支持在 v1.1 中加入，尚未经过生产环境实战验证。预计未来几周逐步稳定。macOS 仍是主要的、经过完整测试的平台。如果你在 Windows 上遇到问题，请[提交 issue](https://github.com/tykisgod/quick-question/issues)。
+>
+> **🪟 Windows サポート（プレビュー）：** Windows サポートは v1.1 で追加されましたが、本番環境でのテストはまだ十分ではありません。今後数週間で安定化する予定です。macOS が引き続き主要な完全テスト済みプラットフォームです。Windows で問題が発生した場合は、[issue を作成](https://github.com/tykisgod/quick-question/issues)してください。
+>
+> **🪟 Windows 지원 (미리보기):** Windows 지원은 v1.1에서 추가되었으며 아직 프로덕션 환경에서 충분히 검증되지 않았습니다. 앞으로 몇 주에 걸쳐 안정화될 예정입니다. macOS가 주요 테스트 완료 플랫폼입니다. Windows에서 문제가 발생하면 [이슈를 열어](https://github.com/tykisgod/quick-question/issues) 주세요.
+
+---
+
 # English
 
 ## What It Does
