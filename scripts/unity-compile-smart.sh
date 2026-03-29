@@ -101,7 +101,7 @@ run_evalserver_mode() {
 }
 
 run_editor_mode() {
-    # 优先尝试 tykit（不抢焦点、不依赖 osascript）
+    # 优先尝试 tykit（不抢焦点、最快路径）
     local rc
     run_evalserver_mode
     rc=$?
@@ -111,7 +111,7 @@ run_editor_mode() {
         return 1
     fi
 
-    # tykit 不可用或状态未知，回退到 unity-check（osascript 触发）
+    # tykit 不可用或状态未知，回退到 unity-check（窗口激活触发）
     echo -e "${CYAN}[smart] Falling back to unity-check --trigger ${TIMEOUT}${NC}"
     if "$CHECK_SCRIPT" --trigger "$TIMEOUT"; then
         return 0

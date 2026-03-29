@@ -17,6 +17,8 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+source "$(dirname "$0")/platform/detect.sh"
+
 # 读取状态文件
 read_status() {
     if [ ! -f "$STATUS_FILE" ]; then
@@ -164,14 +166,7 @@ trigger_and_wait() {
 
     # 短暂激活 Unity 窗口触发 Auto Refresh，然后切回原窗口
     echo -e "${CYAN}Triggering Unity refresh...${NC}"
-    osascript -e '
-        tell application "System Events"
-            set frontApp to name of first application process whose frontmost is true
-        end tell
-        tell application "Unity" to activate
-        delay 0.5
-        tell application frontApp to activate
-    ' 2>/dev/null || true
+    qq_activate_unity_window
 
     # 同时创建触发文件作为备用方案
     mkdir -p "$(dirname "$TRIGGER_FILE")"

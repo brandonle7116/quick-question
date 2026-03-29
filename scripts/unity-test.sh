@@ -225,8 +225,8 @@ run_batch_tests() {
         return 1
     fi
 
-    local results_file="/tmp/unity-test-${platform}-$(date +%s).xml"
-    local log_file="/tmp/unity-test-${platform}-$(date +%s).log"
+    local results_file="$QQ_TEMP_DIR/unity-test-${platform}-$(date +%s).xml"
+    local log_file="$QQ_TEMP_DIR/unity-test-${platform}-$(date +%s).log"
 
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BOLD}Running ${platform} tests (Batch mode)${NC}"

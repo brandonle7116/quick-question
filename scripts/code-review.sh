@@ -14,6 +14,8 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/platform/detect.sh"
+
 if ! command -v codex &>/dev/null; then
   echo "Error: codex CLI not found. Install with: npm install -g @openai/codex" >&2
   exit 1
@@ -70,7 +72,7 @@ mkdir -p "$OUT_DIR"
 REVIEW_FILE="${OUT_DIR}/codex-code-review_${TIMESTAMP}.md"
 
 # Write diff to temp file so Codex reads it from disk (avoids ARG_MAX)
-DIFF_FILE=$(mktemp /tmp/code-review-diff-XXXXXXXX)
+DIFF_FILE=$(mktemp "$QQ_TEMP_DIR/code-review-diff-XXXXXXXX")
 printf '%s' "$DIFF" > "$DIFF_FILE"
 
 # Build review prompt

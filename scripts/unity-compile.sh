@@ -23,7 +23,7 @@ PROJECT_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 # 公共函数（find_unity 等）
 source "$(dirname "$0")/unity-common.sh"
 
-LOG_FILE="/tmp/unity-compile-$(date +%s).log"
+LOG_FILE="$QQ_TEMP_DIR/unity-compile-$(date +%s).log"
 
 # 验证项目路径
 if [ ! -f "$PROJECT_DIR/ProjectSettings/ProjectVersion.txt" ]; then
