@@ -718,7 +718,7 @@ qq 支持第三方 MCP Unity 服务器作为 tykit 的替代方案：
 
 **`/qq:go` — ライフサイクル対応ルーティング。** 開発サイクルのどこにいるかを検出し、次のステップを提案する。設計ドキュメントがある？計画を提案。コード実装済み？レビューを提案。テスト通過？出荷を提案。
 
-**tykit — AI が制御する Unity Editor。** Unity Editor 内の HTTP サーバー。あらゆる AI エージェントから呼び出せる。コンパイル、テスト実行、Play Mode 制御、コンソールログ読み取り、GameObject の検索・検査 — すべて `curl` で。SDK 不要、UI 自動化不要。qq なしでも単独で動作する。
+**tykit — AI が制御する Unity Editor。** Unity Editor 内の HTTP サーバー。あらゆる AI エージェントから呼び出せる。コンパイル、テスト実行、Play Mode 制御、コンソールログ読み取り、GameObject の検索・検査 — すべて `curl` で。SDK 不要、UI 自動化不要。qq なしでも単独で動作する。**[mcp-unity](https://github.com/CoderGamester/mcp-unity)** や **[Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)** を代替バックエンドとしても使用可能。
 
 さらに：`.cs` 編集ごとの自動コンパイル、EditMode + PlayMode テストパイプライン、クロスモデルコードレビュー（Claude + Codex + 検証）、開発ライフサイクル全体をカバーする 22 個のスキル。
 
@@ -793,7 +793,7 @@ Claude Code に MCP サーバーが設定されている場合、qq skill は自
 
 **`/qq:go` — 라이프사이클 인식 라우팅.** 개발 주기에서 현재 위치를 감지하고 다음 단계를 제안한다. 설계 문서가 있다면? 계획을 제안. 코드가 작성되었다면? 리뷰를 제안. 테스트가 통과했다면? 배포를 제안.
 
-**tykit — AI가 제어하는 Unity Editor.** Unity Editor 내부의 HTTP 서버. 어떤 AI 에이전트에서든 호출할 수 있다. 컴파일, 테스트 실행, Play Mode 제어, 콘솔 로그 읽기, GameObject 검색 및 검사 — 모두 `curl`로. SDK 불필요, UI 자동화 불필요. qq 없이도 단독으로 동작한다.
+**tykit — AI가 제어하는 Unity Editor.** Unity Editor 내부의 HTTP 서버. 어떤 AI 에이전트에서든 호출할 수 있다. 컴파일, 테스트 실행, Play Mode 제어, 콘솔 로그 읽기, GameObject 검색 및 검사 — 모두 `curl`로. SDK 불필요, UI 자동화 불필요. qq 없이도 단독으로 동작한다. **[mcp-unity](https://github.com/CoderGamester/mcp-unity)** 및 **[Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)**를 대체 백엔드로도 사용 가능.
 
 추가 기능: `.cs` 편집마다 자동 컴파일, EditMode + PlayMode 테스트 파이프라인, 크로스 모델 코드 리뷰(Claude + Codex + 검증), 전체 개발 라이프사이클을 커버하는 22개 스킬.
 
