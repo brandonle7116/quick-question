@@ -32,62 +32,57 @@
 
 ## What It Does
 
-> Edit → Compile → Test → Review → Ship. Fully automated.
+> Design → Plan → Implement → Review → Test → Ship. One command to start, lifecycle-aware routing throughout.
 
-🔧 **Auto-Compilation** — Edit a `.cs` file, compilation runs automatically via hook<br>
-🧪 **Test Pipeline** — EditMode + PlayMode tests with runtime error checking<br>
-🔍 **Cross-Model Review** — Claude orchestrates, Codex reviews, every finding verified against source<br>
-⚡ **22 Slash Commands** — test, commit, review, explain, dependency analysis, and more<br>
-🎮 **tykit** — HTTP server inside Unity Editor for AI agent control (play/stop/console/run tests)
+Type `/qq:go` and qq figures out where you are — got a design doc? It suggests planning. Got a plan? It suggests implementing. Got uncommitted code? It suggests reviewing. Each step chains to the next, or you can run any step directly.
 
-```
-Edit .cs file
-     │ (PostToolUse hook)
-     ▼
-┌──────────────────┐
-│  Smart Compile   │──── tykit (fast) / Editor trigger / Batch mode
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│   /qq:test       │──── EditMode + PlayMode + error check
-└────────┬─────────┘
-         ▼
-┌──────────────────────────┐
-│  /qq:codex-code-review   │──── Codex reviews → Claude verifies → fix → loop
-└────────┬─────────────────┘
-         ▼
-┌──────────────────┐
-│  /qq:commit-push │──── commit + push
-└──────────────────┘
+```mermaid
+flowchart LR
+    GO["<b>/qq:go</b>\ndetect stage"] --> D["/qq:design"]
+    D --> P["/qq:plan"]
+    P --> PR["/qq:plan-review"]
+    PR --> E["/qq:execute"]
+    E --> BP["/qq:best-practice"]
+    BP --> CR["/qq:code-review"]
+    CR --> T["/qq:test"]
+    T --> DD["/qq:doc-drift"]
+    DD --> CP["/qq:commit-push"]
+
+    style GO fill:#4a9eff,color:#fff
 ```
 
-### Architecture
+Each step asks "want to continue to the next?" — or use `--auto` to run the full pipeline hands-free.
+
+### Three Layers
 
 ```mermaid
 flowchart TB
-    QQ["<b>quick-question</b>"]
-
-    subgraph H["🔧 Hooks"]
-        H1["Auto-compile on .cs edit"]
-        H2["Review Gate (block edits during review)"]
-        H3["Skill review enforcement"]
+    subgraph GO["🧭 /qq:go — Lifecycle-Aware Routing"]
+        G1["Detect: design doc? plan? code changes? test results?"]
+        G2["Route to the right skill"]
+        G3["22 skills across the full dev lifecycle"]
     end
 
-    subgraph S["⚡ Skills"]
-        S1["22 slash commands"]
-        S2["Test · Review · Analysis · Utilities"]
+    subgraph H["🔧 Hooks — Automatic Quality Guards"]
+        H1["Auto-compile on every .cs edit"]
+        H2["Review Gate — block edits during verification"]
+        H3["Skill review enforcement — no unreviewed changes ship"]
     end
 
-    subgraph T["🎮 tykit"]
+    subgraph T["🎮 tykit — Unity Editor Bridge"]
         T1["HTTP server inside Unity Editor"]
         T2["Compile · Test · Play · Console · Inspect"]
-        T3["Works standalone — any AI agent can use it"]
+        T3["Any AI agent can use it — standalone or with qq"]
     end
 
-    QQ --> H
-    QQ --> S
-    QQ --> T
+    GO --> H
+    GO --> T
+    H --> T
 ```
+
+**`/qq:go`** orchestrates — it reads your project state and routes you through the right skills.<br>
+**Hooks** guard — they fire automatically on every edit, ensuring compilation passes and reviews aren't skipped.<br>
+**tykit** bridges — it gives the AI actual control over Unity Editor via HTTP, making compilation and testing possible without UI automation.
 
 ## A Day with qq
 
@@ -657,62 +652,57 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## 功能
 
-> 编辑 → 编译 → 测试 → 审阅 → 发布，全自动。
+> 设计 → 规划 → 实现 → 审阅 → 测试 → 发布。一条命令启动，全程感知开发阶段。
 
-🔧 **自动编译** — 编辑 .cs 文件后自动编译验证<br>
-🧪 **测试流水线** — EditMode + PlayMode 测试 + 运行时错误检查<br>
-🔍 **跨模型审阅** — Claude 编排，Codex 审阅，每条发现逐一验证<br>
-⚡ **22 个斜杠命令** — 测试、提交、审阅、解释、依赖分析等<br>
-🎮 **tykit** — Unity Editor 内的 HTTP 服务器，AI agent 可控制
+输入 `/qq:go`，qq 自动判断你在哪个阶段 — 有设计文档？建议规划。有实现计划？建议执行。有未提交代码？建议审阅。每步完成后引导下一步，或用 `--auto` 全自动走完。
 
-```
-编辑 .cs 文件
-     │ (PostToolUse hook)
-     ▼
-┌──────────────────┐
-│    智能编译      │──── tykit（快速）/ Editor 触发 / Batch 模式
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│   /qq:test       │──── EditMode + PlayMode + 错误检查
-└────────┬─────────┘
-         ▼
-┌──────────────────────────┐
-│  /qq:codex-code-review   │──── Codex 审阅 → Claude 验证 → 修复 → 循环
-└────────┬─────────────────┘
-         ▼
-┌──────────────────┐
-│  /qq:commit-push │──── 提交 + 推送
-└──────────────────┘
+```mermaid
+flowchart LR
+    GO["<b>/qq:go</b>\n检测阶段"] --> D["/qq:design"]
+    D --> P["/qq:plan"]
+    P --> PR["/qq:plan-review"]
+    PR --> E["/qq:execute"]
+    E --> BP["/qq:best-practice"]
+    BP --> CR["/qq:code-review"]
+    CR --> T["/qq:test"]
+    T --> DD["/qq:doc-drift"]
+    DD --> CP["/qq:commit-push"]
+
+    style GO fill:#4a9eff,color:#fff
 ```
 
-### 架构
+每步都会问"要继续下一步吗？" — 或使用 `--auto` 全自动运行整条流水线。
+
+### 三层架构
 
 ```mermaid
 flowchart TB
-    QQ["<b>quick-question</b>"]
-
-    subgraph H["🔧 Hooks"]
-        H1["编辑 .cs 自动编译"]
-        H2["审阅门控（审阅期间阻止编辑）"]
-        H3["Skill 审阅强制"]
+    subgraph GO["🧭 /qq:go — 生命周期感知路由"]
+        G1["检测：设计文档？实现计划？代码改动？测试结果？"]
+        G2["路由到正确的 skill"]
+        G3["22 个 skill 覆盖完整开发周期"]
     end
 
-    subgraph S["⚡ Skills"]
-        S1["22 个斜杠命令"]
-        S2["测试 · 审阅 · 分析 · 工具"]
+    subgraph H["🔧 Hooks — 自动质量守卫"]
+        H1["每次编辑 .cs 自动编译"]
+        H2["审阅门控 — 验证期间阻止代码编辑"]
+        H3["Skill 审阅强制 — 未审阅的改动无法结束会话"]
     end
 
-    subgraph T["🎮 tykit"]
+    subgraph T["🎮 tykit — Unity Editor 桥接"]
         T1["Unity Editor 内置 HTTP 服务器"]
         T2["编译 · 测试 · Play · 控制台 · 检视"]
         T3["可独立使用 — 任何 AI agent 都能调用"]
     end
 
-    QQ --> H
-    QQ --> S
-    QQ --> T
+    GO --> H
+    GO --> T
+    H --> T
 ```
+
+**`/qq:go`** 编排 — 读取项目状态，引导你到正确的 skill。<br>
+**Hooks** 守卫 — 每次编辑自动触发，确保编译通过、审阅不被跳过。<br>
+**tykit** 桥接 — 通过 HTTP 让 AI 实际控制 Unity Editor，使编译和测试无需 UI 自动化。
 
 ## qq 的一天
 
