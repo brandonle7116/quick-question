@@ -72,6 +72,15 @@ for script in $HOOK_SCRIPTS; do
   fi
 done
 
+# Platform helper scripts exist
+for pf in detect.sh macos.sh windows.sh; do
+  if [ -f "$SCRIPT_DIR/scripts/platform/$pf" ]; then
+    pass "scripts/platform/$pf exists"
+  else
+    fail "scripts/platform/$pf NOT FOUND"
+  fi
+done
+
 # install.sh copies hooks subdirectory
 if grep -q 'scripts/hooks/' "$SCRIPT_DIR/install.sh"; then
   pass "install.sh copies scripts/hooks/"
@@ -151,9 +160,9 @@ else
   pass "install.sh uses current skill names"
 fi
 
-# Check platform guard exists
-if grep -q 'uname.*Darwin' "$SCRIPT_DIR/install.sh"; then
-  pass "install.sh has macOS platform check"
+# Check platform guard exists (cross-platform case statement)
+if grep -q 'uname -s' "$SCRIPT_DIR/install.sh"; then
+  pass "install.sh has platform check"
 else
   fail "install.sh missing platform check"
 fi

@@ -14,10 +14,14 @@ for arg in "$@"; do
 done
 
 # ── Platform check ──
-if [[ "$(uname)" != "Darwin" ]]; then
-  echo "Error: quick-question v1 only supports macOS. Windows/Linux support planned for v2."
-  exit 1
-fi
+case "$(uname -s)" in
+  Darwin*)              QQ_PLATFORM="macos" ;;
+  MINGW*|MSYS*|CYGWIN*) QQ_PLATFORM="windows" ;;
+  *)
+    echo "Error: unsupported platform ($(uname -s)). quick-question supports macOS and Windows."
+    exit 1
+    ;;
+esac
 
 # ── Dependency check ──
 MISSING=""
@@ -26,7 +30,12 @@ command -v python3 &>/dev/null || MISSING="$MISSING python3"
 command -v jq   &>/dev/null || MISSING="$MISSING jq"
 if [ -n "$MISSING" ]; then
   echo "Error: missing required tools:$MISSING"
-  echo "Install with: brew install$MISSING"
+  if [[ "$QQ_PLATFORM" == "macos" ]]; then
+    echo "Install with: brew install$MISSING"
+  else
+    echo "Install with: winget install$MISSING"
+    echo "Or ensure Git for Windows is installed (provides bash, curl)"
+  fi
   exit 1
 fi
 
@@ -48,7 +57,10 @@ echo ""
 mkdir -p "$TARGET/scripts" "$TARGET/scripts/hooks"
 cp "$SCRIPT_DIR"/scripts/*.sh "$TARGET/scripts/"
 cp "$SCRIPT_DIR"/scripts/hooks/*.sh "$TARGET/scripts/hooks/"
-chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/hooks/"*.sh
+mkdir -p "$TARGET/scripts/platform"
+cp "$SCRIPT_DIR"/scripts/platform/*.sh "$TARGET/scripts/platform/"
+cp "$SCRIPT_DIR"/scripts/hooks/hook-dispatch.cmd "$TARGET/scripts/hooks/" 2>/dev/null || true
+chmod +x "$TARGET/scripts/"*.sh "$TARGET/scripts/hooks/"*.sh "$TARGET/scripts/platform/"*.sh
 SCRIPT_COUNT=$(ls "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/hooks/*.sh | wc -l | tr -d ' ')
 echo "  Scripts: $SCRIPT_COUNT files → scripts/ (including hooks/)"
 echo "  Skills + Hooks: provided by the qq plugin (see Next steps below)"
