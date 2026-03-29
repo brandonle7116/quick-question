@@ -86,7 +86,7 @@ Present the summary to the user. **Do not fix code yet — proceed to the verifi
 **Before dispatching subagents, activate the Review Gate:**
 ```bash
 source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-touch "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
+echo "$(date +%s):0" > "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
 ```
 This locks Edit/Write on .cs and docs files until verification subagents complete (same gate as Codex review).
 
