@@ -16,4 +16,8 @@ Review changes from the most recent interaction (skills, configs, settings, and 
    - Redundancy (unnecessary blank lines, duplicate content)
 3. If issues are found, fix them directly
 4. Output a brief review conclusion
-5. Clear the skill change marker: `rm -f /tmp/claude-skill-modified-marker-$PPID`
+5. Clear the skill change marker:
+   ```bash
+   source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+   rm -f "$QQ_TEMP_DIR/claude-skill-modified-marker-$PPID"
+   ```

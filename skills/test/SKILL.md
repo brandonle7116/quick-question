@@ -27,7 +27,9 @@ Examples:
 ### 1. Clear Console + Mark Editor.log position
 
 ```bash
-BASELINE=$(wc -l < ~/Library/Logs/Unity/Editor.log)
+source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+EDITOR_LOG="$(qq_get_editor_log_path)"
+BASELINE=$(wc -l < "$EDITOR_LOG")
 PORT=$(python3 -c "import json; print(json.load(open('Temp/eval_server.json'))['port'])" 2>/dev/null)
 if [ -n "$PORT" ]; then
   curl -s --connect-timeout 5 --max-time 15 -X POST http://localhost:$PORT/ \
@@ -55,7 +57,7 @@ Select command based on arguments:
 Even if all tests pass, runtime errors may still occur. Check via Editor.log (not dependent on the console API buffer):
 
 ```bash
-tail -n +$((BASELINE + 1)) ~/Library/Logs/Unity/Editor.log | \
+tail -n +$((BASELINE + 1)) "$EDITOR_LOG" | \
   grep -iE "NullReferenceException|Exception:|Error\b" | \
   grep -v "^UnityEngine\.\|^Cysharp\.\|^System\.Threading\.\|^  at \|CompilerError\|StackTrace" | \
   sort -u
