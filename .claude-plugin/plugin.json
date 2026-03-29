@@ -9,6 +9,5 @@
   "homepage": "https://github.com/tykisgod/quick-question",
   "repository": "https://github.com/tykisgod/quick-question",
   "license": "MIT",
-  "keywords": ["unity", "unity-editor", "game-development", "gamedev", "csharp", "C#", "auto-compile", "compilation", "testing", "unit-test", "editmode", "playmode", "code-review", "cross-model-review", "codex", "hooks", "slash-commands", "tykit", "ci-pipeline", "macos"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["unity", "unity-editor", "game-development", "gamedev", "csharp", "C#", "auto-compile", "compilation", "testing", "unit-test", "editmode", "playmode", "code-review", "cross-model-review", "codex", "hooks", "slash-commands", "tykit", "ci-pipeline", "macos"]
 }
