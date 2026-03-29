@@ -16,7 +16,8 @@ Default response language: English
 ## Compile Verification (Required)
 
 After every .cs file change, **must** verify compilation passes before reporting "done":
-- Use `./scripts/unity-compile-smart.sh --timeout 15`
+- If you have MCP compile tools available (`recompile_scripts` from mcp-unity, or `assets-refresh` from Unity-MCP), call them directly.
+- Otherwise, use `./scripts/unity-compile-smart.sh --timeout 15`
 - If compilation fails, analyze the error, fix it, and recompile until it passes
 - Do not skip this step
 
@@ -69,3 +70,20 @@ curl -s -X POST http://localhost:$PORT/ \
 {"command":"find","args":{"type":"Camera"}}
 {"command":"inspect","args":{"id":12345}}
 ```
+
+## MCP Backend (Optional)
+
+If you have an MCP Unity server configured (mcp-unity or Unity-MCP), qq skills will prefer MCP tools over tykit for Unity operations. tykit installation is optional when using an MCP backend.
+
+**Compatibility:** mcp-unity requires Unity 6+. Unity-MCP has no specific version requirement.
+
+### Capability Mapping
+
+| Capability | tykit (curl) | mcp-unity | Unity-MCP |
+|-----------|-------------|-----------|-----------|
+| Compile | `compile` | `recompile_scripts` | `assets-refresh` |
+| Run tests | `run-tests` | `run_tests` | `tests-run` |
+| Read console | `console` | `get_console_logs` | `console-get-logs` |
+| Clear console | `clear-console` | *(not available)* | *(not available)* |
+
+When MCP tools are available, use them directly instead of curl/tykit commands. When no MCP tools are detected, the tykit workflow applies as documented above.
