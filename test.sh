@@ -11,14 +11,14 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-pass() { ((PASS++)); echo -e "  ${GREEN}✓${NC} $1"; }
-fail() { ((FAIL++)); echo -e "  ${RED}✗${NC} $1"; }
+pass() { PASS=$((PASS + 1)); echo -e "  ${GREEN}✓${NC} $1"; }
+fail() { FAIL=$((FAIL + 1)); echo -e "  ${RED}✗${NC} $1"; }
 
 # ── 1. ShellCheck ──
 echo -e "${CYAN}[1/9] ShellCheck${NC}"
 if command -v shellcheck &>/dev/null; then
   SHELL_FILES=$(find "$SCRIPT_DIR/scripts" -name "*.sh" -not -type l)
-  SHELL_FILES="$SHELL_FILES $SCRIPT_DIR/install.sh $SCRIPT_DIR/test.sh"
+  SHELL_FILES="$SHELL_FILES $SCRIPT_DIR/install.sh $SCRIPT_DIR/test.sh $SCRIPT_DIR/.devcontainer/postCreate.sh $SCRIPT_DIR/scripts/docker-dev.sh"
   SC_FAIL=0
   for f in $SHELL_FILES; do
     if shellcheck -S error "$f" >/dev/null 2>&1; then
@@ -47,7 +47,7 @@ done
 
 # ── 3. JSON validity ──
 echo -e "${CYAN}[3/9] JSON validity${NC}"
-for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json templates/qq-policy.json.example docs/evals/foundation-smoke.json docs/evals/unity-local.json; do
+for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json templates/qq-policy.json.example docs/evals/foundation-smoke.json docs/evals/unity-local.json .devcontainer/devcontainer.json; do
   if [ -f "$SCRIPT_DIR/$json_file" ]; then
     if python3 -m json.tool "$SCRIPT_DIR/$json_file" >/dev/null 2>&1; then
       pass "$json_file"
@@ -89,6 +89,15 @@ for pf in detect.sh macos.sh windows.sh; do
     pass "scripts/platform/$pf exists"
   else
     fail "scripts/platform/$pf NOT FOUND"
+  fi
+done
+
+# Dev container files exist
+for dc in .devcontainer/devcontainer.json .devcontainer/Dockerfile .devcontainer/postCreate.sh docs/developer-workflow.md scripts/docker-dev.sh; do
+  if [ -f "$SCRIPT_DIR/$dc" ]; then
+    pass "$dc exists"
+  else
+    fail "$dc NOT FOUND"
   fi
 done
 
@@ -151,7 +160,7 @@ done
 # ── 7. Script permissions ──
 echo -e "${CYAN}[7/9] Script permissions${NC}"
 
-for f in "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/*.py "$SCRIPT_DIR"/scripts/hooks/*.sh "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/test.sh"; do
+for f in "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/*.py "$SCRIPT_DIR"/scripts/hooks/*.sh "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/test.sh" "$SCRIPT_DIR/.devcontainer/postCreate.sh"; do
   if [ -f "$f" ] && [ ! -L "$f" ]; then
     if [ -x "$f" ]; then
       pass "$(basename "$f") is executable"
@@ -160,6 +169,26 @@ for f in "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/*.py "$SCRIPT_DIR"/scr
     fi
   fi
 done
+
+DOCKER_DEV_META=$("$SCRIPT_DIR/scripts/docker-dev.sh" print-json)
+if printf '%s' "$DOCKER_DEV_META" | python3 -c '
+import json
+import os
+import sys
+
+data = json.load(sys.stdin)
+repo_root = os.path.realpath(data["repo_root"])
+git_dir = os.path.realpath(data["git_dir"])
+mount_root = os.path.realpath(data["mount_root"])
+
+assert repo_root.startswith(mount_root)
+assert git_dir.startswith(mount_root)
+'
+then
+  pass "docker-dev mount root covers repo root + git dir"
+else
+  fail "docker-dev mount root covers repo root + git dir"
+fi
 
 # ── 8. Runtime helper smoke tests ──
 echo -e "${CYAN}[8/9] Runtime helper smoke tests${NC}"

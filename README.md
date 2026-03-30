@@ -132,6 +132,16 @@ That means one engineer can stay in `prototype` mode for a spike while another u
 
 When MCP is enabled, qq should prefer this project-local built-in bridge before falling back to third-party Unity MCP servers.
 
+## Optional: Dev Container for Repo Development
+
+If you are developing `quick-question` itself, the repo now includes a minimal Dev Container:
+
+- [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json)
+- [Containerization Notes](docs/containerization.md)
+- [Developer Workflow](docs/developer-workflow.md)
+
+This is for contributor setup and future CI-friendly tooling. It does **not** replace the local Unity + `tykit` fast path for normal qq users.
+
 ## Quick Start
 
 ```bash
