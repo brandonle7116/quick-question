@@ -6,6 +6,12 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 
 ## Open
 
+### Claude non-interactive host E2E blocker
+
+- [ ] Restore working `claude -p` authentication for real host E2E validation.
+  - Current finding on 2026-03-30: `claude auth status` reports logged-in `claude.ai` auth, but any non-interactive `claude -p` call fails with `401 Invalid authentication credentials`.
+  - This currently blocks the planned real Claude multi-worktree collaboration E2E, even though plugin installation and controller/runtime automation are working.
+
 ### Real host multi-worktree collaboration E2E
 
 - [ ] Validate the three-engineer scenario through real Claude/Codex host flows, not just controller/runtime simulation.
