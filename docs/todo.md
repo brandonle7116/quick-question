@@ -6,12 +6,6 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 
 ## Open
 
-### Claude non-interactive host E2E blocker
-
-- [ ] Restore working `claude -p` authentication for real host E2E validation.
-  - Current finding on 2026-03-30: `claude auth status` reports logged-in `claude.ai` auth, but any non-interactive `claude -p` call fails with `401 Invalid authentication credentials`.
-  - This currently blocks the planned real Claude multi-worktree collaboration E2E, even though plugin installation and controller/runtime automation are working.
-
 ### Real host multi-worktree collaboration E2E
 
 - [ ] Validate the three-engineer scenario through real Claude/Codex host flows, not just controller/runtime simulation.
@@ -19,6 +13,7 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
   - Still missing:
     - Claude experience across separate worktrees with different local modes
     - how much cross-talk shows up in real `/qq:go`, `/qq:test`, and `/qq:commit-push`
+    - whether dirty `.cs` prototype routes stay responsive in host mode once auto-compile hooks are active
     - Codex parity for the same workflow
 
 ### Codex MCP E2E
@@ -32,6 +27,10 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 
 ## Recently resolved
 
+- [x] `claude -p` authentication works again for real host E2E.
+  - Root cause was outside qq itself: local Claude CLI first-party auth had fallen into a bad state where `auth status` reported logged-in but every non-interactive `claude -p` call returned `401 Invalid authentication credentials`.
+  - Fix: refreshed local Claude auth with a clean logout/login flow.
+  - Post-fix smoke: plain `claude -p "Reply with OK."` works again, and a clean temp-project `/qq:go` host smoke succeeds.
 - [x] Multi-engineer collaboration routing now has a documented, repeatable E2E suite.
   - Added [`docs/evals/collaboration-multi-actor.md`](./evals/collaboration-multi-actor.md) and [`docs/evals/collaboration-multi-actor.json`](./evals/collaboration-multi-actor.json).
   - The suite now runs in `./test.sh` and covers prototype, feature, and hardening work under shared project defaults plus per-worktree overrides.
