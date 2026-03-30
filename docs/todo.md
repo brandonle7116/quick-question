@@ -15,18 +15,14 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
     - an MCP server registration/detail issue
     - or a prompt/runtime limitation in `exec`
 
-### Plugin rollout lag
-
-- [ ] Make sure consumer projects get the current mode-aware `/qq:go` controller, not an older marketplace copy.
-  - Current finding: repo-local `qq-project-state.py` and tests are correct, but a real Claude `/qq:go` run in `project_pirate_demo` still behaved like the older branch-centric controller.
-  - Likely cause: the installed `qq@quick-question-marketplace` plugin has not picked up the latest skill/controller changes yet.
-  - Need to verify:
-    - how plugin content is packaged and versioned from this repo
-    - whether a fresh publish/install is required
-    - whether the project is actually loading the latest skill prompts
-
 ## Recently resolved
 
+- [x] Consumer plugin rollout now picks up the current mode-aware `/qq:go` controller.
+  - Root cause: consumer projects were still running an older cached plugin build even though the marketplace repo had moved on.
+  - Fix: versioned the plugin, published it, and reinstalled it in the consumer project so the active cache and installed plugin metadata now point at the latest controller skill.
+- [x] Claude consumer installs now have a baseline allowlist for qq controller/runtime commands.
+  - `install.sh` now merges safe local Claude permissions for `qq-project-state`, `qq-doctor`, compile, and test entrypoints.
+  - Real `/qq:go` validation in `project_pirate_demo` no longer stops on the initial `qq-project-state.py` permission gate once those rules are present.
 - [x] Artifact routing is now task-aware instead of repo-global.
   - `qq-project-state.py` only activates design docs / plans when they match current task evidence.
   - Repo-global docs remain background context unless they are the only candidate or match `task_focus` / modified files.

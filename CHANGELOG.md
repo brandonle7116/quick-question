@@ -2,6 +2,14 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.2.2] — 2026-03-30
+
+### Changed
+- `install.sh` now merges a baseline Claude local allowlist for qq state/doctor/compile/test commands in `.claude/settings.local.json`
+
+### Fixed
+- fresh consumer installs no longer hit the first `/qq:go` permission wall just to run `qq-project-state.py`
+
 ## [1.2.1] — 2026-03-30
 
 ### Changed

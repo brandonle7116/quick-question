@@ -120,6 +120,53 @@ else
   echo "  AGENTS.md: already exists — check templates/AGENTS.md.example for review rules you may want to add"
 fi
 
+# ── Claude local permission baseline ──
+CLAUDE_LOCAL_SETTINGS="$TARGET/.claude/settings.local.json"
+mkdir -p "$TARGET/.claude"
+python3 - "$CLAUDE_LOCAL_SETTINGS" << 'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+settings_path = Path(sys.argv[1])
+data = {}
+if settings_path.exists():
+    try:
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        data = {}
+
+if not isinstance(data, dict):
+    data = {}
+
+permissions = data.setdefault("permissions", {})
+allow = permissions.setdefault("allow", [])
+if not isinstance(allow, list):
+    allow = []
+    permissions["allow"] = allow
+
+baseline = [
+    "Bash(python3 ./scripts/qq-project-state.py:*)",
+    "Bash(python3 scripts/qq-project-state.py:*)",
+    "Bash(python3 ./scripts/qq-doctor.py:*)",
+    "Bash(python3 scripts/qq-doctor.py:*)",
+    "Bash(./scripts/qq-doctor.sh:*)",
+    "Bash(scripts/qq-doctor.sh:*)",
+    "Bash(./scripts/unity-compile-smart.sh:*)",
+    "Bash(scripts/unity-compile-smart.sh:*)",
+    "Bash(./scripts/unity-test.sh:*)",
+    "Bash(scripts/unity-test.sh:*)",
+]
+
+existing = {str(item) for item in allow}
+for item in baseline:
+    if item not in existing:
+        allow.append(item)
+
+settings_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PYEOF
+echo "  Claude permissions: added baseline allow rules for qq state/doctor/compile/test commands"
+
 # ── Built-in MCP bridge ──
 MCP_CONFIG="$TARGET/.mcp.json"
 python3 - "$MCP_CONFIG" << 'PYEOF'
