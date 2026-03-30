@@ -16,7 +16,7 @@ def utc_now() -> datetime:
 
 
 def iso_timestamp(value: datetime | None = None) -> str:
-    return (value or utc_now()).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (value or utc_now()).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def runtime_dirs(project_dir: Path) -> dict[str, Path]:

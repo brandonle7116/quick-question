@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -82,13 +84,44 @@ def default_test_scope_for_policy(profile: str) -> str:
     return "editmode" if profile == "core" else "all"
 
 
+def normalize_focus_terms(value: Any) -> list[str]:
+    items: list[str] = []
+    if isinstance(value, str):
+        items = [part.strip() for part in re.split(r"[,\n]+", value) if part.strip()]
+    elif isinstance(value, list):
+        items = [str(part).strip() for part in value if str(part).strip()]
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        token = re.sub(r"[^a-z0-9]+", " ", item.lower()).strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        normalized.append(token)
+    return normalized
+
+
+def parse_run_timestamp(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def find_markdown_files(root: Path, patterns: list[str]) -> list[Path]:
     found: dict[str, Path] = {}
     for pattern in patterns:
         for path in sorted(root.glob(pattern)):
             if path.is_file():
                 key = str(path.resolve()).lower()
-                found[key] = path
+                # On case-insensitive filesystems the second glob variant can
+                # point at the same file with different casing. Keep the first
+                # discovered path so emitted relative paths remain stable.
+                found.setdefault(key, path)
     return list(found.values())
 
 
@@ -173,6 +206,30 @@ def load_policy(project_dir: Path) -> dict[str, Any]:
     return {**shared, **local}
 
 
+def detect_task_focus(project_dir: Path) -> tuple[list[str], str]:
+    def read_policy(path: Path) -> dict[str, Any]:
+        if not path.is_file():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    local_policy = read_policy(project_dir / ".qq" / "local-policy.json")
+    shared_policy = read_policy(project_dir / "qq-policy.json")
+
+    local_focus = normalize_focus_terms(local_policy.get("task_focus"))
+    if local_focus:
+        return local_focus, "qq_local_policy"
+
+    shared_focus = normalize_focus_terms(shared_policy.get("task_focus"))
+    if shared_focus:
+        return shared_focus, "qq_policy"
+
+    return [], "default"
+
+
 def detect_work_mode(project_dir: Path) -> tuple[str, str]:
     def normalize_mode(value: Any) -> str:
         raw = str(value or "").strip().lower()
@@ -225,6 +282,68 @@ def detect_policy_profile(project_dir: Path) -> tuple[str, str]:
         return shared_profile, "qq_policy"
 
     return "feature", "default"
+
+
+def modified_markdown_files(project_dir: Path) -> set[str]:
+    tracked = run_git(project_dir, "diff", "--name-only", "HEAD", "--", "*.md")
+    untracked = run_git(project_dir, "ls-files", "--others", "--exclude-standard", "--", "*.md")
+    return set(tracked + untracked)
+
+
+def select_active_artifacts(
+    project_dir: Path,
+    candidates: list[Path],
+    *,
+    modified_files: set[str],
+    task_focus: list[str],
+) -> list[Path]:
+    if not candidates:
+        return []
+
+    active: list[Path] = []
+    for path in candidates:
+        relative = str(path.relative_to(project_dir))
+        normalized_relative = re.sub(r"[^a-z0-9]+", " ", relative.lower()).strip()
+        if relative in modified_files:
+            active.append(path)
+            continue
+        if task_focus and any(term in normalized_relative for term in task_focus):
+            active.append(path)
+            continue
+
+    if active:
+        return active
+    if len(candidates) == 1:
+        return candidates
+    return []
+
+
+def latest_changed_file_mtime(project_dir: Path, changed_files: list[str]) -> float | None:
+    latest: float | None = None
+    for relative in changed_files:
+        path = project_dir / relative
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        latest = mtime if latest is None else max(latest, mtime)
+    return latest
+
+
+def effective_run_status(run: dict[str, Any] | None, latest_change_mtime: float | None) -> tuple[str, str, bool]:
+    raw_status = str((run or {}).get("status") or "not_run")
+    if latest_change_mtime is None:
+        return raw_status, raw_status, True
+    if raw_status in {"not_run", "unknown"}:
+        return raw_status, raw_status, False
+
+    finished_at = parse_run_timestamp((run or {}).get("finished_at")) or parse_run_timestamp((run or {}).get("started_at"))
+    if finished_at is None:
+        return raw_status, "not_run", False
+
+    if finished_at.timestamp() < latest_change_mtime:
+        return raw_status, "not_run", False
+    return raw_status, raw_status, True
 
 
 def recommend_feature_next(state: dict[str, Any]) -> str:
@@ -359,31 +478,46 @@ def recommend_next(state: dict[str, Any]) -> str:
 
 
 def build_state(project_dir: Path) -> dict[str, Any]:
-    design_docs = find_markdown_files(project_dir, ["Docs/design/*.md", "docs/design/*.md"])
-    implementation_plans = find_markdown_files(project_dir, ["Docs/qq/**/*_implementation.md", "docs/qq/**/*_implementation.md"])
+    all_design_docs = find_markdown_files(project_dir, ["Docs/design/*.md", "docs/design/*.md"])
+    all_implementation_plans = find_markdown_files(project_dir, ["Docs/qq/**/*_implementation.md", "docs/qq/**/*_implementation.md"])
     has_changes, changed_cs = has_uncommitted_cs_changes(project_dir)
     compile_run = load_latest_run(project_dir, "compile")
     test_run = load_latest_run(project_dir, "test")
     work_mode, work_mode_source = detect_work_mode(project_dir)
     policy_profile, policy_profile_source = detect_policy_profile(project_dir)
+    task_focus, task_focus_source = detect_task_focus(project_dir)
+    changed_md = modified_markdown_files(project_dir)
+    design_docs = select_active_artifacts(project_dir, all_design_docs, modified_files=changed_md, task_focus=task_focus)
+    implementation_plans = select_active_artifacts(project_dir, all_implementation_plans, modified_files=changed_md, task_focus=task_focus)
+    latest_change_mtime = latest_changed_file_mtime(project_dir, changed_cs)
+    compile_status_raw, compile_status_effective, compile_status_fresh = effective_run_status(compile_run, latest_change_mtime)
+    test_status_raw, test_status_effective, test_status_fresh = effective_run_status(test_run, latest_change_mtime)
 
     state: dict[str, Any] = {
         "project_dir": str(project_dir),
         "work_mode": work_mode,
         "work_mode_source": work_mode_source,
         "mode_profile": WORK_MODE_PROFILES[work_mode],
+        "task_focus": task_focus,
+        "task_focus_source": task_focus_source,
         "policy_profile": policy_profile,
         "policy_profile_source": policy_profile_source,
         "policy_profile_expectations": POLICY_PROFILES[policy_profile],
         "default_test_scope": default_test_scope_for_policy(policy_profile),
+        "repository_design_doc_count": len(all_design_docs),
+        "repository_implementation_plan_count": len(all_implementation_plans),
         "has_design_doc": bool(design_docs),
         "has_implementation_plan": bool(implementation_plans),
         "design_docs": [str(path.relative_to(project_dir)) for path in design_docs[:5]],
         "implementation_plans": [str(path.relative_to(project_dir)) for path in implementation_plans[:5]],
         "has_uncommitted_cs_changes": has_changes,
         "changed_cs_files": changed_cs[:20],
-        "last_compile_status": str((compile_run or {}).get("status") or "not_run"),
-        "last_test_status": str((test_run or {}).get("status") or "not_run"),
+        "last_compile_status_raw": compile_status_raw,
+        "last_compile_status": compile_status_effective,
+        "compile_status_fresh": compile_status_fresh,
+        "last_test_status_raw": test_status_raw,
+        "last_test_status": test_status_effective,
+        "test_status_fresh": test_status_fresh,
         "last_compile_summary": str((compile_run or {}).get("summary") or ""),
         "last_compile_failure_category": str((compile_run or {}).get("failure_category") or ""),
         "last_test_summary": str((test_run or {}).get("summary") or ""),

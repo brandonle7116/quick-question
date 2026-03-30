@@ -223,14 +223,22 @@ state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(enc
 
 assert state["work_mode"] == "feature"
 assert state["work_mode_source"] == "default"
+assert state["task_focus"] == []
+assert state["task_focus_source"] == "default"
 assert state["policy_profile"] == "feature"
 assert state["policy_profile_source"] == "default"
 assert state["policy_profile_expectations"]["review_expectation"] == "light"
 assert state["default_test_scope"] == "all"
+assert state["repository_design_doc_count"] == 1
+assert state["repository_implementation_plan_count"] == 1
 assert state["mode_recommended_next"] == "/qq:execute"
 assert state["has_design_doc"] is True
 assert state["has_implementation_plan"] is True
+assert state["last_compile_status_raw"] == "passed"
 assert state["last_compile_status"] == "passed"
+assert state["compile_status_fresh"] is True
+assert state["last_test_status_raw"] == "not_run"
+assert state["test_status_fresh"] is True
 assert state["recommended_next"] == "/qq:execute"
 PY
 then
@@ -270,10 +278,13 @@ state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(enc
 
 assert state["work_mode"] == "prototype"
 assert state["work_mode_source"] == "qq_local_policy"
+assert state["task_focus"] == []
+assert state["task_focus_source"] == "default"
 assert state["policy_profile"] == "hardening"
 assert state["policy_profile_source"] == "qq_local_policy"
 assert state["policy_profile_expectations"]["review_expectation"] == "required"
 assert state["default_test_scope"] == "all"
+assert state["repository_design_doc_count"] == 0
 assert state["mode_recommended_next"] == "prototype_direct"
 assert state["recommended_next"] == "prototype_direct"
 assert state["mode_profile"]["changes_summary_expected"] is True
@@ -283,6 +294,71 @@ then
 else
   fail "project state respects local work mode override"
 fi
+
+FOCUS_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$FOCUS_TEST_ROOT/Docs/design" "$FOCUS_TEST_ROOT/.qq"
+cat > "$FOCUS_TEST_ROOT/Docs/design/crew_weapon.md" <<'EOF'
+# Crew Weapon
+EOF
+cat > "$FOCUS_TEST_ROOT/Docs/design/map_refactor.md" <<'EOF'
+# Map Refactor
+EOF
+cat > "$FOCUS_TEST_ROOT/qq-policy.json" <<'EOF'
+{
+  "work_mode": "prototype",
+  "policy_profile": "feature"
+}
+EOF
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
+if python3 - "$FOCUS_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["repository_design_doc_count"] == 2
+assert state["has_design_doc"] is False
+assert state["design_docs"] == []
+assert state["mode_recommended_next"] == "prototype_direct"
+assert state["recommended_next"] == "prototype_direct"
+PY
+then
+  pass "repo-global design docs do not force prototype planning"
+else
+  fail "repo-global design docs do not force prototype planning"
+fi
+
+cat > "$FOCUS_TEST_ROOT/.qq/local-policy.json" <<'EOF'
+{
+  "work_mode": "prototype",
+  "policy_profile": "feature",
+  "task_focus": "crew weapon"
+}
+EOF
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
+if python3 - "$FOCUS_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["task_focus"] == ["crew weapon"]
+assert state["task_focus_source"] == "qq_local_policy"
+assert state["has_design_doc"] is True
+assert state["design_docs"] == ["Docs/design/crew_weapon.md"]
+assert state["mode_recommended_next"] == "/qq:plan"
+assert state["recommended_next"] == "/qq:plan"
+PY
+then
+  pass "task focus can explicitly activate relevant design docs"
+else
+  fail "task focus can explicitly activate relevant design docs"
+fi
+rm -rf "$FOCUS_TEST_ROOT"
 
 POLICY_TEST_ROOT="$(mktemp -d)"
 mkdir -p "$POLICY_TEST_ROOT/.qq"
@@ -421,6 +497,78 @@ else
 fi
 rm -rf "$POLICY_TEST_ROOT"
 
+STALE_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$STALE_TEST_ROOT/.qq"
+(
+  cd "$STALE_TEST_ROOT" &&
+  git init -q
+)
+cat > "$STALE_TEST_ROOT/qq-policy.json" <<'EOF'
+{
+  "work_mode": "prototype",
+  "policy_profile": "hardening"
+}
+EOF
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage test --command stale-test --backend test --transport local --summary "stale test start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale test passed" >/dev/null
+sleep 1
+cat > "$STALE_TEST_ROOT/Probe.cs" <<'EOF'
+public class Probe {}
+EOF
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage compile --command stale-compile --backend test --transport local --summary "stale compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale compile passed" >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
+if python3 - "$STALE_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["has_uncommitted_cs_changes"] is True
+assert state["last_compile_status_raw"] == "passed"
+assert state["compile_status_fresh"] is True
+assert state["last_compile_status"] == "passed"
+assert state["last_test_status_raw"] == "passed"
+assert state["test_status_fresh"] is False
+assert state["last_test_status"] == "not_run"
+assert state["mode_recommended_next"] == "/qq:changes"
+assert state["recommended_next"] == "/qq:test"
+PY
+then
+  pass "stale test results are invalidated after newer code changes"
+else
+  fail "stale test results are invalidated after newer code changes"
+fi
+
+sleep 1
+cat >> "$STALE_TEST_ROOT/Probe.cs" <<'EOF'
+public class Probe2 {}
+EOF
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
+if python3 - "$STALE_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["last_compile_status_raw"] == "passed"
+assert state["compile_status_fresh"] is False
+assert state["last_compile_status"] == "not_run"
+assert state["recommended_next"] == "verify_compile"
+PY
+then
+  pass "stale compile results are invalidated after newer code changes"
+else
+  fail "stale compile results are invalidated after newer code changes"
+fi
+rm -rf "$STALE_TEST_ROOT"
+
 mkdir -p "$RUNTIME_TEST_ROOT/ProjectSettings" "$RUNTIME_TEST_ROOT/Packages" "$RUNTIME_TEST_ROOT/Temp" "$RUNTIME_TEST_ROOT/scripts"
 cat > "$RUNTIME_TEST_ROOT/ProjectSettings/ProjectVersion.txt" <<'EOF'
 m_EditorVersion: 2022.3.17f1
@@ -504,11 +652,19 @@ assert payload["policy"]["effectiveProfileExpectations"]["review_expectation"] =
 assert payload["controller"]["workMode"] == "prototype"
 assert payload["controller"]["workModeSource"] == "qq_local_policy"
 assert payload["controller"]["modeRecommendedNext"] == "prototype_direct"
+assert payload["controller"]["taskFocus"] == []
+assert payload["controller"]["taskFocusSource"] == "default"
 assert payload["controller"]["policyProfile"] == "hardening"
 assert payload["controller"]["policyProfileSource"] == "qq_local_policy"
 assert payload["controller"]["policyProfileExpectations"]["review_expectation"] == "required"
 assert payload["controller"]["defaultTestScope"] == "all"
 assert payload["controller"]["recommendedNext"] == "prototype_direct"
+assert payload["controller"]["compileStatusFresh"] is True
+assert payload["controller"]["compileStatusRaw"] == "passed"
+assert payload["controller"]["testStatusFresh"] is True
+assert payload["controller"]["testStatusRaw"] == "not_run"
+assert payload["controller"]["repositoryDesignDocCount"] == 0
+assert payload["controller"]["repositoryImplementationPlanCount"] == 0
 assert payload["controller"]["modeProfile"]["changes_summary_expected"] is True
 assert providers["unity.qq-direct"]["status"] == "available"
 assert providers["unity.tykit-mcp"]["status"] == "available"

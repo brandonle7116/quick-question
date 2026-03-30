@@ -2,6 +2,20 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.2.0] — 2026-03-30
+
+### Added
+- `docs/todo.md` to track user-facing follow-up issues discovered during E2E validation
+
+### Changed
+- `/qq:go` is now explicitly project-state-first and mode-aware in the shipped plugin, instead of relying on conversation/git heuristics as the default controller
+- controller artifact routing now treats repo-global design docs as background context unless they match the current task focus or active changes
+- compile/test freshness now uses sub-second run timestamps so freshly verified work is not immediately marked stale
+
+### Fixed
+- prototype work is no longer incorrectly dragged into `/qq:plan` just because unrelated design docs exist elsewhere in the repo
+- stale test results are invalidated after newer local `.cs` changes, and fresh compile runs remain valid in the same second they complete
+
 ## [1.1.0] — 2026-03-30
 
 ### Added

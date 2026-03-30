@@ -1567,7 +1567,7 @@ class TykitBridge:
 
     @staticmethod
     def iso_timestamp(value: datetime | None = None) -> str:
-        return (value or datetime.now(timezone.utc)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        return (value or datetime.now(timezone.utc)).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
     @staticmethod
     def save_json(path: Path, value: dict[str, Any]) -> None:

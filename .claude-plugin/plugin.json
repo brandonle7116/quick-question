@@ -1,7 +1,7 @@
 {
   "name": "qq",
-  "version": "1.1.0",
-  "description": "Unity game development harness for Claude Code — lifecycle-aware routing (/qq:go), auto-compile C# on edit, test pipelines, code review (Claude-only or Claude + Codex), 22 skills, and tykit (HTTP server for Unity Editor control). Works with Unity 2021.3+ on macOS.",
+  "version": "1.2.0",
+  "description": "Game-development agent runtime for Claude Code — mode-aware /qq:go routing, auto-compile C# on edit, test pipelines, code review, and built-in tykit runtime + MCP bridge for verifiable Unity execution.",
   "author": {
     "name": "Yukang Tian",
     "url": "https://github.com/tykisgod"
