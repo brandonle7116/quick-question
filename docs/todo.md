@@ -11,9 +11,7 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 - [ ] Validate the three-engineer scenario through real Claude/Codex host flows, not just controller/runtime simulation.
   - Current automated coverage is in [`docs/evals/collaboration-multi-actor.md`](./evals/collaboration-multi-actor.md) and proves policy/runtime isolation.
   - Still missing:
-    - Claude experience across separate worktrees with different local modes
-    - how much cross-talk shows up in real `/qq:go`, `/qq:test`, and `/qq:commit-push`
-    - whether dirty `.cs` prototype routes stay responsive in host mode once auto-compile hooks are active
+    - real `/qq:test` host behavior across the same multi-worktree scenarios
     - Codex parity for the same workflow
 
 ### Codex MCP E2E
@@ -27,6 +25,16 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 
 ## Recently resolved
 
+- [x] Real Claude host `/qq:go` routing now matches the collaboration controller in clean `project_pirate_demo` worktrees.
+  - Verified on three separate demo git worktrees:
+    - prototype + hardening + dirty C# spike -> `verify_compile`
+    - feature + task_focus -> `/qq:plan`
+    - hardening + compile/test green -> `/qq:claude-code-review`, then `/qq:doc-drift` after review
+  - Important condition: disable unrelated user plugins such as `superpowers` and `telegram` in the worktree's `.claude/settings.local.json`, otherwise host runs get noisy and much slower.
+- [x] Real Claude host `/qq:commit-push` gating now matches controller state in clean `project_pirate_demo` worktrees.
+  - Verified on demo git worktrees:
+    - prototype + hardening + uncompiled dirty C# change -> blocked and redirected to `verify_compile`
+    - hardening + compile/test/review green but no doc-drift -> blocked and redirected to `/qq:doc-drift`
 - [x] `claude -p` authentication works again for real host E2E.
   - Root cause was outside qq itself: local Claude CLI first-party auth had fallen into a bad state where `auth status` reported logged-in but every non-interactive `claude -p` call returned `401 Invalid authentication credentials`.
   - Fix: refreshed local Claude auth with a clean logout/login flow.

@@ -43,7 +43,7 @@ The automated suite models one shared project policy with three independent work
 
 ## What It Does Not Prove
 
-- real Unity host execution inside Claude or Codex for all three engineers at once
+- real Unity host execution inside Codex
 - cross-host concurrency safety
 - Codex MCP end-to-end tool exposure
 
@@ -65,5 +65,23 @@ Current expected result:
 - Engineer A stays on compile/test
 - Engineer B is routed to plan from the correct design doc
 - Engineer C is routed through review before doc drift
+
+## Real Claude Host Spot-Check
+
+We also validated the same routing shape through real `claude -p` host calls against clean `project_pirate_demo` git worktrees.
+
+Current real-host findings:
+
+- Engineer A on `prototype + hardening` with a dirty C# spike in the demo worktree returns `verify_compile`
+- Engineer B on `feature + task_focus=crew weapon` returns `/qq:plan`
+- Engineer C on `hardening + hardening` returns `/qq:claude-code-review`, then `/qq:doc-drift` after review is marked verified
+- Real `/qq:commit-push` host gating matches controller state:
+  - Engineer A is blocked until compile is verified
+  - Engineer C is blocked until `/qq:doc-drift` is complete
+
+Important test condition:
+
+- the worktree's `.claude/settings.local.json` explicitly disables unrelated user plugins such as `superpowers` and `telegram`
+- without that isolation, host runs become much slower and the signal is polluted by non-qq plugin context
 
 This suite should stay green as the controller, policy, and install flow evolve.
