@@ -47,7 +47,7 @@ done
 
 # ── 3. JSON validity ──
 echo -e "${CYAN}[3/9] JSON validity${NC}"
-for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json docs/evals/foundation-smoke.json docs/evals/unity-local.json docs/evals/collaboration-multi-actor.json docs/evals/qq-bench-foundation.json docs/evals/qq-bench-core-v0.json docs/evals/qq-bench-core-v1.json docs/evals/qq-bench-core-solver-v0.json .devcontainer/devcontainer.json; do
+for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json scripts/godot_capabilities.json scripts/unreal_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json docs/evals/foundation-smoke.json docs/evals/unity-local.json docs/evals/collaboration-multi-actor.json docs/evals/qq-bench-foundation.json docs/evals/qq-bench-core-v0.json docs/evals/qq-bench-core-v1.json docs/evals/qq-bench-core-solver-v0.json .devcontainer/devcontainer.json; do
   if [ -f "$SCRIPT_DIR/$json_file" ]; then
     if python3 -m json.tool "$SCRIPT_DIR/$json_file" >/dev/null 2>&1; then
       pass "$json_file"
@@ -2103,6 +2103,22 @@ else
   fail "capability resolver prefers configured provider order"
 fi
 
+if python3 "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine unreal --capability scene.query --available unreal.runreal-mcp unreal.flop-mcp > "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" && \
+   python3 - "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["resolved"] == "unreal.runreal-mcp"
+assert payload["provider"]["transportAdapter"] == "mcp"
+PY
+then
+  pass "capability resolver can fall back to compatible third-party Unreal providers"
+else
+  fail "capability resolver can fall back to compatible third-party Unreal providers"
+fi
+
 if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$RUNTIME_TEST_ROOT" --write-state > "$RUNTIME_TEST_ROOT/doctor.json" && \
    python3 - "$RUNTIME_TEST_ROOT/doctor.json" "$RUNTIME_TEST_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
@@ -2639,6 +2655,392 @@ fi
 
 rm -rf "$GODOT_SCRIPT_TEST_ROOT" "$FAKE_GODOT_BIN_DIR" "$FAKE_GODOT_FAIL_BIN_DIR" "$FAKE_GODOT_COMPILE_BIN_DIR"
 
+UNREAL_RUNTIME_ROOT="$(mktemp -d)"
+mkdir -p "$UNREAL_RUNTIME_ROOT/scripts" "$UNREAL_RUNTIME_ROOT/Content/Python" "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor/requests" "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor/responses"
+cat > "$UNREAL_RUNTIME_ROOT/FPSGame.uproject" <<'EOF'
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.7",
+  "Plugins": [
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": true
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": true
+    },
+    {
+      "Name": "McpAutomationBridge",
+      "Enabled": true
+    },
+    {
+      "Name": "UnrealMCP",
+      "Enabled": true
+    }
+  ]
+}
+EOF
+mkdir -p "$UNREAL_RUNTIME_ROOT/Config" "$UNREAL_RUNTIME_ROOT/Plugins/McpAutomationBridge" "$UNREAL_RUNTIME_ROOT/Plugins/UnrealMCP"
+cat > "$UNREAL_RUNTIME_ROOT/Config/DefaultEngine.ini" <<'EOF'
+[/Script/PythonScriptPlugin.PythonScriptPluginSettings]
+EnableRemoteExecution=True
++StartupScripts=import qq_unreal_bridge; qq_unreal_bridge.start()
+EOF
+cat > "$UNREAL_RUNTIME_ROOT/Plugins/McpAutomationBridge/McpAutomationBridge.uplugin" <<'EOF'
+{
+  "FileVersion": 3,
+  "FriendlyName": "McpAutomationBridge"
+}
+EOF
+cat > "$UNREAL_RUNTIME_ROOT/Plugins/UnrealMCP/UnrealMCP.uplugin" <<'EOF'
+{
+  "FileVersion": 3,
+  "FriendlyName": "UnrealMCP"
+}
+EOF
+cat > "$UNREAL_RUNTIME_ROOT/.mcp.json" <<EOF
+{
+  "mcpServers": {
+    "qq-unreal": {
+      "command": "python3",
+      "args": [
+        "$UNREAL_RUNTIME_ROOT/scripts/qq_mcp.py",
+        "--project",
+        "$UNREAL_RUNTIME_ROOT"
+      ],
+      "cwd": "$UNREAL_RUNTIME_ROOT"
+    },
+    "unreal-engine": {
+      "command": "npx",
+      "args": [
+        "unreal-engine-mcp-server"
+      ],
+      "env": {
+        "UE_PROJECT_PATH": "$UNREAL_RUNTIME_ROOT/FPSGame.uproject",
+        "MCP_AUTOMATION_PORT": "8091"
+      }
+    },
+    "unreal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@runreal/unreal-mcp"
+      ]
+    },
+    "flopperam-unreal": {
+      "url": "https://agent.flopperam.com/mcp",
+      "headers": {
+        "Authorization": "Bearer test-key"
+      }
+    }
+  }
+}
+EOF
+cat > "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-mcp-host.json" <<EOF
+{
+  "lastInitializeAt": "2026-03-31T00:00:00Z",
+  "clientInfo": {
+    "name": "fake-host"
+  },
+  "protocolVersion": "2024-11-05"
+}
+EOF
+cat > "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor-bridge.json" <<EOF
+{
+  "ok": true,
+  "running": true,
+  "lastHeartbeatUnix": $(python3 -c 'import time; print(time.time())')
+}
+EOF
+for path in \
+  qq-compile.sh \
+  qq-test.sh \
+  qq-project-state.py \
+  qq-policy-check.sh \
+  qq_mcp.py \
+  qq_engine.py \
+  qq-capabilities.json \
+  unreal_bridge.py \
+  unreal_editor_command.py \
+  unreal_capabilities.json; do
+  : > "$UNREAL_RUNTIME_ROOT/scripts/$path"
+done
+: > "$UNREAL_RUNTIME_ROOT/Content/Python/qq_unreal_bridge.py"
+
+if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$UNREAL_RUNTIME_ROOT" --write-state > "$UNREAL_RUNTIME_ROOT/doctor.json" && \
+   python3 - "$UNREAL_RUNTIME_ROOT/doctor.json" "$UNREAL_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+state_payload = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+providers = {item["id"]: item for item in payload["providers"]}
+
+assert payload["engine"] == "unreal"
+assert payload["engineProjectDetected"] is True
+assert payload["unityProjectDetected"] is None
+assert providers["unreal.qq-direct"]["status"] == "available"
+assert providers["unreal.qq-mcp"]["status"] == "available"
+assert providers["unreal.unreal-engine-mcp"]["status"] == "available"
+assert providers["unreal.runreal-mcp"]["status"] == "available"
+assert providers["unreal.flop-mcp"]["status"] == "available"
+assert providers["unreal.qq-mcp"]["evidence"]["missingPlugins"] == []
+assert providers["unreal.qq-mcp"]["evidence"]["startup"]["bootstrapInstalled"] is True
+assert providers["unreal.qq-mcp"]["evidence"]["startup"]["startupConfigured"] is True
+assert providers["unreal.qq-mcp"]["evidence"]["hostConnection"]["verified"] is True
+assert providers["unreal.qq-mcp"]["evidence"]["bridgeState"]["running"] is True
+assert providers["unreal.unreal-engine-mcp"]["evidence"]["plugin"]["enabled"] is True
+assert providers["unreal.runreal-mcp"]["evidence"]["remoteExecution"]["enabled"] is True
+assert providers["unreal.flop-mcp"]["evidence"]["plugin"]["enabled"] is True
+assert payload["resolution"]["console.read"]["resolved"] == "unreal.qq-mcp"
+assert payload["resolution"]["scene.query"]["resolved"] == "unreal.qq-mcp"
+assert payload["resolution"]["asset.mutate"]["resolved"] == "unreal.qq-mcp"
+assert state_payload["resolution"]["scene.mutate"]["resolved"] == "unreal.qq-mcp"
+PY
+then
+  pass "qq-doctor discovers Unreal rich bridge providers and resolves editor capabilities"
+else
+  fail "qq-doctor discovers Unreal rich bridge providers and resolves editor capabilities"
+fi
+
+python3 - "$UNREAL_RUNTIME_ROOT" <<'PY' &
+import json
+import sys
+import time
+from pathlib import Path
+
+root = Path(sys.argv[1])
+requests = root / ".qq" / "state" / "qq-unreal-editor" / "requests"
+responses = root / ".qq" / "state" / "qq-unreal-editor" / "responses"
+console = root / ".qq" / "state" / "qq-unreal-editor-console.jsonl"
+state = root / ".qq" / "state" / "qq-unreal-editor-bridge.json"
+deadline = time.time() + 10
+while time.time() < deadline:
+    state.write_text(json.dumps({"ok": True, "running": True, "lastHeartbeatUnix": time.time()}), encoding="utf-8")
+    for request_path in requests.glob("*.json"):
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        response = {
+            "ok": True,
+            "message": "fake unreal bridge handled request",
+            "data": {
+                "command": payload["command"],
+                "args": payload.get("args") or {},
+            },
+        }
+        (responses / f"{payload['requestId']}.json").write_text(json.dumps(response), encoding="utf-8")
+        with console.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"event": "handled", "command": payload["command"]}) + "\n")
+        request_path.unlink()
+        raise SystemExit(0)
+    time.sleep(0.05)
+raise SystemExit(1)
+PY
+FAKE_UNREAL_BRIDGE_PID=$!
+if python3 "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_query --arguments '{"action":"status"}' > "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" && \
+   wait "$FAKE_UNREAL_BRIDGE_PID" && \
+   python3 - "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor-console.jsonl" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+console_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+
+assert payload["ok"] is True
+assert payload["action"] == "status"
+assert payload["response"]["command"] == "status"
+assert payload["response"]["args"] == {}
+assert '"command": "status"' in console_text
+assert payload["message"] == "fake unreal bridge handled request"
+PY
+then
+  pass "unreal bridge queue transport can complete a typed query round trip"
+else
+  fail "unreal bridge queue transport can complete a typed query round trip"
+fi
+
+python3 - "$UNREAL_RUNTIME_ROOT" <<'PY' &
+import json
+import sys
+import time
+from pathlib import Path
+
+root = Path(sys.argv[1])
+requests = root / ".qq" / "state" / "qq-unreal-editor" / "requests"
+responses = root / ".qq" / "state" / "qq-unreal-editor" / "responses"
+state = root / ".qq" / "state" / "qq-unreal-editor-bridge.json"
+deadline = time.time() + 10
+handled = 0
+while time.time() < deadline:
+    state.write_text(json.dumps({"ok": True, "running": True, "lastHeartbeatUnix": time.time()}), encoding="utf-8")
+    for request_path in requests.glob("*.json"):
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        response = {
+            "ok": True,
+            "message": "fake unreal bridge handled request",
+            "data": {
+                "command": payload["command"],
+                "args": payload.get("args") or {},
+            },
+        }
+        (responses / f"{payload['requestId']}.json").write_text(json.dumps(response), encoding="utf-8")
+        request_path.unlink()
+        handled += 1
+        if handled >= 2:
+            raise SystemExit(0)
+    time.sleep(0.05)
+raise SystemExit(1)
+PY
+FAKE_UNREAL_BRIDGE_PID=$!
+if python3 "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_batch --arguments '{"operations":[{"tool":"unreal_object","arguments":{"action":"create","class_path":"/Script/Engine.EmptyActor","label":"QQActor","select":true}},{"tool":"unreal_assets","arguments":{"action":"create_material","path":"/Game/QQ/M_Test"}}]}' > "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" && \
+   wait "$FAKE_UNREAL_BRIDGE_PID" && \
+   python3 - "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["ok"] is True
+assert len(payload["results"]) == 2
+assert payload["results"][0]["result"]["action"] == "create"
+assert payload["results"][0]["result"]["response"]["command"] == "create-actor"
+assert payload["results"][0]["result"]["response"]["args"]["label"] == "QQActor"
+assert payload["results"][1]["result"]["action"] == "create_material"
+assert payload["results"][1]["result"]["response"]["command"] == "create-material"
+assert payload["results"][1]["result"]["response"]["args"]["path"] == "/Game/QQ/M_Test"
+PY
+then
+  pass "unreal batch bridge maps object and asset actions onto the rich command surface"
+else
+  fail "unreal batch bridge maps object and asset actions onto the rich command surface"
+fi
+
+if python3 - "$UNREAL_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[2])
+from qq_mcp import build_bridge  # noqa: E402
+
+project = Path(sys.argv[1])
+bridge = build_bridge(str(project))
+tools = {tool["name"] for tool in bridge.list_tools()}
+assert "qq_project_state" in tools
+assert "unreal_query" in tools
+assert "unreal_object" in tools
+assert "unreal_assets" in tools
+PY
+then
+  pass "qq_mcp composes generic and Unreal rich tools for Unreal projects"
+else
+  fail "qq_mcp composes generic and Unreal rich tools for Unreal projects"
+fi
+
+rm -rf "$UNREAL_RUNTIME_ROOT"
+
+UNREAL_SCRIPT_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$UNREAL_SCRIPT_TEST_ROOT/scripts"
+cat > "$UNREAL_SCRIPT_TEST_ROOT/FPSGame.uproject" <<'EOF'
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.7",
+  "Plugins": [
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": true
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": true
+    }
+  ]
+}
+EOF
+cp "$SCRIPT_DIR/scripts/unreal-compile-check.py" "$UNREAL_SCRIPT_TEST_ROOT/scripts/unreal-compile-check.py"
+
+FAKE_UNREAL_BIN_DIR="$(mktemp -d)"
+FAKE_UNREAL_LOG="$FAKE_UNREAL_BIN_DIR/unreal.log"
+cat > "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "__LOG__"
+if [[ -n "${QQ_UNREAL_OUTPUT_PATH:-}" ]]; then
+  printf '{"ok":true,"finding_count":0}\n' > "$QQ_UNREAL_OUTPUT_PATH"
+  exit 0
+fi
+if [[ "$*" == *"Automation RunTests"* ]]; then
+  printf 'Automation Test Queue Empty\n'
+  exit 0
+fi
+exit 0
+EOF
+python3 - "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd" "$FAKE_UNREAL_LOG" <<'PY'
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1])
+log_path = sys.argv[2]
+script.write_text(script.read_text(encoding="utf-8").replace("__LOG__", log_path), encoding="utf-8")
+PY
+chmod +x "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd"
+
+if env PATH="$FAKE_UNREAL_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-compile.sh" --project "$UNREAL_SCRIPT_TEST_ROOT" > "$UNREAL_SCRIPT_TEST_ROOT/unreal-compile.log" && \
+   python3 - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-compile.log" "$UNREAL_SCRIPT_TEST_ROOT" <<'PY'
+import sys
+from pathlib import Path
+
+log_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+compile_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+project_root = Path(sys.argv[3])
+
+assert f"-ExecutePythonScript={project_root / 'scripts' / 'unreal-compile-check.py'}" in log_text
+assert "Unreal compile/check passed" in compile_text
+PY
+then
+  pass "unreal-compile invokes the project-local compile check through UnrealEditor-Cmd"
+else
+  fail "unreal-compile invokes the project-local compile check through UnrealEditor-Cmd"
+fi
+
+if env PATH="$FAKE_UNREAL_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-test.sh" editmode --project "$UNREAL_SCRIPT_TEST_ROOT" > "$UNREAL_SCRIPT_TEST_ROOT/unreal-test.log" && \
+   python3 - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-test.log" <<'PY'
+import sys
+from pathlib import Path
+
+log_text = Path(sys.argv[1]).read_text(encoding="utf-8")
+test_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+
+assert "Automation RunTests Project.Editor; Quit" in log_text
+assert "Unreal automation tests passed" in test_text
+PY
+then
+  pass "qq-test maps Unreal editmode runs onto the editor automation filter"
+else
+  fail "qq-test maps Unreal editmode runs onto the editor automation filter"
+fi
+
+FAKE_UNREAL_FAIL_BIN_DIR="$(mktemp -d)"
+cat > "$FAKE_UNREAL_FAIL_BIN_DIR/UnrealEditor-Cmd" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'No automation tests matched\n'
+exit 0
+EOF
+chmod +x "$FAKE_UNREAL_FAIL_BIN_DIR/UnrealEditor-Cmd"
+if env PATH="$FAKE_UNREAL_FAIL_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/unreal-test.sh" --project "$UNREAL_SCRIPT_TEST_ROOT" > "$UNREAL_SCRIPT_TEST_ROOT/unreal-test-empty.log" 2>&1; then
+  fail "unreal-test rejects empty automation runs"
+else
+  if grep -q 'Unreal automation did not discover any tests' "$UNREAL_SCRIPT_TEST_ROOT/unreal-test-empty.log"; then
+    pass "unreal-test rejects empty automation runs"
+  else
+    fail "unreal-test rejects empty automation runs"
+  fi
+fi
+
+rm -rf "$UNREAL_SCRIPT_TEST_ROOT" "$FAKE_UNREAL_BIN_DIR" "$FAKE_UNREAL_FAIL_BIN_DIR"
+
 # ── 10. install.sh validation ──
 echo -e "${CYAN}[10/10] install.sh validation${NC}"
 
@@ -2734,6 +3136,50 @@ else
   fail "install.sh installs and enables the Godot editor bridge addon"
 fi
 rm -rf "$GODOT_INSTALL_ROOT"
+
+UNREAL_INSTALL_ROOT="$(mktemp -d)"
+cat > "$UNREAL_INSTALL_ROOT/FPSGame.uproject" <<'EOF'
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.7",
+  "Plugins": [
+    {
+      "Name": "ModelingToolsEditorMode",
+      "Enabled": true
+    }
+  ]
+}
+EOF
+"$SCRIPT_DIR/install.sh" "$UNREAL_INSTALL_ROOT" >/dev/null
+if python3 - "$UNREAL_INSTALL_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+project_file = next(root.glob("*.uproject"))
+uproject = json.loads(project_file.read_text(encoding="utf-8"))
+mcp = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
+plugins = {item["Name"]: item["Enabled"] for item in uproject.get("Plugins", []) if isinstance(item, dict) and "Name" in item}
+
+assert (root / "scripts" / "unreal_bridge.py").is_file()
+assert (root / "scripts" / "unreal_capabilities.json").is_file()
+assert (root / "Content" / "Python" / "qq_unreal_bridge.py").is_file()
+assert plugins["ModelingToolsEditorMode"] is True
+assert plugins["PythonScriptPlugin"] is True
+assert plugins["EditorScriptingUtilities"] is True
+engine_ini = (root / "Config" / "DefaultEngine.ini").read_text(encoding="utf-8")
+assert "import qq_unreal_bridge; qq_unreal_bridge.start()" in engine_ini
+server = mcp["mcpServers"]["qq-unreal"]
+assert server["command"] == "python3"
+assert "qq_mcp.py" in " ".join(server["args"])
+PY
+then
+  pass "install.sh enables required Unreal project plugins and wires the built-in live editor bridge"
+else
+  fail "install.sh enables required Unreal project plugins and wires the built-in live editor bridge"
+fi
+rm -rf "$UNREAL_INSTALL_ROOT"
 
 if grep -q 'qq_default_test_scope' "$SCRIPT_DIR/scripts/githooks/pre-push" && \
    grep -q 'qq-test.sh" editmode' "$SCRIPT_DIR/scripts/githooks/pre-push"; then

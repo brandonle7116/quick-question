@@ -21,6 +21,9 @@ case "$ENGINE" in
     godot)
         exec "$SCRIPT_DIR/godot-compile.sh" "$@"
         ;;
+    unreal)
+        exec "$SCRIPT_DIR/unreal-compile.sh" "$@"
+        ;;
     *)
         echo "Error: no supported engine detected for project: $PROJECT_DIR" >&2
         exit 1

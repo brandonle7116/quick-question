@@ -22,12 +22,26 @@ if [[ "$ENGINE" == "godot" && ${#ARGS[@]} -gt 0 ]]; then
     esac
 fi
 
+if [[ "$ENGINE" == "unreal" && ${#ARGS[@]} -gt 0 ]]; then
+    case "${ARGS[0]}" in
+        editmode)
+            ARGS=("editor" "${ARGS[@]:1}")
+            ;;
+        playmode)
+            ARGS=("all" "${ARGS[@]:1}")
+            ;;
+    esac
+fi
+
 case "$ENGINE" in
     unity)
         exec "$SCRIPT_DIR/unity-test.sh" "${ARGS[@]}"
         ;;
     godot)
         exec "$SCRIPT_DIR/godot-test.sh" "${ARGS[@]}"
+        ;;
+    unreal)
+        exec "$SCRIPT_DIR/unreal-test.sh" "${ARGS[@]}"
         ;;
     *)
         echo "Error: no supported engine detected for project: $PROJECT_DIR" >&2

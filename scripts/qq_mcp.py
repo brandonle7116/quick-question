@@ -33,6 +33,7 @@ from qq_bridge_common import (
 )
 from godot_bridge import GodotBridge
 from tykit_bridge import TykitBridge
+from unreal_bridge import UnrealBridge
 
 
 JSONRPC_VERSION = "2.0"
@@ -422,6 +423,25 @@ class GodotDelegateBridge:
         return self.bridge.tool_result(structured, is_error=is_error)
 
 
+class UnrealDelegateBridge:
+    def __init__(self, project_dir: str, profile: str | None = None):
+        self.engine = "unreal"
+        self.bridge = UnrealBridge(default_project_dir=project_dir, profile=profile)
+        self.default_project_dir = self.bridge.default_project_dir
+        self.supported_protocol_versions = self.bridge.supported_protocol_versions
+        self.server_name = bridge_server_name("unreal") or "qq-unreal"
+        self.instructions = "This bridge also exposes typed Unreal editor tools backed by UnrealEditor command-line automation."
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return self.bridge.list_tools()
+
+    def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        return self.bridge.call_tool(tool_name, arguments or {})
+
+    def tool_result(self, structured: dict[str, Any], is_error: bool | None = None) -> dict[str, Any]:
+        return self.bridge.tool_result(structured, is_error=is_error)
+
+
 class MCPServer:
     def __init__(self, bridge: BridgeAdapter, log_file: Path | None = None):
         self.bridge = bridge
@@ -617,7 +637,6 @@ def build_bridge(project_dir: str, profile: str | None = None) -> BridgeAdapter:
     resolved_project = resolve_project_dir(project_dir)
     engine = resolve_project_engine(resolved_project)
     config = resolve_project_config(resolved_project)
-    trust_level = str(config.get("trust_level") or "trusted")
     trust_expectations = config.get("trust_level_expectations") or {}
     hide_raw_standard = not bool(trust_expectations.get("standard_raw_command", True))
     hidden_tools: set[str] = set()
@@ -626,11 +645,15 @@ def build_bridge(project_dir: str, profile: str | None = None) -> BridgeAdapter:
             hidden_tools.add("unity_raw_command")
         elif engine == "godot":
             hidden_tools.add("godot_raw_command")
+        elif engine == "unreal":
+            hidden_tools.add("unreal_raw_command")
     generic = GenericScriptBridge(str(resolved_project), engine, profile=profile)
     if engine == "unity":
         return CompositeBridge(generic, UnityDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
     if engine == "godot":
         return CompositeBridge(generic, GodotDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
+    if engine == "unreal":
+        return CompositeBridge(generic, UnrealDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
     return generic
 
 

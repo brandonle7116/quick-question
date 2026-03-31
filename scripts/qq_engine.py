@@ -80,6 +80,94 @@ ENGINE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "hostValidationReason": "Godot project validation is engine-local and should run against the project on the host machine.",
         "recommendedCompileAction": "./scripts/qq-compile.sh",
     },
+    "unreal": {
+        "displayName": "Unreal",
+        "projectMarkers": ["*.uproject"],
+        "sourcePatterns": [
+            "Source/*.cpp",
+            "Source/*.h",
+            "Source/*.cs",
+            "Source/*.Build.cs",
+            "Source/*.Target.cs",
+            "Source/**/*.cpp",
+            "Source/**/*.h",
+            "Source/**/*.cs",
+            "Source/**/*.Build.cs",
+            "Source/**/*.Target.cs",
+            "Plugins/*.cpp",
+            "Plugins/*.h",
+            "Plugins/*.cs",
+            "Plugins/*.Build.cs",
+            "Plugins/*.Target.cs",
+            "Plugins/**/*.cpp",
+            "Plugins/**/*.h",
+            "Plugins/**/*.cs",
+            "Plugins/**/*.Build.cs",
+            "Plugins/**/*.Target.cs",
+        ],
+        "verificationPatterns": [
+            "*.uproject",
+            "Config/*.ini",
+            "Config/**/*.ini",
+            "Source/*.cpp",
+            "Source/*.h",
+            "Source/*.cs",
+            "Source/*.Build.cs",
+            "Source/*.Target.cs",
+            "Source/**/*.cpp",
+            "Source/**/*.h",
+            "Source/**/*.cs",
+            "Source/**/*.Build.cs",
+            "Source/**/*.Target.cs",
+            "Plugins/*.uplugin",
+            "Plugins/*.cpp",
+            "Plugins/*.h",
+            "Plugins/*.cs",
+            "Plugins/*.Build.cs",
+            "Plugins/*.Target.cs",
+            "Plugins/**/*.uplugin",
+            "Plugins/**/*.cpp",
+            "Plugins/**/*.h",
+            "Plugins/**/*.cs",
+            "Plugins/**/*.Build.cs",
+            "Plugins/**/*.Target.cs",
+            "Content/*.uasset",
+            "Content/*.umap",
+            "Content/**/*.uasset",
+            "Content/**/*.umap",
+        ],
+        "runtimeCacheDir": "Intermediate",
+        "runtimeCacheSupportDir": "Binaries",
+        "bridgeScript": "qq_mcp.py",
+        "bridgeBackend": "qq-unreal-python",
+        "bridgeServerName": "qq-unreal",
+        "bridgeHostStateFile": "qq-unreal-mcp-host.json",
+        "editorBridgeStateFile": ".qq/state/qq-unreal-editor-bridge.json",
+        "editorBridgeRequestDir": ".qq/state/qq-unreal-editor/requests",
+        "editorBridgeResponseDir": ".qq/state/qq-unreal-editor/responses",
+        "editorBridgeConsoleFile": ".qq/state/qq-unreal-editor-console.jsonl",
+        "editorBridgeLogFile": ".qq/state/qq-unreal-editor.log",
+        "editorBridgeStartupCommand": "import qq_unreal_bridge; qq_unreal_bridge.start()",
+        "engineSupportSourceDir": "engines/unreal/python",
+        "engineSupportTargetDir": "Content/Python",
+        "codexServerPrefix": "qq-unreal-",
+        "defaultSlug": "unreal-project",
+        "requiredProjectPlugins": [
+            "PythonScriptPlugin",
+            "EditorScriptingUtilities",
+        ],
+        "defaultEnabledRules": [
+            "get_all_actors_in_hot_path",
+            "component_lookup_in_tick",
+        ],
+        "defaultTestScopes": {
+            "core": "all",
+            "feature": "all",
+            "hardening": "all",
+        },
+        "hostValidationReason": "Unreal project validation is engine-local and should run against the project on the host machine.",
+        "recommendedCompileAction": "./scripts/qq-compile.sh",
+    },
 }
 
 
@@ -102,7 +190,12 @@ def is_engine_project(project_dir: Path, engine: str) -> bool:
     if not metadata:
         return False
     for marker in metadata.get("projectMarkers") or []:
-        if (project_dir / str(marker)).exists():
+        token = str(marker)
+        if any(char in token for char in "*?[]"):
+            if any(path.exists() for path in project_dir.glob(token)):
+                return True
+            continue
+        if (project_dir / token).exists():
             return True
     return False
 

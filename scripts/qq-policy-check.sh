@@ -120,6 +120,10 @@ DEFAULT_RULES = {
         "get_node_in_hot_path",
         "group_scan_in_hot_path",
     },
+    "unreal": {
+        "get_all_actors_in_hot_path",
+        "component_lookup_in_tick",
+    },
 }
 
 
@@ -315,6 +319,49 @@ def scan_godot_csharp_file(path: Path, rel: str, enabled: set[str], findings: li
             method_depth = 0
 
 
+def scan_unreal_cpp_file(path: Path, rel: str, enabled: set[str], findings: list[dict[str, Any]]) -> None:
+    method_pattern = re.compile(
+        r"^\s*[A-Za-z0-9_:<>,\*&\s]+\s+[A-Za-z0-9_:]+\:\:(Tick|TickComponent)\s*\("
+    )
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    current_hot_method = ""
+    brace_depth = 0
+    method_depth = 0
+
+    for idx, line in enumerate(lines, start=1):
+        method_match = method_pattern.match(line)
+        if method_match:
+            current_hot_method = method_match.group(1)
+            method_depth = brace_depth + line.count("{") - line.count("}")
+
+        if current_hot_method and "get_all_actors_in_hot_path" in enabled and re.search(r"\b(GetAllActorsOfClass|GetAllActorsWithInterface|GetAllActorsWithTag)\s*\(", line):
+            add_finding(
+                findings,
+                rule_id="get_all_actors_in_hot_path",
+                severity="critical",
+                file=rel,
+                line=idx,
+                message=f"Actor scan inside hot path method `{current_hot_method}`.",
+                suggestion="Cache actor references or maintain an explicit registry instead of scanning the world every tick.",
+            )
+
+        if current_hot_method and "component_lookup_in_tick" in enabled and re.search(r"\b(FindComponentByClass|GetComponents(?:ByClass)?|GetComponentByClass)\s*\(", line):
+            add_finding(
+                findings,
+                rule_id="component_lookup_in_tick",
+                severity="moderate",
+                file=rel,
+                line=idx,
+                message=f"Component lookup inside hot path method `{current_hot_method}`.",
+                suggestion="Cache component pointers during initialization instead of searching every tick.",
+            )
+
+        brace_depth += line.count("{") - line.count("}")
+        if current_hot_method and brace_depth < method_depth:
+            current_hot_method = ""
+            method_depth = 0
+
+
 enabled = load_enabled_rules()
 findings: list[dict[str, Any]] = []
 files_scanned: list[str] = []
@@ -336,6 +383,11 @@ for file_arg in files:
             scan_gdscript_file(path, rel, enabled, findings)
         elif path.suffix == ".cs":
             scan_godot_csharp_file(path, rel, enabled, findings)
+        continue
+
+    if engine == "unreal":
+        if path.suffix == ".cpp":
+            scan_unreal_cpp_file(path, rel, enabled, findings)
         continue
 
 priority = {"critical": 0, "moderate": 1, "suggestion": 2}

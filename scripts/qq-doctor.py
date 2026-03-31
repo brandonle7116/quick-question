@@ -160,6 +160,93 @@ def gather_host_config_text(project_dir: Path) -> str:
     return "\n".join(texts)
 
 
+def gather_config_tree_text(root: Path) -> tuple[str, list[str]]:
+    texts: list[str] = []
+    scanned: list[str] = []
+    if not root.is_dir():
+        return "", scanned
+    for path in sorted(root.rglob("*.ini")):
+        if not path.is_file():
+            continue
+        try:
+            texts.append(path.read_text(encoding="utf-8", errors="ignore"))
+            scanned.append(str(path))
+        except OSError:
+            continue
+    return "\n".join(texts), scanned
+
+
+def gather_unreal_config_text(project_dir: Path) -> tuple[str, list[str]]:
+    roots = [project_dir / "Config", project_dir / "Saved" / "Config"]
+    combined: list[str] = []
+    scanned: list[str] = []
+    for root in roots:
+        text, paths = gather_config_tree_text(root)
+        if text:
+            combined.append(text)
+        scanned.extend(paths)
+    return "\n".join(combined), scanned
+
+
+def unreal_remote_execution_state(project_dir: Path) -> dict[str, Any]:
+    text, scanned = gather_unreal_config_text(project_dir)
+    lowered = text.lower()
+    enabled = "enableremoteexecution=true" in lowered or "enable_remote_execution=true" in lowered
+    return {
+        "enabled": enabled,
+        "scanned": scanned,
+    }
+
+
+def unreal_editor_bridge_state(project_dir: Path) -> dict[str, Any]:
+    metadata = engine_metadata("unreal")
+    path = project_dir / str(metadata.get("editorBridgeStateFile") or ".qq/state/qq-unreal-editor-bridge.json")
+    payload = load_optional_json(path)
+    heartbeat = float(payload.get("lastHeartbeatUnix") or 0.0) if payload else 0.0
+    age_sec = (time.time() - heartbeat) if heartbeat > 0 else None
+    running = bool(payload.get("running")) and age_sec is not None and age_sec <= 5.0
+    return {
+        "path": str(path),
+        "present": bool(payload),
+        "running": running,
+        "lastHeartbeatUnix": heartbeat,
+        "lastHeartbeatAgeSec": age_sec,
+        "state": payload,
+    }
+
+
+def unreal_python_startup_state(project_dir: Path) -> dict[str, Any]:
+    metadata = engine_metadata("unreal")
+    startup_command = str(metadata.get("editorBridgeStartupCommand") or "").strip()
+    support_dir = str(metadata.get("engineSupportTargetDir") or "Content/Python").strip()
+    bootstrap_path = project_dir / support_dir / "qq_unreal_bridge.py"
+    config_text, scanned = gather_unreal_config_text(project_dir)
+    return {
+        "startupCommand": startup_command,
+        "startupConfigured": bool(startup_command) and startup_command in config_text,
+        "bootstrapPath": str(bootstrap_path),
+        "bootstrapInstalled": bootstrap_path.is_file(),
+        "configScanned": scanned,
+    }
+
+
+def unreal_plugin_state(project_dir: Path, plugin_name: str, enabled_plugins: dict[str, bool] | None = None) -> dict[str, Any]:
+    plugins = enabled_plugins or enabled_unreal_plugins(project_dir)
+    exact_dir = project_dir / "Plugins" / plugin_name
+    plugin_files = sorted(project_dir.glob(f"Plugins/**/{plugin_name}.uplugin"))
+    return {
+        "name": plugin_name,
+        "enabled": bool(plugins.get(plugin_name)),
+        "localDirectory": str(exact_dir) if exact_dir.is_dir() else "",
+        "localDescriptor": str(plugin_files[0]) if plugin_files else "",
+    }
+
+
+def host_config_matches(host_config: str, patterns: list[str]) -> bool:
+    haystack = host_config.lower()
+    return any(pattern.lower() in haystack for pattern in patterns if pattern)
+
+
 def bridge_mcp_host_state(project_dir: Path, engine: str) -> dict[str, Any]:
     filename = bridge_host_state_file(engine)
     if not filename:
@@ -205,6 +292,35 @@ def enabled_godot_plugins(project_dir: Path) -> list[str]:
             continue
         plugins.extend(part for index, part in enumerate(stripped.split('"')) if index % 2 == 1)
     return plugins
+
+
+def find_unreal_project_file(project_dir: Path) -> Path | None:
+    for path in sorted(project_dir.glob("*.uproject")):
+        if path.is_file():
+            return path
+    return None
+
+
+def enabled_unreal_plugins(project_dir: Path) -> dict[str, bool]:
+    project_file = find_unreal_project_file(project_dir)
+    if project_file is None:
+        return {}
+    try:
+        payload = load_json(project_file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    plugins = payload.get("Plugins") or []
+    if not isinstance(plugins, list):
+        return {}
+    enabled: dict[str, bool] = {}
+    for item in plugins:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("Name") or "").strip()
+        if not name:
+            continue
+        enabled[name] = bool(item.get("Enabled"))
+    return enabled
 
 
 def godot_editor_bridge_state(project_dir: Path) -> dict[str, Any]:
@@ -614,6 +730,194 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
                 "hostConfig": config,
                 "hostConnection": host_state,
                 "bridgeState": bridge_state,
+            },
+        }
+
+    if provider_id == "unreal.qq-mcp":
+        unreal_meta = engine_metadata("unreal")
+        required = [
+            scripts_dir / "qq_mcp.py",
+            scripts_dir / "unreal_bridge.py",
+            scripts_dir / "unreal_editor_command.py",
+            scripts_dir / "unreal_capabilities.json",
+            scripts_dir / "qq-capabilities.json",
+            scripts_dir / "qq_engine.py",
+            scripts_dir / "qq-compile.sh",
+            scripts_dir / "qq-test.sh",
+        ]
+        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
+        project_file = find_unreal_project_file(project_dir)
+        enabled_plugins = enabled_unreal_plugins(project_dir)
+        required_plugins = [str(item) for item in unreal_meta.get("requiredProjectPlugins") or [] if str(item)]
+        missing_plugins = [name for name in required_plugins if not enabled_plugins.get(name)]
+        startup_state = unreal_python_startup_state(project_dir)
+        bridge_state = unreal_editor_bridge_state(project_dir)
+        config = inspect_project_local_bridge_config(project_dir, "unreal")
+        host_state = bridge_mcp_host_state(project_dir, "unreal")
+        reasons: list[str] = []
+        if not missing:
+            reasons.append("built-in qq MCP bridge installed")
+        else:
+            reasons.append("missing bridge scripts")
+        if project_file is not None:
+            reasons.append(f"project-local Unreal descriptor found: {project_file.name}")
+        else:
+            reasons.append("no .uproject file found in the project root")
+        if not missing_plugins:
+            reasons.append("required Unreal project plugins are enabled")
+        else:
+            reasons.append("required Unreal project plugins are not fully enabled")
+        if startup_state["bootstrapInstalled"]:
+            reasons.append("qq Unreal editor bridge bootstrap is installed in Content/Python")
+        else:
+            reasons.append("qq Unreal editor bridge bootstrap is missing from Content/Python")
+        if startup_state["startupConfigured"]:
+            reasons.append("Unreal Python startup hook is configured for the qq editor bridge")
+        else:
+            reasons.append("Unreal Python startup hook is not configured for the qq editor bridge")
+        if config["configState"] == "configured":
+            reasons.append("project-local .mcp.json points at the built-in bridge")
+        elif config["configState"] == "missing":
+            reasons.append("project-local .mcp.json not found")
+        elif config["configState"] == "missing_server":
+            reasons.append("project-local .mcp.json does not expose the Unreal bridge")
+        elif config["configState"] == "misconfigured":
+            reasons.append("project-local .mcp.json exists but does not point at this project's bridge")
+        else:
+            reasons.append("project-local .mcp.json could not be parsed")
+        if host_state["verified"]:
+            reasons.append("a host session has connected to the built-in bridge")
+        else:
+            reasons.append("no successful host connection has been recorded yet")
+        if bridge_state["running"]:
+            reasons.append("Unreal editor bridge heartbeat is active")
+        elif bridge_state["present"]:
+            reasons.append("Unreal editor bridge state exists but heartbeat is stale")
+        else:
+            reasons.append("Unreal editor bridge state has not been written yet")
+        return {
+            "id": provider_id,
+            "status": "available" if not missing and project_file is not None and not missing_plugins and startup_state["bootstrapInstalled"] and startup_state["startupConfigured"] else "unavailable",
+            "reasons": reasons,
+            "evidence": {
+                "missing": missing,
+                "projectFile": str(project_file) if project_file else "",
+                "requiredPlugins": required_plugins,
+                "enabledPlugins": enabled_plugins,
+                "missingPlugins": missing_plugins,
+                "startup": startup_state,
+                "hostConfig": config,
+                "hostConnection": host_state,
+                "bridgeState": bridge_state,
+            },
+        }
+
+    if provider_id == "unreal.unreal-engine-mcp":
+        enabled_plugins = enabled_unreal_plugins(project_dir)
+        plugin_state = unreal_plugin_state(project_dir, "McpAutomationBridge", enabled_plugins)
+        config_detected = host_config_matches(
+            host_config,
+            [
+                "unreal-engine-mcp-server",
+                "\"unreal-engine\"",
+                "mcpautomationbridge",
+                "mcp_automation_port",
+            ],
+        )
+        available = config_detected and (plugin_state["enabled"] or bool(plugin_state["localDirectory"]) or bool(plugin_state["localDescriptor"]))
+        reasons: list[str] = []
+        if config_detected:
+            reasons.append("host MCP config references unreal-engine-mcp")
+        else:
+            reasons.append("host MCP config does not reference unreal-engine-mcp")
+        if plugin_state["enabled"]:
+            reasons.append("McpAutomationBridge is enabled in the Unreal project descriptor")
+        elif plugin_state["localDirectory"] or plugin_state["localDescriptor"]:
+            reasons.append("McpAutomationBridge plugin files exist locally but are not enabled in the project descriptor")
+        else:
+            reasons.append("McpAutomationBridge plugin was not found in the project")
+        return {
+            "id": provider_id,
+            "status": "available" if available else ("unavailable" if config_detected else "unknown"),
+            "reasons": reasons,
+            "evidence": {
+                "hostConfigDetected": config_detected,
+                "plugin": plugin_state,
+                "configScanned": [".mcp.json", ".cursor/mcp.json", ".cursor/mcp.jsonc"],
+            },
+        }
+
+    if provider_id == "unreal.runreal-mcp":
+        enabled_plugins = enabled_unreal_plugins(project_dir)
+        remote_state = unreal_remote_execution_state(project_dir)
+        config_detected = host_config_matches(
+            host_config,
+            [
+                "@runreal/unreal-mcp",
+                "runreal/unreal-mcp",
+                "\"unreal\"",
+                "editor_run_python",
+            ],
+        )
+        python_enabled = bool(enabled_plugins.get("PythonScriptPlugin"))
+        available = config_detected and python_enabled and remote_state["enabled"]
+        reasons = []
+        if config_detected:
+            reasons.append("host MCP config references runreal/unreal-mcp")
+        else:
+            reasons.append("host MCP config does not reference runreal/unreal-mcp")
+        if python_enabled:
+            reasons.append("PythonScriptPlugin is enabled")
+        else:
+            reasons.append("PythonScriptPlugin is not enabled")
+        if remote_state["enabled"]:
+            reasons.append("Unreal Python Remote Execution is enabled in config")
+        else:
+            reasons.append("Unreal Python Remote Execution was not detected in config")
+        return {
+            "id": provider_id,
+            "status": "available" if available else ("unavailable" if config_detected else "unknown"),
+            "reasons": reasons,
+            "evidence": {
+                "hostConfigDetected": config_detected,
+                "pythonPluginEnabled": python_enabled,
+                "remoteExecution": remote_state,
+                "configScanned": [".mcp.json", ".cursor/mcp.json", ".cursor/mcp.jsonc"],
+            },
+        }
+
+    if provider_id == "unreal.flop-mcp":
+        enabled_plugins = enabled_unreal_plugins(project_dir)
+        plugin_state = unreal_plugin_state(project_dir, "UnrealMCP", enabled_plugins)
+        config_detected = host_config_matches(
+            host_config,
+            [
+                "agent.flopperam.com/mcp",
+                "\"flopperam-unreal\"",
+                "flopperam.com/mcp",
+                "flopperamunrealmcp",
+            ],
+        )
+        available = config_detected and (plugin_state["enabled"] or bool(plugin_state["localDirectory"]) or bool(plugin_state["localDescriptor"]))
+        reasons = []
+        if config_detected:
+            reasons.append("host MCP config references the Flopperam Unreal MCP endpoint")
+        else:
+            reasons.append("host MCP config does not reference the Flopperam Unreal MCP endpoint")
+        if plugin_state["enabled"]:
+            reasons.append("UnrealMCP is enabled in the Unreal project descriptor")
+        elif plugin_state["localDirectory"] or plugin_state["localDescriptor"]:
+            reasons.append("UnrealMCP plugin files exist locally but are not enabled in the project descriptor")
+        else:
+            reasons.append("UnrealMCP plugin was not found in the project")
+        return {
+            "id": provider_id,
+            "status": "available" if available else ("unavailable" if config_detected else "unknown"),
+            "reasons": reasons,
+            "evidence": {
+                "hostConfigDetected": config_detected,
+                "plugin": plugin_state,
+                "configScanned": [".mcp.json", ".cursor/mcp.json", ".cursor/mcp.jsonc"],
             },
         }
 

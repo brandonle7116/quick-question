@@ -54,7 +54,13 @@ def normalize_run_status(value: Any, exit_code: int) -> str:
     return "passed" if exit_code == 0 else "failed"
 
 
-def run_command(command: list[str], *, cwd: Path, timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
+def run_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    timeout_sec: int | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             command,
@@ -63,6 +69,7 @@ def run_command(command: list[str], *, cwd: Path, timeout_sec: int | None = None
             text=True,
             timeout=timeout_sec,
             check=False,
+            env=env,
         )
     except FileNotFoundError as exc:
         raise BridgeError("COMMAND_NOT_FOUND", f"Command not found: {command[0]}", {"error": str(exc)}) from exc

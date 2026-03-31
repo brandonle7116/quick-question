@@ -75,7 +75,7 @@ fi
 ENGINE="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" detect --project "$TARGET" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
 if [ -z "$ENGINE" ]; then
   echo "Error: $TARGET is not a supported engine project"
-  echo "Usage: ./install.sh /path/to/<unity-or-godot-project>"
+  echo "Usage: ./install.sh /path/to/<supported-engine-project>"
   exit 1
 fi
 
@@ -178,6 +178,10 @@ baseline = [
     "Bash(scripts/godot-compile.sh:*)",
     "Bash(./scripts/godot-test.sh:*)",
     "Bash(scripts/godot-test.sh:*)",
+    "Bash(./scripts/unreal-compile.sh:*)",
+    "Bash(scripts/unreal-compile.sh:*)",
+    "Bash(./scripts/unreal-test.sh:*)",
+    "Bash(scripts/unreal-test.sh:*)",
 ]
 
 existing = {str(item) for item in allow}
@@ -309,6 +313,114 @@ PYEOF
   else
     echo "  Godot addon: source assets not found — install incomplete"
   fi
+elif [[ "$ENGINE" == "unreal" ]]; then
+  REQUIRED_PLUGINS_JSON="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field requiredProjectPlugins --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_SOURCE_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_TARGET_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
+  STARTUP_COMMAND="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field editorBridgeStartupCommand --project "$TARGET" --engine "$ENGINE")"
+  UPROJECT_FILE="$(python3 - "$TARGET" "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+project_root = Path(sys.argv[1])
+required = [str(item) for item in json.loads(sys.argv[2]) if str(item)]
+project_files = sorted(project_root.glob("*.uproject"))
+if not project_files:
+    raise SystemExit("No .uproject file found in target project")
+
+project_path = project_files[0]
+data = json.loads(project_path.read_text(encoding="utf-8"))
+plugins = data.get("Plugins")
+if not isinstance(plugins, list):
+    plugins = []
+    data["Plugins"] = plugins
+
+existing: dict[str, dict] = {}
+ordered: list[dict] = []
+for item in plugins:
+    if isinstance(item, dict):
+        name = str(item.get("Name") or "").strip()
+        if name:
+            existing[name] = item
+            ordered.append(item)
+            continue
+    ordered.append(item)
+
+for name in required:
+    plugin = existing.get(name)
+    if plugin is None:
+        plugin = {"Name": name, "Enabled": True}
+        ordered.append(plugin)
+        existing[name] = plugin
+    else:
+        plugin["Enabled"] = True
+
+data["Plugins"] = ordered
+project_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+print(project_path.name)
+PYEOF
+)"
+  REQUIRED_PLUGINS_LABEL="$(python3 - "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
+import json
+import sys
+
+plugins = [str(item) for item in json.loads(sys.argv[1]) if str(item)]
+print(", ".join(plugins))
+PYEOF
+)"
+  echo "  Unreal project plugins: enabled $REQUIRED_PLUGINS_LABEL in $UPROJECT_FILE"
+  if [[ -n "$SUPPORT_SOURCE_DIR" && -d "$SCRIPT_DIR/$SUPPORT_SOURCE_DIR" && -n "$SUPPORT_TARGET_DIR" ]]; then
+    mkdir -p "$TARGET/$SUPPORT_TARGET_DIR"
+    cp -R "$SCRIPT_DIR/$SUPPORT_SOURCE_DIR"/. "$TARGET/$SUPPORT_TARGET_DIR/"
+    echo "  Unreal editor bridge: installed support scripts into $SUPPORT_TARGET_DIR"
+  else
+    echo "  Unreal editor bridge: support assets not found — install incomplete"
+  fi
+  mkdir -p "$TARGET/Config"
+  python3 - "$TARGET/Config/DefaultEngine.ini" "$STARTUP_COMMAND" << 'PYEOF'
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+startup_command = sys.argv[2].strip()
+section_name = "[/Script/PythonScriptPlugin.PythonScriptPluginSettings]"
+startup_line = f"+StartupScripts={startup_command}"
+
+lines = config_path.read_text(encoding="utf-8").splitlines() if config_path.exists() else []
+out: list[str] = []
+in_section = False
+section_found = False
+startup_written = False
+
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        if in_section and not startup_written:
+            out.append(startup_line)
+            startup_written = True
+        in_section = stripped == section_name
+        section_found = section_found or in_section
+        out.append(line)
+        continue
+    if in_section and stripped.startswith("+StartupScripts=") and startup_command in stripped:
+        if not startup_written:
+            out.append(startup_line)
+            startup_written = True
+        continue
+    out.append(line)
+
+if section_found and not startup_written:
+    out.append(startup_line)
+elif not section_found:
+    if out and out[-1] != "":
+        out.append("")
+    out.append(section_name)
+    out.append(startup_line)
+
+config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+PYEOF
+  echo "  Unreal editor bridge: configured Python startup hook in Config/DefaultEngine.ini"
 fi
 
 # ── Engine-side dependency wiring ──
@@ -381,9 +493,12 @@ echo "       /plugin marketplace add tykisgod/quick-question"
 echo "       /plugin install qq@quick-question-marketplace"
 if [[ "$ENGINE" == "unity" ]]; then
   echo "  2. Open Unity — tykit will auto-start"
-else
+elif [[ "$ENGINE" == "godot" ]]; then
   echo "  2. Open Godot — the built-in qq editor bridge addon is already installed and enabled"
   echo "     Also ensure your preferred test backend (GUT or GdUnit4) is installed under addons/"
+else
+  echo "  2. Open Unreal Editor — project plugins were enabled for qq rich automation"
+  echo "     If the project was already open, restart Unreal so PythonScriptPlugin and EditorScriptingUtilities reload"
 fi
 echo "  3. The project-local built-in MCP bridge is now wired in .mcp.json"
 echo "  4. Shared default_profile is set to $POLICY_PROFILE in qq.yaml"

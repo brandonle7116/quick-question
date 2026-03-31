@@ -113,6 +113,8 @@ def is_test_runtime_file(relative_path: str, engine: str) -> bool:
         return True
     if engine == "godot":
         return any(part in {"gut", "gdunit4", "gdunit"} for part in lowered_parts)
+    if engine == "unreal":
+        return any(part in {"automation", "functionaltests", "specs"} for part in lowered_parts) or stem.startswith("spec_") or stem.endswith("_spec")
     return False
 
 
