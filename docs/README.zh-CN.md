@@ -99,7 +99,31 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
-安装脚本现在会同时复制 shell 和 Python runtime helper，并在 Unity 项目里自动创建起始版 `qq.yaml`（如果项目里还没有）。共享默认 profile 是 `feature`；按任务切模式时，优先写到 `.qq/local.yaml`。
+如果你希望安装时直接有引导，用向导模式：
+
+```bash
+git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
+/tmp/qq-install/install.sh --wizard /path/to/your-project
+rm -rf /tmp/qq-install
+```
+
+向导会自动检测当前引擎，并根据 `LC_ALL` / `LC_MESSAGES` / `LANG` 选择界面语言；也可以用 `--language en|zh-CN|ja|ko` 手动指定。
+
+如果不想交互，直接选推荐方案：
+
+```bash
+/tmp/qq-install/install.sh --preset quickstart /path/to/your-project
+/tmp/qq-install/install.sh --preset daily /path/to/your-project
+/tmp/qq-install/install.sh --preset stabilize /path/to/your-project
+```
+
+推荐这样理解：
+
+- `quickstart`：最轻，适合第一次装或原型验证
+- `daily`：默认推荐，适合多数团队日常开发
+- `stabilize`：更稳，适合高风险改动和发版前
+
+安装脚本现在会按引擎、宿主和 `qq.yaml install` 解析模块，只复制当前真正需要的 runtime 文件，并在 Unity 项目里自动创建起始版 `qq.yaml`（如果项目里还没有）。共享默认 profile 是 `feature`；按任务切模式时，优先写到 `.qq/local.yaml`。
 
 `install.sh --profile <lightweight|core|feature|hardening>` 会把 starter `default_profile` 写进 `qq.yaml`。
 

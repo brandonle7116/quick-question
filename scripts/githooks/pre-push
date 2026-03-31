@@ -4,7 +4,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -f "$HOOK_DIR/../scripts/qq-runtime.sh" ]; then
+    SCRIPT_DIR="$(cd "$HOOK_DIR/.." && pwd)"
+else
+    SCRIPT_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+fi
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -40,6 +45,10 @@ fi
 echo -e "${CYAN}[pre-push] Running unit/integration tests...${NC}"
 
 case "$TEST_SCOPE" in
+    unit)
+        echo -e "${CYAN}[pre-push] policy_profile=$(qq_policy_profile) -> unit test run${NC}"
+        TEST_CMD=("$SCRIPT_DIR/scripts/qq-test.sh" unit --project "$SCRIPT_DIR" --timeout 180)
+        ;;
     editmode)
         echo -e "${CYAN}[pre-push] policy_profile=$(qq_policy_profile) -> EditMode only${NC}"
         TEST_CMD=("$SCRIPT_DIR/scripts/qq-test.sh" editmode --project "$SCRIPT_DIR" --timeout 180)

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -20,6 +22,7 @@ from qq_engine import (
     resolve_project_engine,
 )
 from qq_internal_config import read_optional_structured, resolve_project_config
+from qq_internal_install import load_install_state, resolve_install_plan, install_state_path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -323,6 +326,95 @@ def enabled_unreal_plugins(project_dir: Path) -> dict[str, bool]:
     return enabled
 
 
+def find_sbox_project_file(project_dir: Path) -> Path | None:
+    hidden = project_dir / ".sbproj"
+    if hidden.is_file():
+        return hidden
+    for path in sorted(project_dir.glob("*.sbproj")):
+        if path.is_file():
+            return path
+    return None
+
+
+def list_sbox_solution_files(project_dir: Path) -> list[Path]:
+    return [path for path in sorted(project_dir.glob("*.sln")) if path.is_file()]
+
+
+def list_sbox_csproj_files(project_dir: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(project_dir.rglob("*.csproj")):
+        if not path.is_file():
+            continue
+        lowered_parts = {part.lower() for part in path.parts}
+        if "bin" in lowered_parts or "obj" in lowered_parts:
+            continue
+        files.append(path)
+    return files
+
+
+def is_sbox_test_project(path: Path) -> bool:
+    lowered_parts = [part.lower() for part in path.parts]
+    lowered_name = path.name.lower()
+    return "unittests" in lowered_parts or "unittests" in lowered_name or lowered_name.endswith(".tests.csproj") or lowered_name.endswith(".test.csproj")
+
+
+def find_sbox_editor_cmd() -> str:
+    candidates = [
+        str(item).strip()
+        for item in (
+            os.environ.get("SBOX_EDITOR_CMD"),
+            os.environ.get("SBOX_CMD"),
+            "sbox",
+            "/Applications/sbox.app/Contents/MacOS/sbox",
+            "/Applications/s&box.app/Contents/MacOS/sbox",
+        )
+        if str(item or "").strip()
+    ]
+    for candidate in candidates:
+        if Path(candidate).expanduser().is_file():
+            return str(Path(candidate).expanduser())
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return ""
+
+
+def find_sbox_server_cmd() -> str:
+    candidates = [
+        str(item).strip()
+        for item in (
+            os.environ.get("SBOX_SERVER_CMD"),
+            "sbox-server",
+            "sbox-server.exe",
+        )
+        if str(item or "").strip()
+    ]
+    for candidate in candidates:
+        if Path(candidate).expanduser().is_file():
+            return str(Path(candidate).expanduser())
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return ""
+
+
+def sbox_editor_bridge_state(project_dir: Path) -> dict[str, Any]:
+    metadata = engine_metadata("sbox")
+    path = project_dir / str(metadata.get("editorBridgeStateFile") or ".qq/state/qq-sbox-editor-bridge.json")
+    payload = load_optional_json(path)
+    heartbeat = float(payload.get("lastHeartbeatUnix") or 0.0) if payload else 0.0
+    age_sec = (time.time() - heartbeat) if heartbeat > 0 else None
+    running = bool(payload.get("running")) and age_sec is not None and age_sec <= 5.0
+    return {
+        "path": str(path),
+        "present": bool(payload),
+        "running": running,
+        "lastHeartbeatUnix": heartbeat,
+        "lastHeartbeatAgeSec": age_sec,
+        "state": payload,
+    }
+
+
 def godot_editor_bridge_state(project_dir: Path) -> dict[str, Any]:
     metadata = engine_metadata("godot")
     path = project_dir / str(metadata.get("editorBridgeStateFile") or ".qq/state/qq-godot-editor-bridge.json")
@@ -602,9 +694,194 @@ def build_context_capsule_state(project_dir: Path) -> dict[str, Any]:
     }
 
 
+def build_installation_state(project_dir: Path) -> dict[str, Any]:
+    state = load_install_state(project_dir)
+    expected = resolve_install_plan(project_dir, project_dir)
+    installed_modules = list(state.get("selectedModules") or [])
+    expected_modules = list(expected.get("selectedModules") or [])
+    managed_files = list(state.get("managedFiles") or [])
+    missing_files = [rel for rel in managed_files if not (project_dir / rel).exists()]
+
+    return {
+        "statePath": str(install_state_path(project_dir)),
+        "exists": bool(state),
+        "engine": str(state.get("engine") or ""),
+        "profile": str(state.get("profile") or ""),
+        "selectedModules": installed_modules,
+        "expectedModules": expected_modules,
+        "missingModules": [module for module in expected_modules if module not in installed_modules],
+        "extraModules": [module for module in installed_modules if module not in expected_modules],
+        "managedFileCount": len(managed_files),
+        "missingManagedFiles": missing_files,
+        "syncEnabled": bool(state.get("syncEnabled")),
+        "hosts": list(state.get("hosts") or []),
+    }
+
+
 def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, Any], engine: str) -> dict[str, Any]:
     scripts_dir = project_dir / "scripts"
     host_config = gather_host_config_text(project_dir)
+
+    if provider_id == "sbox.qq-direct":
+        required = []
+        for entries in (definition.get("toolMappings") or {}).values():
+            for entry in entries or []:
+                if isinstance(entry, str) and entry.startswith("scripts/"):
+                    required.append(project_dir / entry)
+        required.extend(
+            [
+                project_dir / "scripts" / "sbox-compile.sh",
+                project_dir / "scripts" / "sbox-test.sh",
+            ]
+        )
+        missing = sorted({str(path.relative_to(project_dir)) for path in required if not path.is_file()})
+        project_file = find_sbox_project_file(project_dir)
+        solution_files = [str(path.relative_to(project_dir)) for path in list_sbox_solution_files(project_dir)]
+        csproj_files = [str(path.relative_to(project_dir)) for path in list_sbox_csproj_files(project_dir)]
+        test_projects = [item for item in csproj_files if is_sbox_test_project(Path(item))]
+        dotnet_path = shutil.which("dotnet") or ""
+        editor_cmd = find_sbox_editor_cmd()
+        server_cmd = find_sbox_server_cmd()
+        reasons: list[str] = []
+        if not missing:
+            reasons.append("project-local qq fast path scripts for S&box are installed")
+        else:
+            reasons.append("missing S&box fast-path scripts")
+        if project_file is not None:
+            reasons.append(f"S&box project marker found: {project_file.name}")
+        else:
+            reasons.append("no .sbproj file found in the project root")
+        if dotnet_path:
+            reasons.append("dotnet SDK is available")
+        else:
+            reasons.append("dotnet SDK is not available")
+        if solution_files or csproj_files:
+            reasons.append("dotnet build targets were detected for this S&box project")
+        else:
+            reasons.append("no .sln or .csproj build targets were detected yet")
+        if (project_dir / "UnitTests").is_dir():
+            reasons.append("UnitTests directory is present")
+        else:
+            reasons.append("UnitTests directory is not present")
+        if editor_cmd:
+            reasons.append("local s&box editor command detected")
+        if server_cmd:
+            reasons.append("local s&box dedicated server command detected")
+        available = not missing and project_file is not None and bool(dotnet_path)
+        return {
+            "id": provider_id,
+            "status": "available" if available else "unavailable",
+            "reasons": reasons,
+            "evidence": {
+                "missing": missing,
+                "projectFile": str(project_file.relative_to(project_dir)) if project_file else "",
+                "dotnetPath": dotnet_path,
+                "solutionFiles": solution_files,
+                "csprojFiles": csproj_files,
+                "testProjects": test_projects,
+                "unitTestsPresent": (project_dir / "UnitTests").is_dir(),
+                "editorCommand": editor_cmd,
+                "serverCommand": server_cmd,
+            },
+        }
+
+    if provider_id == "sbox.qq-mcp":
+        sbox_meta = engine_metadata("sbox")
+        support_dir = str(sbox_meta.get("engineSupportTargetDir") or "Editor/QQ").strip()
+        support_files = [
+            project_dir / support_dir / "QQSboxEditorBridge.cs",
+        ]
+        required = [
+            scripts_dir / "qq_mcp.py",
+            scripts_dir / "sbox_bridge.py",
+            scripts_dir / "sbox_capabilities.json",
+            scripts_dir / "qq-capabilities.json",
+            scripts_dir / "qq_engine.py",
+            scripts_dir / "qq-compile.sh",
+            scripts_dir / "qq-test.sh",
+        ]
+        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
+        support_missing = [str(path.relative_to(project_dir)) for path in support_files if not path.is_file()]
+        project_file = find_sbox_project_file(project_dir)
+        config = inspect_project_local_bridge_config(project_dir, "sbox")
+        host_state = bridge_mcp_host_state(project_dir, "sbox")
+        bridge_state = sbox_editor_bridge_state(project_dir)
+        editor_cmd = find_sbox_editor_cmd()
+        reasons: list[str] = []
+        if not missing:
+            reasons.append("built-in qq MCP bridge installed")
+        else:
+            reasons.append("missing bridge scripts")
+        if project_file is not None:
+            reasons.append(f"project-local S&box marker found: {project_file.name}")
+        else:
+            reasons.append("no .sbproj file found in the project root")
+        if not support_missing:
+            reasons.append("qq S&box editor bridge support is installed in Editor/QQ")
+        else:
+            reasons.append("qq S&box editor bridge support files are missing")
+        if config["configState"] == "configured":
+            reasons.append("project-local .mcp.json points at the built-in bridge")
+        elif config["configState"] == "missing":
+            reasons.append("project-local .mcp.json not found")
+        elif config["configState"] == "missing_server":
+            reasons.append("project-local .mcp.json does not expose the S&box bridge")
+        elif config["configState"] == "misconfigured":
+            reasons.append("project-local .mcp.json exists but does not point at this project's bridge")
+        else:
+            reasons.append("project-local .mcp.json could not be parsed")
+        if host_state["verified"]:
+            reasons.append("a host session has connected to the built-in bridge")
+        else:
+            reasons.append("no successful host connection has been recorded yet")
+        if bridge_state["running"]:
+            reasons.append("S&box editor bridge heartbeat is active")
+        elif bridge_state["present"]:
+            reasons.append("S&box editor bridge state exists but heartbeat is stale")
+        else:
+            reasons.append("S&box editor bridge state has not been written yet")
+        reasons.append("typed S&box editor/query/object/tools fall back to local scene/asset file operations when the live bridge is inactive")
+        if editor_cmd:
+            reasons.append("local s&box editor command detected")
+        return {
+            "id": provider_id,
+            "status": "available" if not missing and not support_missing and project_file is not None else "unavailable",
+            "reasons": reasons,
+            "evidence": {
+                "missing": missing,
+                "supportMissing": support_missing,
+                "projectFile": str(project_file.relative_to(project_dir)) if project_file else "",
+                "editorCommand": editor_cmd,
+                "localFileOpsAvailable": True,
+                "typedTools": [
+                    "sbox_console",
+                    "sbox_editor",
+                    "sbox_query",
+                    "sbox_object",
+                    "sbox_scene",
+                    "sbox_assets",
+                ],
+                "liveBridgeRequiredFor": [
+                    "sbox_console",
+                    "sbox_editor",
+                    "sbox_object",
+                    "sbox_query.hierarchy",
+                    "sbox_query.find",
+                    "sbox_query.inspect",
+                    "sbox_query.get_selection",
+                ],
+                "localFallbackTools": [
+                    "sbox_query.status",
+                    "sbox_query.list_scenes",
+                    "sbox_query.list_assets",
+                    "sbox_scene",
+                    "sbox_assets",
+                ],
+                "hostConfig": config,
+                "hostConnection": host_state,
+                "bridgeState": bridge_state,
+            },
+        }
 
     if provider_id.endswith(".qq-direct"):
         required = []
@@ -1003,6 +1280,8 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
     codex_host = codex_mcp_host_state(project_dir)
     recommended_execution = build_recommended_execution(project_dir, engine)
     parallel_agent_safety = build_parallel_agent_safety(project_dir, controller, recommended_execution)
+    sbox_project_file = find_sbox_project_file(project_dir) if engine == "sbox" else None
+    sbox_csproj_files = list_sbox_csproj_files(project_dir) if engine == "sbox" else []
     provider_items = []
     provider_status: dict[str, dict[str, Any]] = {}
     for provider_id, definition in sorted((registry.get("providers") or {}).items()):
@@ -1026,6 +1305,13 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
         "engine": engine,
         "engineProjectDetected": bool(engine),
         "unityProjectDetected": is_unity_project(project_dir) if engine == "unity" else None,
+        "sboxProjectDetected": sbox_project_file is not None if engine == "sbox" else None,
+        "sboxProjectFile": str(sbox_project_file.relative_to(project_dir)) if sbox_project_file else "",
+        "sboxUnitTestsPresent": (project_dir / "UnitTests").is_dir() if engine == "sbox" else None,
+        "sboxLibraryCount": len([path for path in (project_dir / "Libraries").iterdir() if path.is_dir()]) if engine == "sbox" and (project_dir / "Libraries").is_dir() else (0 if engine == "sbox" else None),
+        "sboxEditorProjectPresent": (project_dir / "Editor").is_dir() if engine == "sbox" else None,
+        "sboxServerCodePresent": bool(list(project_dir.glob("**/*.Server.cs"))) if engine == "sbox" else None,
+        "sboxCsprojCount": len(sbox_csproj_files) if engine == "sbox" else None,
         "policy": {
             "configFormat": config.get("config_format") or "",
             "sharedPath": config.get("shared_config_path") or "",
@@ -1047,10 +1333,12 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
             "trustLevel": config.get("trust_level") or "",
             "trustLevelSource": config.get("trust_level_source") or "",
             "trustLevelExpectations": config.get("trust_level_expectations") or {},
+            "installPreferences": config.get("install_preferences") or {},
         },
         "controller": controller,
         "recommendedExecution": recommended_execution,
         "parallelAgentSafety": parallel_agent_safety,
+        "installation": build_installation_state(project_dir),
         "hosts": {
             "codex": codex_host,
         },

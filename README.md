@@ -149,17 +149,60 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
+If you want the installer to guide you, use the wizard instead:
+
+```bash
+git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
+/tmp/qq-install/install.sh --wizard /path/to/your-project
+rm -rf /tmp/qq-install
+```
+
+The wizard auto-detects the current engine and the user's language from `LC_ALL` / `LC_MESSAGES` / `LANG`. You can force the UI language with `--language en|zh-CN|ja|ko`.
+
+If you want a one-shot preset instead of interactive questions:
+
+```bash
+/tmp/qq-install/install.sh --preset quickstart /path/to/your-project
+/tmp/qq-install/install.sh --preset daily /path/to/your-project
+/tmp/qq-install/install.sh --preset stabilize /path/to/your-project
+```
+
+Recommended presets:
+
+- `quickstart` — smallest useful install, great for the first run or prototype work
+- `daily` — recommended default for most teams
+- `stabilize` — stronger defaults for risky changes and release prep
+
 `install.sh` now does three things for the consumer project by default:
 
-- installs or refreshes the project-local qq scripts
-- wires `.mcp.json` to the built-in `scripts/qq_mcp.py` bridge
-- adds `./scripts/qq-doctor.sh` so you can inspect direct-path and MCP routing
+- resolves the current engine/host/profile into an explicit module set, then installs only those project-local qq runtime files
+- wires `.mcp.json` to the built-in `scripts/qq_mcp.py` bridge when the selected install hosts include `mcp`
+- adds `./scripts/qq-doctor.sh` so you can inspect direct-path, MCP routing, and installed-vs-expected modules
 
 It also keeps `com.tyk.tykit` pinned to the current tested release instead of leaving older git revisions in place.
 
 It also creates a starter `qq.yaml` in the Unity project if one does not already exist. The shared default profile is `feature`; override it per engineer/task in `.qq/local.yaml` when the task risk changes.
 
 `install.sh --profile <lightweight|core|feature|hardening>` sets the starter `default_profile` in `qq.yaml`.
+
+Physical install is now modular:
+
+- required runtime stays engine-aware: `runtime-core`, `project-config`, and the current `engine-*`
+- host helpers are selected from `qq.yaml install.hosts` or CLI flags
+- review/skill hooks are installed only when the corresponding module is selected
+- `git-pre-push` is explicit opt-in via `--with-pre-push` or `qq.yaml install.add_modules`
+
+Useful install variants:
+
+```bash
+./install.sh /path/to/project
+./install.sh --wizard /path/to/project
+./install.sh --preset daily /path/to/project
+./install.sh --profile lightweight /path/to/project
+./install.sh --profile feature --with-pre-push /path/to/project
+./install.sh --modules runtime-core,project-config,engine-unreal,host-codex /path/to/project
+./install.sh --without host-codex,host-mcp --sync /path/to/project
+```
 
 That means one engineer can stay in `prototype` mode for a spike while another uses `hardening` in a different worktree, without rewriting the project's shared defaults.
 
@@ -477,6 +520,7 @@ Your qq runtime and workflow preset. `qq.yaml` defines:
 - shared `work_mode`
 - shared `policy_profile`
 - shared `trust_level`
+- install hosts / module overrides
 - active `packs`
 - enabled rules / hooks / skills
 
@@ -494,6 +538,32 @@ Built-in profiles:
 - `trusted` — current internal-team default; auto-resume and managed-worktree closeout helpers stay on
 - `balanced` — disables automatic Context Capsule consumption, only widens Codex into the source worktree for closeout-like flows, and hides raw engine commands from the standard MCP surface
 - `strict` — requires explicit `--allow-source-worktree` for Codex closeout and keeps raw engine commands off the standard MCP surface
+
+`install` is a separate physical-install knob:
+
+- `hosts` — choose which host helpers are installed into the project (`claude`, `codex`, `mcp`)
+- `add_modules` — force-install extra runtime modules such as `git-pre-push`
+- `remove_modules` — trim modules you do not want copied into the project
+- `sync` — remove stale managed runtime files that are no longer selected
+
+Example:
+
+```yaml
+install:
+  hosts:
+    - claude
+    - codex
+  add_modules:
+    - git-pre-push
+  remove_modules:
+    - host-mcp
+  sync: true
+```
+
+Think of it this way:
+
+- `profile` / `packs` control behavior
+- `install` controls which project-local runtime files are physically present
 
 ### Priority System
 

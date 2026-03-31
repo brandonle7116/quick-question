@@ -47,7 +47,7 @@ done
 
 # ── 3. JSON validity ──
 echo -e "${CYAN}[3/9] JSON validity${NC}"
-for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json scripts/godot_capabilities.json scripts/unreal_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json docs/evals/foundation-smoke.json docs/evals/unity-local.json docs/evals/collaboration-multi-actor.json docs/evals/qq-bench-foundation.json docs/evals/qq-bench-core-v0.json docs/evals/qq-bench-core-v1.json docs/evals/qq-bench-core-solver-v0.json .devcontainer/devcontainer.json; do
+for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json scripts/godot_capabilities.json scripts/unreal_capabilities.json scripts/sbox_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json docs/evals/foundation-smoke.json docs/evals/unity-local.json docs/evals/collaboration-multi-actor.json docs/evals/qq-bench-foundation.json docs/evals/qq-bench-core-v0.json docs/evals/qq-bench-core-v1.json docs/evals/qq-bench-core-solver-v0.json .devcontainer/devcontainer.json; do
   if [ -f "$SCRIPT_DIR/$json_file" ]; then
     if python3 -m json.tool "$SCRIPT_DIR/$json_file" >/dev/null 2>&1; then
       pass "$json_file"
@@ -101,11 +101,11 @@ for dc in .devcontainer/devcontainer.json .devcontainer/Dockerfile .devcontainer
   fi
 done
 
-# install.sh copies hooks subdirectory
-if grep -q 'scripts/hooks/' "$SCRIPT_DIR/install.sh"; then
-  pass "install.sh copies scripts/hooks/"
+# install.sh resolves hook/runtime modules instead of blindly copying the whole hooks tree
+if grep -q 'hooks-auto-compile' "$SCRIPT_DIR/scripts/qq_internal_install.py" && grep -q 'qq_internal_install.py' "$SCRIPT_DIR/install.sh"; then
+  pass "install.sh resolves hook modules through qq_internal_install.py"
 else
-  fail "install.sh missing scripts/hooks/ copy"
+  fail "install.sh missing modular hook install support"
 fi
 
 if grep -q 'updated existing dependency to tested release' "$SCRIPT_DIR/install.sh"; then
@@ -2119,6 +2119,22 @@ else
   fail "capability resolver can fall back to compatible third-party Unreal providers"
 fi
 
+if python3 "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine sbox --capability compile --available sbox.qq-direct > "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" && \
+   python3 - "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["resolved"] == "sbox.qq-direct"
+assert payload["provider"]["transportAdapter"] == "direct"
+PY
+then
+  pass "capability resolver can resolve the S&box direct provider"
+else
+  fail "capability resolver can resolve the S&box direct provider"
+fi
+
 if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$RUNTIME_TEST_ROOT" --write-state > "$RUNTIME_TEST_ROOT/doctor.json" && \
    python3 - "$RUNTIME_TEST_ROOT/doctor.json" "$RUNTIME_TEST_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
@@ -3041,6 +3057,392 @@ fi
 
 rm -rf "$UNREAL_SCRIPT_TEST_ROOT" "$FAKE_UNREAL_BIN_DIR" "$FAKE_UNREAL_FAIL_BIN_DIR"
 
+SBOX_RUNTIME_ROOT="$(mktemp -d)"
+mkdir -p \
+  "$SBOX_RUNTIME_ROOT/scripts" \
+  "$SBOX_RUNTIME_ROOT/Code" \
+  "$SBOX_RUNTIME_ROOT/Editor/QQ" \
+  "$SBOX_RUNTIME_ROOT/Assets/Scenes" \
+  "$SBOX_RUNTIME_ROOT/Libraries/Core/Code" \
+  "$SBOX_RUNTIME_ROOT/Libraries/Core/Assets" \
+  "$SBOX_RUNTIME_ROOT/UnitTests" \
+  "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor/requests" \
+  "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor/responses"
+: > "$SBOX_RUNTIME_ROOT/.sbproj"
+: > "$SBOX_RUNTIME_ROOT/Game.sln"
+: > "$SBOX_RUNTIME_ROOT/Game.csproj"
+: > "$SBOX_RUNTIME_ROOT/UnitTests/Game.UnitTests.csproj"
+cat > "$SBOX_RUNTIME_ROOT/Code/Player.cs" <<'EOF'
+using System.IO;
+
+public sealed class PlayerHud
+{
+    public void Tick()
+    {
+        Console.Log("bad");
+        File.Exists("user://save.dat");
+    }
+}
+EOF
+cat > "$SBOX_RUNTIME_ROOT/qq.yaml" <<'EOF'
+engine: sbox
+default_profile: feature
+EOF
+cat > "$SBOX_RUNTIME_ROOT/.mcp.json" <<'EOF'
+{
+  "mcpServers": {
+    "qq-sbox": {
+      "command": "python3",
+      "args": [
+        "__SBOX_RUNTIME_ROOT__/scripts/qq_mcp.py",
+        "--project",
+        "__SBOX_RUNTIME_ROOT__"
+      ],
+      "cwd": "__SBOX_RUNTIME_ROOT__"
+    }
+  }
+}
+EOF
+python3 - "$SBOX_RUNTIME_ROOT/.mcp.json" "$SBOX_RUNTIME_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("__SBOX_RUNTIME_ROOT__", sys.argv[2])
+path.write_text(text, encoding="utf-8")
+PY
+cat > "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-mcp-host.json" <<EOF
+{
+  "lastInitializeAt": "2026-03-31T00:00:00Z",
+  "clientInfo": {
+    "name": "fake-host"
+  },
+  "protocolVersion": "2024-11-05"
+}
+EOF
+cat > "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-bridge.json" <<EOF
+{
+  "ok": true,
+  "running": true,
+  "lastHeartbeatUnix": $(python3 -c 'import time; print(time.time())')
+}
+EOF
+cat > "$SBOX_RUNTIME_ROOT/Assets/Scenes/Main.scene" <<'EOF'
+scene {}
+EOF
+cat > "$SBOX_RUNTIME_ROOT/Libraries/Core/Assets/Core.scene" <<'EOF'
+scene {}
+EOF
+for path in \
+  qq-compile.sh \
+  qq-test.sh \
+  qq-project-state.py \
+  qq-policy-check.sh \
+  qq-doctor.py \
+  qq_mcp.py \
+  qq_engine.py \
+  qq-capabilities.json \
+  sbox-compile.sh \
+  sbox-test.sh \
+  sbox_bridge.py \
+  sbox_capabilities.json; do
+  : > "$SBOX_RUNTIME_ROOT/scripts/$path"
+done
+: > "$SBOX_RUNTIME_ROOT/Editor/QQ/QQSboxEditorBridge.cs"
+FAKE_SBOX_DOCTOR_BIN_DIR="$(mktemp -d)"
+cat > "$FAKE_SBOX_DOCTOR_BIN_DIR/dotnet" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$FAKE_SBOX_DOCTOR_BIN_DIR/dotnet"
+if env PATH="$FAKE_SBOX_DOCTOR_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$SBOX_RUNTIME_ROOT" --write-state > "$SBOX_RUNTIME_ROOT/doctor.json" && \
+   python3 - "$SBOX_RUNTIME_ROOT/doctor.json" "$SBOX_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+state_payload = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+providers = {item["id"]: item for item in payload["providers"]}
+
+assert payload["engine"] == "sbox"
+assert payload["sboxProjectDetected"] is True
+assert payload["sboxProjectFile"] == ".sbproj"
+assert payload["sboxUnitTestsPresent"] is True
+assert payload["sboxLibraryCount"] == 1
+assert payload["sboxEditorProjectPresent"] is True
+assert providers["sbox.qq-direct"]["status"] == "available"
+assert providers["sbox.qq-mcp"]["status"] == "available"
+assert providers["sbox.qq-direct"]["evidence"]["unitTestsPresent"] is True
+assert providers["sbox.qq-mcp"]["evidence"]["hostConnection"]["verified"] is True
+assert providers["sbox.qq-mcp"]["evidence"]["bridgeState"]["running"] is True
+assert payload["resolution"]["compile"]["resolved"] == "sbox.qq-direct"
+assert payload["resolution"]["test"]["resolved"] == "sbox.qq-direct"
+assert payload["resolution"]["console.read"]["resolved"] == "sbox.qq-mcp"
+assert payload["resolution"]["scene.query"]["resolved"] == "sbox.qq-mcp"
+assert payload["resolution"]["scene.mutate"]["resolved"] == "sbox.qq-mcp"
+assert payload["resolution"]["asset.query"]["resolved"] == "sbox.qq-mcp"
+assert payload["resolution"]["asset.mutate"]["resolved"] == "sbox.qq-mcp"
+assert state_payload["resolution"]["policy.check"]["resolved"] == "sbox.qq-direct"
+PY
+then
+  pass "qq-doctor detects the S&box direct runtime, live bridge, and rich capability resolution"
+else
+  fail "qq-doctor detects the S&box direct runtime, live bridge, and rich capability resolution"
+fi
+
+if python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$SBOX_RUNTIME_ROOT" --no-write > "$SBOX_RUNTIME_ROOT/project-state.json" && \
+   python3 - "$SBOX_RUNTIME_ROOT/project-state.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+state = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert state["engine"] == "sbox"
+assert state["sbox_project_detected"] is True
+assert state["sbox_project_file"] == ".sbproj"
+assert state["sbox_unit_tests_present"] is True
+assert state["sbox_library_count"] == 1
+assert state["sbox_editor_project_present"] is True
+PY
+then
+  pass "qq-project-state exposes S&box project facts"
+else
+  fail "qq-project-state exposes S&box project facts"
+fi
+
+if "$SCRIPT_DIR/scripts/qq-policy-check.sh" --project "$SBOX_RUNTIME_ROOT" --json Code/Player.cs > "$SBOX_RUNTIME_ROOT/sbox-policy.json" && \
+   python3 - "$SBOX_RUNTIME_ROOT/sbox-policy.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+rule_ids = {item["rule_id"] for item in payload["findings"]}
+assert payload["engine"] == "sbox"
+assert "sbox_whitelist_violation" in rule_ids
+assert payload["finding_count"] >= 2
+PY
+then
+  pass "qq-policy-check reports deterministic S&box whitelist violations"
+else
+  fail "qq-policy-check reports deterministic S&box whitelist violations"
+fi
+
+python3 - "$SBOX_RUNTIME_ROOT" <<'PY' &
+import json
+import sys
+import time
+from pathlib import Path
+
+root = Path(sys.argv[1])
+requests = root / ".qq" / "state" / "qq-sbox-editor" / "requests"
+responses = root / ".qq" / "state" / "qq-sbox-editor" / "responses"
+state = root / ".qq" / "state" / "qq-sbox-editor-bridge.json"
+console = root / ".qq" / "state" / "qq-sbox-editor-console.jsonl"
+deadline = time.time() + 10
+while time.time() < deadline:
+    state.write_text(json.dumps({"ok": True, "running": True, "lastHeartbeatUnix": time.time()}), encoding="utf-8")
+    for request_path in requests.glob("*.json"):
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        response = {
+            "ok": True,
+            "message": "fake sbox bridge handled request",
+            "data": {
+                "command": payload["command"],
+                "args": payload.get("args") or {}
+            }
+        }
+        (responses / f"{payload['requestId']}.json").write_text(json.dumps(response), encoding="utf-8")
+        with console.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"event": "handled", "command": payload["command"]}) + "\n")
+        request_path.unlink()
+        raise SystemExit(0)
+    time.sleep(0.05)
+raise SystemExit(1)
+PY
+FAKE_SBOX_BRIDGE_PID=$!
+if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"status"}' > "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" && \
+   wait "$FAKE_SBOX_BRIDGE_PID" && \
+   python3 - "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-console.jsonl" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+console_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+assert payload["ok"] is True
+assert payload["action"] == "status"
+assert payload["response"]["command"] == "status"
+assert payload["response"]["args"] == {}
+assert '"command": "status"' in console_text
+PY
+then
+  pass "sbox bridge queue transport can complete a typed S&box query round trip"
+else
+  fail "sbox bridge queue transport can complete a typed S&box query round trip"
+fi
+
+python3 - "$SBOX_RUNTIME_ROOT" <<'PY' &
+import json
+import sys
+import time
+from pathlib import Path
+
+root = Path(sys.argv[1])
+requests = root / ".qq" / "state" / "qq-sbox-editor" / "requests"
+responses = root / ".qq" / "state" / "qq-sbox-editor" / "responses"
+state = root / ".qq" / "state" / "qq-sbox-editor-bridge.json"
+deadline = time.time() + 10
+handled = 0
+while time.time() < deadline:
+    state.write_text(json.dumps({"ok": True, "running": True, "lastHeartbeatUnix": time.time()}), encoding="utf-8")
+    for request_path in requests.glob("*.json"):
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        response = {
+            "ok": True,
+            "message": "fake sbox bridge handled request",
+            "data": {
+                "command": payload["command"],
+                "args": payload.get("args") or {}
+            }
+        }
+        (responses / f"{payload['requestId']}.json").write_text(json.dumps(response), encoding="utf-8")
+        request_path.unlink()
+        handled += 1
+        if handled >= 2:
+            raise SystemExit(0)
+    time.sleep(0.05)
+raise SystemExit(1)
+PY
+FAKE_SBOX_BRIDGE_PID=$!
+if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_batch --arguments '{"operations":[{"tool":"sbox_editor","arguments":{"action":"open_scene","path":"Assets/Scenes/Main.scene"}},{"tool":"sbox_object","arguments":{"action":"select","path":"Player"}}]}' > "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" && \
+   wait "$FAKE_SBOX_BRIDGE_PID" && \
+   python3 - "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["ok"] is True
+assert len(payload["results"]) == 2
+assert payload["results"][0]["result"]["response"]["command"] == "open-scene"
+assert payload["results"][1]["result"]["response"]["command"] == "select-object"
+PY
+then
+  pass "sbox bridge batch transport can compose editor and object operations"
+else
+  fail "sbox bridge batch transport can compose editor and object operations"
+fi
+
+if python3 - "$SBOX_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[2])
+from qq_mcp import build_bridge  # noqa: E402
+
+project = Path(sys.argv[1])
+bridge = build_bridge(str(project))
+tools = {tool["name"] for tool in bridge.list_tools()}
+assert "qq_project_state" in tools
+assert "sbox_editor" in tools
+assert "sbox_query" in tools
+assert "sbox_object" in tools
+assert "sbox_scene" in tools
+assert "sbox_assets" in tools
+PY
+then
+  pass "qq_mcp composes generic and S&box rich tools for S&box projects"
+else
+  fail "qq_mcp composes generic and S&box rich tools for S&box projects"
+fi
+
+cat > "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-bridge.json" <<'EOF'
+{
+  "ok": true,
+  "running": false,
+  "lastHeartbeatUnix": 0
+}
+EOF
+if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_scenes","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" && \
+   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_assets","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" && \
+   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_scene --arguments '{"action":"duplicate_scene","source":"Assets/Scenes/Main.scene","target":"Assets/Scenes/Main_LocalCopy.scene"}' > "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" && \
+   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_assets --arguments '{"action":"create_directory","path":"Assets/Generated"}' > "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" && \
+   python3 - "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" "$SBOX_RUNTIME_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+scenes = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+query_assets = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+duplicate = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+assets = json.loads(Path(sys.argv[4]).read_text(encoding="utf-8"))
+root = Path(sys.argv[5])
+
+items = scenes["response"]["items"]
+asset_items = query_assets["response"]["items"]
+assert any(item["path"] == "Assets/Scenes/Main.scene" for item in items)
+assert scenes["message"].endswith("(local fallback)")
+assert any(item["path"] == "Assets/Scenes/Main.scene" for item in asset_items)
+assert query_assets["message"].endswith("(local fallback)")
+assert duplicate["response"]["target"] == "Assets/Scenes/Main_LocalCopy.scene"
+assert (root / "Assets" / "Scenes" / "Main_LocalCopy.scene").is_file()
+assert assets["response"]["path"] == "Assets/Generated"
+assert (root / "Assets" / "Generated").is_dir()
+PY
+then
+  pass "sbox typed query and asset tools fall back to direct project file operations when the live bridge is inactive"
+else
+  fail "sbox typed query and asset tools fall back to direct project file operations when the live bridge is inactive"
+fi
+
+rm -rf "$SBOX_RUNTIME_ROOT" "$FAKE_SBOX_DOCTOR_BIN_DIR"
+
+SBOX_SCRIPT_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$SBOX_SCRIPT_TEST_ROOT/UnitTests"
+: > "$SBOX_SCRIPT_TEST_ROOT/.sbproj"
+: > "$SBOX_SCRIPT_TEST_ROOT/Game.sln"
+: > "$SBOX_SCRIPT_TEST_ROOT/UnitTests/Game.UnitTests.csproj"
+cat > "$SBOX_SCRIPT_TEST_ROOT/UnitTests/SmokeTests.cs" <<'EOF'
+public sealed class SmokeTests {}
+EOF
+FAKE_SBOX_BIN_DIR="$(mktemp -d)"
+FAKE_SBOX_LOG="$FAKE_SBOX_BIN_DIR/dotnet.log"
+cat > "$FAKE_SBOX_BIN_DIR/dotnet" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "__FAKE_DOTNET_LOG__"
+exit 0
+EOF
+python3 - "$FAKE_SBOX_BIN_DIR/dotnet" "$FAKE_SBOX_LOG" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("__FAKE_DOTNET_LOG__", sys.argv[2])
+path.write_text(text, encoding="utf-8")
+PY
+chmod +x "$FAKE_SBOX_BIN_DIR/dotnet"
+if env PATH="$FAKE_SBOX_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-compile.sh" --project "$SBOX_SCRIPT_TEST_ROOT" > "$SBOX_SCRIPT_TEST_ROOT/sbox-compile.log" && \
+   env PATH="$FAKE_SBOX_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-test.sh" all --project "$SBOX_SCRIPT_TEST_ROOT" > "$SBOX_SCRIPT_TEST_ROOT/sbox-test.log" && \
+   python3 - "$FAKE_SBOX_LOG" "$SBOX_SCRIPT_TEST_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+root = Path(sys.argv[2])
+assert any(line.startswith(f"build {root / 'Game.sln'}") for line in lines)
+assert any(line.startswith(f"test {root / 'UnitTests' / 'Game.UnitTests.csproj'}") for line in lines)
+PY
+then
+  pass "qq-compile and qq-test route S&box projects onto dotnet build/test targets"
+else
+  fail "qq-compile and qq-test route S&box projects onto dotnet build/test targets"
+fi
+rm -rf "$SBOX_SCRIPT_TEST_ROOT" "$FAKE_SBOX_BIN_DIR"
+
 # ── 10. install.sh validation ──
 echo -e "${CYAN}[10/10] install.sh validation${NC}"
 
@@ -3058,11 +3460,11 @@ else
   fail "install.sh missing platform check"
 fi
 
-# Check install copies JSON registries used by bridge and capability resolver
-if grep -q 'scripts/\*.json' "$SCRIPT_DIR/install.sh"; then
-  pass "install.sh copies script JSON registries"
+# Check install resolves module plans through the internal installer helper
+if grep -q 'qq_internal_install.py' "$SCRIPT_DIR/install.sh" && grep -q -- '--modules' "$SCRIPT_DIR/install.sh" && grep -q -- '--without' "$SCRIPT_DIR/install.sh"; then
+  pass "install.sh resolves and applies install modules"
 else
-  fail "install.sh missing script JSON registry copy"
+  fail "install.sh missing modular install plan support"
 fi
 
 if grep -q -- '--profile' "$SCRIPT_DIR/install.sh"; then
@@ -3070,6 +3472,32 @@ if grep -q -- '--profile' "$SCRIPT_DIR/install.sh"; then
 else
   fail "install.sh missing policy profile selection"
 fi
+
+if grep -q 'qq-onboard.py' "$SCRIPT_DIR/install.sh" && \
+   grep -q -- '--wizard' "$SCRIPT_DIR/install.sh" && \
+   grep -q -- '--preset' "$SCRIPT_DIR/install.sh"; then
+  pass "install.sh wires the onboarding wizard and preset entrypoints"
+else
+  fail "install.sh missing onboarding wizard/preset support"
+fi
+
+ONBOARD_PREVIEW_ROOT="$(mktemp -d)"
+: > "$ONBOARD_PREVIEW_ROOT/.sbproj"
+if LANG=zh_CN.UTF-8 python3 "$SCRIPT_DIR/scripts/qq-onboard.py" preview --project "$ONBOARD_PREVIEW_ROOT" --preset quickstart --host-surface claude --json | python3 -c '
+import json, sys
+payload = json.load(sys.stdin)
+assert payload["language"] == "zh-CN"
+assert payload["preset"] == "quickstart"
+assert payload["profile"] == "lightweight"
+assert payload["trustLevel"] == "trusted"
+assert payload["installHosts"] == ["claude", "mcp"]
+assert payload["installSync"] is True
+' >/dev/null 2>&1; then
+  pass "qq-onboard auto-detects zh-CN and previews a simple preset"
+else
+  fail "qq-onboard auto-detects zh-CN and previews a simple preset"
+fi
+rm -rf "$ONBOARD_PREVIEW_ROOT"
 
 INSTALL_UPDATE_ROOT="$(mktemp -d)"
 mkdir -p "$INSTALL_UPDATE_ROOT/ProjectSettings" "$INSTALL_UPDATE_ROOT/Packages"
@@ -3098,6 +3526,30 @@ else
   fail "install.sh updates existing tykit dependency to current tested release"
 fi
 rm -rf "$INSTALL_UPDATE_ROOT"
+
+ONBOARD_INSTALL_ROOT="$(mktemp -d)"
+: > "$ONBOARD_INSTALL_ROOT/.sbproj"
+LANG=ja_JP.UTF-8 "$SCRIPT_DIR/install.sh" --preset quickstart --language ja "$ONBOARD_INSTALL_ROOT" >/dev/null
+if python3 - "$ONBOARD_INSTALL_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+config_text = (root / "qq.yaml").read_text(encoding="utf-8")
+state = json.loads((root / ".qq" / "install-state.json").read_text(encoding="utf-8"))
+
+assert "default_profile: lightweight" in config_text
+assert "trust_level: trusted" in config_text
+assert state["profile"] == "lightweight"
+assert state["syncEnabled"] is True
+PY
+then
+  pass "install.sh --preset quickstart writes a lightweight starter config"
+else
+  fail "install.sh --preset quickstart writes a lightweight starter config"
+fi
+rm -rf "$ONBOARD_INSTALL_ROOT"
 
 GODOT_INSTALL_ROOT="$(mktemp -d)"
 cat > "$GODOT_INSTALL_ROOT/project.godot" <<'EOF'
@@ -3180,6 +3632,92 @@ else
   fail "install.sh enables required Unreal project plugins and wires the built-in live editor bridge"
 fi
 rm -rf "$UNREAL_INSTALL_ROOT"
+
+SBOX_INSTALL_ROOT="$(mktemp -d)"
+: > "$SBOX_INSTALL_ROOT/.sbproj"
+"$SCRIPT_DIR/install.sh" "$SBOX_INSTALL_ROOT" >/dev/null
+if python3 - "$SBOX_INSTALL_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+mcp = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
+server = mcp["mcpServers"]["qq-sbox"]
+
+assert (root / "scripts" / "sbox-common.sh").is_file()
+assert (root / "scripts" / "sbox-compile.sh").is_file()
+assert (root / "scripts" / "sbox-test.sh").is_file()
+assert (root / "scripts" / "sbox_bridge.py").is_file()
+assert (root / "scripts" / "sbox_capabilities.json").is_file()
+assert (root / "Editor" / "QQ" / "QQSboxEditorBridge.cs").is_file()
+assert (root / "qq.yaml").is_file()
+assert server["command"] == "python3"
+assert "qq_mcp.py" in " ".join(server["args"])
+assert not (root / "addons" / "qq_editor_bridge").exists()
+assert not (root / "Content" / "Python" / "qq_unreal_bridge.py").exists()
+PY
+then
+  pass "install.sh wires S&box projects with direct runtime scripts and the built-in editor bridge"
+else
+  fail "install.sh wires S&box projects with direct runtime scripts and the built-in editor bridge"
+fi
+rm -rf "$SBOX_INSTALL_ROOT"
+
+MODULAR_INSTALL_ROOT="$(mktemp -d)"
+: > "$MODULAR_INSTALL_ROOT/.sbproj"
+"$SCRIPT_DIR/install.sh" "$MODULAR_INSTALL_ROOT" >/dev/null
+python3 - "$MODULAR_INSTALL_ROOT/qq.yaml" <<'PY'
+from pathlib import Path
+
+path = Path(__import__("sys").argv[1])
+text = path.read_text(encoding="utf-8")
+replacement = (
+    "install:\n"
+    "  hosts:\n"
+    "    - claude\n"
+    "  add_modules: []\n"
+    "  remove_modules:\n"
+    "    - host-codex\n"
+    "    - host-mcp\n"
+    "  sync: true\n"
+)
+start = text.find("install:\n")
+end = text.find("context_capsule:\n", start)
+if start == -1 or end == -1 or end <= start:
+    raise SystemExit("failed to replace install block in qq.yaml fixture")
+updated = text[:start] + replacement + "\n" + text[end:]
+path.write_text(updated, encoding="utf-8")
+PY
+"$SCRIPT_DIR/install.sh" "$MODULAR_INSTALL_ROOT" >/dev/null
+if python3 - "$MODULAR_INSTALL_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "install-state.json").read_text(encoding="utf-8"))
+selected = set(state["selectedModules"])
+
+assert "runtime-core" in selected
+assert "project-config" in selected
+assert "engine-sbox" in selected
+assert "host-claude" in selected
+assert "host-codex" not in selected
+assert "host-mcp" not in selected
+assert "hooks-auto-compile" in selected
+assert not (root / "scripts" / "qq-codex-exec.py").exists()
+assert not (root / "scripts" / "qq-codex-mcp.py").exists()
+assert not (root / "scripts" / "qq_mcp.py").exists()
+assert state["syncEnabled"] is True
+assert ".mcp.json" not in state["managedFiles"]
+PY
+then
+  pass "install.sh can trim host modules and sync managed runtime files from qq.yaml install settings"
+else
+  fail "install.sh can trim host modules and sync managed runtime files from qq.yaml install settings"
+fi
+rm -rf "$MODULAR_INSTALL_ROOT"
 
 if grep -q 'qq_default_test_scope' "$SCRIPT_DIR/scripts/githooks/pre-push" && \
    grep -q 'qq-test.sh" editmode' "$SCRIPT_DIR/scripts/githooks/pre-push"; then

@@ -44,7 +44,31 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
-공유 방향 문서는 [Core Roadmap](core-roadmap.md) 하나만 유지합니다. `install.sh --profile <lightweight|core|feature|hardening>` 로 starter `default_profile` 을 설정할 수 있습니다. 공유 설정은 `qq.yaml`, worktree별 오버라이드는 `.qq/local.yaml` 이 기본입니다.
+설치를 질문형으로 진행하고 싶다면 마법사를 쓰면 됩니다.
+
+```bash
+git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
+/tmp/qq-install/install.sh --wizard /path/to/your-project
+rm -rf /tmp/qq-install
+```
+
+마법사는 현재 엔진을 자동 감지하고, `LC_ALL` / `LC_MESSAGES` / `LANG` 값으로 표시 언어도 자동 선택합니다. 필요하면 `--language en|zh-CN|ja|ko` 로 고정할 수 있습니다.
+
+질문 없이 추천 구성을 바로 적용하려면:
+
+```bash
+/tmp/qq-install/install.sh --preset quickstart /path/to/your-project
+/tmp/qq-install/install.sh --preset daily /path/to/your-project
+/tmp/qq-install/install.sh --preset stabilize /path/to/your-project
+```
+
+추천 의미는 다음과 같습니다.
+
+- `quickstart` — 가장 가벼움. 첫 설치나 프로토타입용
+- `daily` — 추천 기본값. 대부분의 일상 개발용
+- `stabilize` — 더 안전함. 큰 변경이나 릴리스 직전용
+
+공유 방향 문서는 [Core Roadmap](core-roadmap.md) 하나만 유지합니다. `install.sh --profile <lightweight|core|feature|hardening>` 로 starter `default_profile` 을 설정할 수 있습니다. 설치기는 이제 엔진, 호스트, `qq.yaml install` 에 맞는 runtime modules 만 프로젝트에 복사합니다. 공유 설정은 `qq.yaml`, worktree별 오버라이드는 `.qq/local.yaml` 이 기본입니다.
 
 ## 빠른 시작
 

@@ -44,7 +44,31 @@ git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
 rm -rf /tmp/qq-install
 ```
 
-共有の方向性ドキュメントは [Core Roadmap](core-roadmap.md) です。`install.sh --profile <lightweight|core|feature|hardening>` で starter `default_profile` を設定できます。共有設定は `qq.yaml`、worktree ごとの上書きは `.qq/local.yaml` が基本です。
+セットアップを対話形式で進めたい場合は、ウィザードを使ってください。
+
+```bash
+git clone https://github.com/tykisgod/quick-question.git /tmp/qq-install
+/tmp/qq-install/install.sh --wizard /path/to/your-project
+rm -rf /tmp/qq-install
+```
+
+ウィザードは現在のエンジンを自動検出し、`LC_ALL` / `LC_MESSAGES` / `LANG` から表示言語も自動で選びます。必要なら `--language en|zh-CN|ja|ko` で固定できます。
+
+対話なしでおすすめ構成を入れたい場合：
+
+```bash
+/tmp/qq-install/install.sh --preset quickstart /path/to/your-project
+/tmp/qq-install/install.sh --preset daily /path/to/your-project
+/tmp/qq-install/install.sh --preset stabilize /path/to/your-project
+```
+
+おすすめの意味は次の通りです。
+
+- `quickstart` — 最小構成。初回導入や試作向け
+- `daily` — 推奨。普段の開発ならこれ
+- `stabilize` — より安全。大きな変更やリリース前向け
+
+共有の方向性ドキュメントは [Core Roadmap](core-roadmap.md) です。`install.sh --profile <lightweight|core|feature|hardening>` で starter `default_profile` を設定できます。インストーラは現在、エンジン・ホスト・`qq.yaml install` に応じて必要な runtime modules だけを配置します。共有設定は `qq.yaml`、worktree ごとの上書きは `.qq/local.yaml` が基本です。
 
 ## クイックスタート
 

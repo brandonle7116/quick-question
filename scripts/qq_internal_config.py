@@ -127,6 +127,16 @@ DEFAULT_CONTEXT_CAPSULE = {
 }
 
 
+DEFAULT_INSTALL = {
+    "hosts": ["claude", "codex", "mcp"],
+    "add_modules": [],
+    "remove_modules": [],
+    "sync": False,
+}
+
+VALID_INSTALL_HOSTS = set(DEFAULT_INSTALL["hosts"])
+
+
 PACKS: dict[str, dict[str, Any]] = {
     "runtime-core": {
         "description": "Core runtime loop: state, go, test, changes.",
@@ -452,6 +462,41 @@ def normalize_context_capsule_payload(value: Any) -> dict[str, Any]:
     }
 
 
+def normalize_install_payload(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+
+    hosts = [item for item in normalize_name_list(value.get("hosts")) if item in VALID_INSTALL_HOSTS]
+    payload: dict[str, Any] = {}
+    if hosts:
+        payload["hosts"] = dedupe(hosts)
+
+    add_modules = normalize_name_list(value.get("add_modules"))
+    if add_modules:
+        payload["add_modules"] = add_modules
+
+    remove_modules = normalize_name_list(value.get("remove_modules"))
+    if remove_modules:
+        payload["remove_modules"] = remove_modules
+
+    if isinstance(value.get("sync"), bool):
+        payload["sync"] = bool(value["sync"])
+
+    return payload
+
+
+def merge_install_payload(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(DEFAULT_INSTALL)
+    merged.update(base or {})
+    if override.get("hosts"):
+        merged["hosts"] = list(override["hosts"])
+    merged["add_modules"] = merge_unique(list(merged.get("add_modules") or []), list(override.get("add_modules") or []))
+    merged["remove_modules"] = merge_unique(list(merged.get("remove_modules") or []), list(override.get("remove_modules") or []))
+    if "sync" in override:
+        merged["sync"] = bool(override["sync"])
+    return merged
+
+
 def merge_context_capsule_payload(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     merged = dict(DEFAULT_CONTEXT_CAPSULE)
     merged.update(base)
@@ -599,6 +644,11 @@ def resolve_project_config(project_dir: Path) -> dict[str, Any]:
     local = read_optional_structured(local_yaml_path)
     local_source = "qq_local_yaml" if local else ""
 
+    install_preferences = merge_install_payload(
+        normalize_install_payload(shared.get("install")),
+        normalize_install_payload(local.get("install")),
+    )
+
     available_engines = known_engines()
     requested_engine = normalize_engine_id(local.get("engine") or "")
     engine_source = local_source if requested_engine in available_engines else ""
@@ -725,6 +775,8 @@ def resolve_project_config(project_dir: Path) -> dict[str, Any]:
         "enabled_rules": enabled_rules,
         "task_focus": task_focus,
         "context_capsule": context_capsule,
+        "install_preferences": install_preferences,
+        "available_install_hosts": sorted(VALID_INSTALL_HOSTS),
         "shared_config_exists": shared_yaml_path.is_file(),
         "local_config_exists": local_yaml_path.is_file(),
     }
