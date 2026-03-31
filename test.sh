@@ -2473,6 +2473,10 @@ assert providers["godot.qq-mcp"]["evidence"]["bridgeState"]["running"] is True
 assert payload["resolution"]["console.read"]["resolved"] == "godot.qq-mcp"
 assert payload["resolution"]["scene.query"]["resolved"] == "godot.qq-mcp"
 assert payload["resolution"]["asset.mutate"]["resolved"] == "godot.qq-mcp"
+assert payload["resolution"]["input.simulate"]["resolved"] == "godot.qq-mcp"
+assert payload["resolution"]["ui.query"]["resolved"] == "godot.qq-mcp"
+assert payload["resolution"]["animation.mutate"]["resolved"] == "godot.qq-mcp"
+assert payload["resolution"]["capture.screenshot"]["resolved"] == "godot.qq-mcp"
 assert state_payload["resolution"]["scene.mutate"]["resolved"] == "godot.qq-mcp"
 PY
 then
@@ -2530,6 +2534,64 @@ else
   kill "$FAKE_GODOT_BRIDGE_PID" >/dev/null 2>&1 || true
 fi
 
+python3 - "$GODOT_RUNTIME_ROOT" <<'PY' &
+import json
+import sys
+import time
+from pathlib import Path
+
+root = Path(sys.argv[1])
+requests = root / ".qq" / "state" / "qq-godot-editor" / "requests"
+responses = root / ".qq" / "state" / "qq-godot-editor" / "responses"
+state = root / ".qq" / "state" / "qq-godot-editor-bridge.json"
+deadline = time.time() + 10
+handled = 0
+while time.time() < deadline:
+    state.write_text(json.dumps({"ok": True, "running": True, "lastHeartbeatUnix": time.time()}), encoding="utf-8")
+    for request_path in requests.glob("*.json"):
+        payload = json.loads(request_path.read_text(encoding="utf-8"))
+        response = {
+            "ok": True,
+            "message": "fake godot bridge handled request",
+            "data": {
+                "command": payload["command"],
+                "args": payload.get("args") or {},
+            },
+        }
+        (responses / f"{payload['requestId']}.json").write_text(json.dumps(response), encoding="utf-8")
+        request_path.unlink()
+        handled += 1
+        if handled >= 4:
+            raise SystemExit(0)
+    time.sleep(0.05)
+raise SystemExit(1)
+PY
+FAKE_GODOT_BRIDGE_PID=$!
+if python3 "$SCRIPT_DIR/scripts/godot_bridge.py" --project "$GODOT_RUNTIME_ROOT" --profile full --tool godot_batch --arguments '{"operations":[{"tool":"godot_input","arguments":{"action":"inject_action","input_action":"jump","strength":1.0}},{"tool":"godot_ui","arguments":{"action":"create_control","parent":".","node_type":"Button","name":"QQButton","text":"Parity"}},{"tool":"godot_animation","arguments":{"action":"create_animation","player_path":"AnimationPlayer","animation":"qq_spin","length":0.5}},{"tool":"godot_screenshot","arguments":{"path":".qq/state/screenshots/test.png","width":640,"height":360}}]}' > "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" && \
+   wait "$FAKE_GODOT_BRIDGE_PID" && \
+   python3 - "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["ok"] is True
+assert len(payload["results"]) == 4
+assert payload["results"][0]["result"]["response"]["command"] == "inject-action"
+assert payload["results"][0]["result"]["response"]["args"]["input_action"] == "jump"
+assert payload["results"][1]["result"]["response"]["command"] == "create-control"
+assert payload["results"][1]["result"]["response"]["args"]["name"] == "QQButton"
+assert payload["results"][2]["result"]["response"]["command"] == "create-animation"
+assert payload["results"][2]["result"]["response"]["args"]["animation"] == "qq_spin"
+assert payload["results"][3]["result"]["response"]["command"] == "capture-screenshot"
+assert payload["results"][3]["result"]["response"]["args"]["width"] == 640
+PY
+then
+  pass "godot full-profile bridge maps input, UI, animation, and screenshot tools onto the editor command surface"
+else
+  fail "godot full-profile bridge maps input, UI, animation, and screenshot tools onto the editor command surface"
+fi
+
 if python3 - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
 import sys
 from pathlib import Path
@@ -2549,6 +2611,27 @@ then
   pass "qq_mcp composes generic and Godot rich tools for Godot projects"
 else
   fail "qq_mcp composes generic and Godot rich tools for Godot projects"
+fi
+
+if python3 - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[2])
+from qq_mcp import build_bridge  # noqa: E402
+
+project = Path(sys.argv[1])
+bridge = build_bridge(str(project), profile="full")
+tools = {tool["name"] for tool in bridge.list_tools()}
+assert "godot_input" in tools
+assert "godot_ui" in tools
+assert "godot_animation" in tools
+assert "godot_screenshot" in tools
+PY
+then
+  pass "qq_mcp full profile exposes Godot input, UI, animation, and screenshot tools"
+else
+  fail "qq_mcp full profile exposes Godot input, UI, animation, and screenshot tools"
 fi
 
 rm -rf "$GODOT_RUNTIME_ROOT"

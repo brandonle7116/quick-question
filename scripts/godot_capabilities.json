@@ -30,6 +30,10 @@
       "godot_query",
       "godot_object",
       "godot_assets",
+      "godot_input",
+      "godot_ui",
+      "godot_animation",
+      "godot_screenshot",
       "godot_batch",
       "godot_raw_command"
     ]
@@ -95,6 +99,34 @@
       "title": "Godot Assets",
       "readOnlyHint": false,
       "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "godot_input": {
+      "title": "Godot Input",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "godot_ui": {
+      "title": "Godot UI",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "godot_animation": {
+      "title": "Godot Animation",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "godot_screenshot": {
+      "title": "Godot Screenshot",
+      "readOnlyHint": true,
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },

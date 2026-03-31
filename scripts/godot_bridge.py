@@ -5,6 +5,8 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 import uuid
@@ -27,6 +29,7 @@ CAPABILITIES_PATH = Path(__file__).resolve().with_name("godot_capabilities.json"
 PLUGIN_STATE_TTL_SEC = 5.0
 REQUEST_POLL_INTERVAL_SEC = 0.1
 DEFAULT_BRIDGE_TIMEOUT_SEC = 15
+DEFAULT_EDITOR_BOOT_TIMEOUT_SEC = 60
 
 
 TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
@@ -185,6 +188,98 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["action"],
         },
     },
+    "godot_input": {
+        "title": "Godot Input",
+        "description": "Inject input actions, keys, or mouse events into the running Godot editor or scene tree.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"},
+                "action": {
+                    "type": "string",
+                    "enum": ["inject_action", "release_action", "inject_key", "inject_mouse_button", "release_all"],
+                },
+                "input_action": {"type": "string"},
+                "strength": {"type": "number"},
+                "keycode": {"type": "integer"},
+                "unicode": {"type": "integer"},
+                "button_index": {"type": "integer"},
+                "pressed": {"type": "boolean"},
+                "position": {"type": "array", "items": {"type": "number"}},
+            },
+            "required": ["action"],
+        },
+    },
+    "godot_ui": {
+        "title": "Godot UI",
+        "description": "Inspect and mutate Control nodes in the currently edited Godot scene.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"},
+                "action": {
+                    "type": "string",
+                    "enum": ["list_controls", "inspect_control", "create_control", "remove_control", "set_control_property"],
+                },
+                "path": {"type": "string"},
+                "parent": {"type": "string"},
+                "node_type": {"type": "string"},
+                "name": {"type": "string"},
+                "text": {"type": "string"},
+                "position": {"type": "array", "items": {"type": "number"}},
+                "size": {"type": "array", "items": {"type": "number"}},
+                "property": {"type": "string"},
+                "value": {},
+            },
+            "required": ["action"],
+        },
+    },
+    "godot_animation": {
+        "title": "Godot Animation",
+        "description": "Inspect AnimationPlayers and create or mutate Animation resources in the edited scene.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"},
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "list_animation_players",
+                        "inspect_animation",
+                        "create_animation_player",
+                        "create_animation",
+                        "add_track",
+                        "insert_key",
+                    ],
+                },
+                "player_path": {"type": "string"},
+                "parent": {"type": "string"},
+                "name": {"type": "string"},
+                "animation": {"type": "string"},
+                "length": {"type": "number"},
+                "loop": {"type": "boolean"},
+                "target_path": {"type": "string"},
+                "property": {"type": "string"},
+                "track": {"type": "integer"},
+                "time": {"type": "number"},
+                "value": {},
+            },
+            "required": ["action"],
+        },
+    },
+    "godot_screenshot": {
+        "title": "Godot Screenshot",
+        "description": "Capture an editor screenshot to a project-local PNG path.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"},
+                "path": {"type": "string"},
+                "width": {"type": "integer", "minimum": 1},
+                "height": {"type": "integer", "minimum": 1},
+            },
+        },
+    },
     "godot_batch": {
         "title": "Godot Batch",
         "description": "Execute multiple Godot bridge tool calls in one request.",
@@ -262,6 +357,35 @@ ASSET_ACTIONS = {
     "create_material": "create-material",
 }
 
+INPUT_ACTIONS = {
+    "inject_action": "inject-action",
+    "release_action": "release-action",
+    "inject_key": "inject-key",
+    "inject_mouse_button": "inject-mouse-button",
+    "release_all": "release-all-actions",
+}
+
+UI_ACTIONS = {
+    "list_controls": "list-controls",
+    "inspect_control": "inspect-control",
+    "create_control": "create-control",
+    "remove_control": "remove-control",
+    "set_control_property": "set-control-property",
+}
+
+ANIMATION_ACTIONS = {
+    "list_animation_players": "list-animation-players",
+    "inspect_animation": "inspect-animation",
+    "create_animation_player": "create-animation-player",
+    "create_animation": "create-animation",
+    "add_track": "add-track",
+    "insert_key": "insert-key",
+}
+
+SCREENSHOT_ACTIONS = {
+    "capture": "capture-screenshot",
+}
+
 
 def load_config(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
@@ -280,6 +404,57 @@ def unique_strings(items: list[str]) -> list[str]:
             seen.add(token)
             ordered.append(token)
     return ordered
+
+
+def tail_text(path: Path, max_chars: int = 12000) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+    return text[-max_chars:]
+
+
+def is_process_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def normalize_godot_binary_path(value: str) -> str:
+    candidate = Path(value).expanduser()
+    if candidate.is_dir() and candidate.name.endswith(".app"):
+        app_binary = candidate / "Contents" / "MacOS" / "Godot"
+        if app_binary.is_file():
+            return str(app_binary)
+    return str(candidate)
+
+
+def find_godot_editor_cmd() -> str:
+    for key in ("GODOT_BIN", "GODOT_EDITOR", "GODOT_EDITOR_BIN"):
+        value = str(os.environ.get(key) or "").strip()
+        if not value:
+            continue
+        normalized = normalize_godot_binary_path(value)
+        if Path(normalized).is_file():
+            return normalized
+
+    for candidate in (
+        "godot4",
+        "godot",
+        "/Applications/Godot.app/Contents/MacOS/Godot",
+        "/Applications/Godot_mono.app/Contents/MacOS/Godot",
+    ):
+        resolved = shutil.which(candidate) or candidate
+        normalized = normalize_godot_binary_path(resolved)
+        if Path(normalized).is_file():
+            return normalized
+    raise BridgeError("COMMAND_NOT_FOUND", "Unable to resolve Godot editor binary. Set GODOT_BIN.")
 
 
 def enabled_godot_plugins(project_dir: Path) -> list[str]:
@@ -322,6 +497,10 @@ class GodotQueueClient:
         return self.project_dir / str(self.metadata.get("editorBridgeConsoleFile") or ".qq/state/qq-godot-editor-console.jsonl")
 
     @property
+    def log_path(self) -> Path:
+        return self.project_dir / str(self.metadata.get("editorBridgeLogFile") or ".qq/state/qq-godot-editor.log")
+
+    @property
     def plugin_config_path(self) -> str:
         return str(self.metadata.get("editorPluginConfigPath") or "res://addons/qq_editor_bridge/plugin.cfg")
 
@@ -342,6 +521,7 @@ class GodotQueueClient:
         self.request_dir.mkdir(parents=True, exist_ok=True)
         self.response_dir.mkdir(parents=True, exist_ok=True)
         self.console_path.parent.mkdir(parents=True, exist_ok=True)
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def load_state(self) -> dict[str, Any]:
         if not self.state_path.is_file():
@@ -355,6 +535,7 @@ class GodotQueueClient:
         state = self.load_state()
         heartbeat = float(state.get("lastHeartbeatUnix") or 0.0)
         age_sec = (time.time() - heartbeat) if heartbeat > 0 else None
+        pid = int(state.get("pid") or 0) if state else 0
         running = bool(state.get("running")) and age_sec is not None and age_sec <= PLUGIN_STATE_TTL_SEC
         warnings: list[str] = []
         if not self.addon_installed():
@@ -372,15 +553,95 @@ class GodotQueueClient:
             "requestDir": str(self.request_dir),
             "responseDir": str(self.response_dir),
             "consoleFile": str(self.console_path),
+            "logFile": str(self.log_path),
             "running": running,
             "lastHeartbeatUnix": heartbeat,
             "lastHeartbeatAgeSec": age_sec,
+            "pid": pid,
+            "pidRunning": is_process_running(pid),
             "state": state,
             "warnings": warnings,
         }
 
+    def launch_editor(self) -> subprocess.Popen[str]:
+        editor_cmd = find_godot_editor_cmd()
+        self.ensure_runtime_dirs()
+        log_handle = self.log_path.open("a", encoding="utf-8")
+        command = [
+            editor_cmd,
+            "--editor",
+            "--path",
+            str(self.project_dir),
+        ]
+        if str(os.environ.get("QQ_GODOT_HEADLESS") or os.environ.get("GODOT_HEADLESS") or "").strip().lower() in {"1", "true", "yes"}:
+            command.insert(1, "--headless")
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=str(self.project_dir),
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=os.environ.copy(),
+                start_new_session=True,
+            )
+        except FileNotFoundError as exc:
+            log_handle.close()
+            raise BridgeError("COMMAND_NOT_FOUND", f"Command not found: {editor_cmd}", {"error": str(exc)}) from exc
+        log_handle.close()
+        return process
+
+    def ensure_bridge_running(self, boot_timeout_sec: int | None = None) -> None:
+        timeout = int(boot_timeout_sec or DEFAULT_EDITOR_BOOT_TIMEOUT_SEC)
+        health = self.bridge_health()
+        if health["running"]:
+            return
+        if not health["addonInstalled"] or not health["pluginConfigured"]:
+            raise BridgeError(
+                "BRIDGE_NOT_READY",
+                "The Godot editor bridge is not installed or configured for startup",
+                health,
+            )
+
+        if health["pidRunning"]:
+            wait_deadline = time.time() + 10
+            while time.time() < wait_deadline:
+                health = self.bridge_health()
+                if health["running"]:
+                    return
+                time.sleep(REQUEST_POLL_INTERVAL_SEC)
+
+        process = self.launch_editor()
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            health = self.bridge_health()
+            if health["running"]:
+                return
+            if process.poll() is not None:
+                raise BridgeError(
+                    "EDITOR_START_FAILED",
+                    "Godot editor exited before the qq editor bridge became ready",
+                    {
+                        "exitCode": process.returncode,
+                        "logFile": str(self.log_path),
+                        "logTail": tail_text(self.log_path),
+                    },
+                )
+            time.sleep(REQUEST_POLL_INTERVAL_SEC)
+
+        raise BridgeError(
+            "BRIDGE_TIMEOUT",
+            "Timed out waiting for the Godot editor bridge to become ready",
+            {
+                "logFile": str(self.log_path),
+                "logTail": tail_text(self.log_path),
+                "health": self.bridge_health(),
+            },
+        )
+
     def send_command(self, command: str, args: dict[str, Any] | None = None, *, timeout_sec: int | None = None) -> dict[str, Any]:
         timeout = int(timeout_sec or DEFAULT_BRIDGE_TIMEOUT_SEC)
+        self.ensure_bridge_running(boot_timeout_sec=max(timeout, DEFAULT_EDITOR_BOOT_TIMEOUT_SEC))
         self.ensure_runtime_dirs()
         request_id = uuid.uuid4().hex
         request_path = self.request_dir / f"{request_id}.json"
@@ -411,6 +672,8 @@ class GodotQueueClient:
                 "command": command,
                 "requestId": request_id,
                 "stateFile": str(self.state_path),
+                "logFile": str(self.log_path),
+                "logTail": tail_text(self.log_path),
                 "running": health.get("running"),
                 "warnings": health.get("warnings"),
             },
@@ -458,7 +721,7 @@ class GodotBridge:
         self.instructions = (
             "This bridge exposes typed Godot editor tools backed by the built-in qq Godot editor addon. "
             "Use godot_compile and godot_run_tests for whole-workflow verification, then godot_query, "
-            "godot_object, and godot_assets for editor-side inspection and mutation."
+            "godot_object, godot_assets, godot_ui, godot_animation, and godot_screenshot for editor-side inspection and mutation."
         )
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -496,6 +759,14 @@ class GodotBridge:
             return self.action_tool(args, OBJECT_ACTIONS, "godot_object")
         if tool_name == "godot_assets":
             return self.action_tool(args, ASSET_ACTIONS, "godot_assets")
+        if tool_name == "godot_input":
+            return self.action_tool(args, INPUT_ACTIONS, "godot_input")
+        if tool_name == "godot_ui":
+            return self.action_tool(args, UI_ACTIONS, "godot_ui")
+        if tool_name == "godot_animation":
+            return self.action_tool(args, ANIMATION_ACTIONS, "godot_animation")
+        if tool_name == "godot_screenshot":
+            return self.action_tool({"action": "capture", **args}, SCREENSHOT_ACTIONS, "godot_screenshot")
         if tool_name == "godot_batch":
             return self.batch(args)
         if tool_name == "godot_raw_command":
@@ -557,9 +828,21 @@ class GodotBridge:
             "request_dir": bridge_health["requestDir"],
             "response_dir": bridge_health["responseDir"],
             "console_file": bridge_health["consoleFile"],
+            "log_file": bridge_health["logFile"],
             "last_heartbeat_unix": bridge_health["lastHeartbeatUnix"],
             "last_heartbeat_age_sec": bridge_health["lastHeartbeatAgeSec"],
-            "command_count": len(EDITOR_ACTIONS) + len(QUERY_ACTIONS) + len(OBJECT_ACTIONS) + len(ASSET_ACTIONS),
+            "pid": bridge_health["pid"],
+            "pid_running": bridge_health["pidRunning"],
+            "command_count": (
+                len(EDITOR_ACTIONS)
+                + len(QUERY_ACTIONS)
+                + len(OBJECT_ACTIONS)
+                + len(ASSET_ACTIONS)
+                + len(INPUT_ACTIONS)
+                + len(UI_ACTIONS)
+                + len(ANIMATION_ACTIONS)
+                + len(SCREENSHOT_ACTIONS)
+            ),
             "warnings": unique_strings(warnings),
         }
         return payload

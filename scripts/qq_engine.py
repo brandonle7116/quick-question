@@ -64,6 +64,7 @@ ENGINE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "editorBridgeRequestDir": ".qq/state/qq-godot-editor/requests",
         "editorBridgeResponseDir": ".qq/state/qq-godot-editor/responses",
         "editorBridgeConsoleFile": ".qq/state/qq-godot-editor-console.jsonl",
+        "editorBridgeLogFile": ".qq/state/qq-godot-editor.log",
         "editorPluginName": "qq_editor_bridge",
         "editorPluginConfigPath": "res://addons/qq_editor_bridge/plugin.cfg",
         "engineSupportSourceDir": "engines/godot/addons/qq_editor_bridge",

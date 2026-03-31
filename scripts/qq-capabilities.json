@@ -49,6 +49,30 @@
     "asset.mutate": {
       "kind": "mutation",
       "description": "Create or mutate assets."
+    },
+    "input.simulate": {
+      "kind": "mutation",
+      "description": "Inject editor or runtime input through the engine bridge."
+    },
+    "ui.query": {
+      "kind": "query",
+      "description": "Read editor UI or authored UI asset state."
+    },
+    "ui.mutate": {
+      "kind": "mutation",
+      "description": "Create or mutate authored UI assets."
+    },
+    "animation.query": {
+      "kind": "query",
+      "description": "Read animation or sequencer asset state."
+    },
+    "animation.mutate": {
+      "kind": "mutation",
+      "description": "Create or mutate animation or sequencer assets."
+    },
+    "capture.screenshot": {
+      "kind": "io",
+      "description": "Capture a screenshot from the engine editor or runtime."
     }
   },
   "engineAdapters": {
@@ -126,7 +150,13 @@
         "scene.query",
         "scene.mutate",
         "asset.query",
-        "asset.mutate"
+        "asset.mutate",
+        "input.simulate",
+        "ui.query",
+        "ui.mutate",
+        "animation.query",
+        "animation.mutate",
+        "capture.screenshot"
       ],
       "toolMappings": {
         "compile": ["unity_compile"],
@@ -136,7 +166,13 @@
         "scene.query": ["unity_query"],
         "scene.mutate": ["unity_object", "unity_editor"],
         "asset.query": ["unity_query", "unity_assets"],
-        "asset.mutate": ["unity_assets"]
+        "asset.mutate": ["unity_assets"],
+        "input.simulate": ["unity_input"],
+        "ui.query": ["unity_ui"],
+        "ui.mutate": ["unity_ui"],
+        "animation.query": ["unity_animation"],
+        "animation.mutate": ["unity_animation"],
+        "capture.screenshot": ["unity_screenshot"]
       }
     },
     "unity.mcp-unity": {
@@ -232,7 +268,13 @@
         "scene.query",
         "scene.mutate",
         "asset.query",
-        "asset.mutate"
+        "asset.mutate",
+        "input.simulate",
+        "ui.query",
+        "ui.mutate",
+        "animation.query",
+        "animation.mutate",
+        "capture.screenshot"
       ],
       "toolMappings": {
         "compile": ["godot_compile"],
@@ -244,7 +286,13 @@
         "scene.query": ["godot_query"],
         "scene.mutate": ["godot_editor", "godot_object"],
         "asset.query": ["godot_query", "godot_assets"],
-        "asset.mutate": ["godot_assets"]
+        "asset.mutate": ["godot_assets"],
+        "input.simulate": ["godot_input"],
+        "ui.query": ["godot_ui"],
+        "ui.mutate": ["godot_ui"],
+        "animation.query": ["godot_animation"],
+        "animation.mutate": ["godot_animation"],
+        "capture.screenshot": ["godot_screenshot"]
       }
     },
     "unreal.qq-direct": {
@@ -473,6 +521,24 @@
         "asset.mutate": [
           "unity.tykit-mcp",
           "unity.raw-tykit"
+        ],
+        "input.simulate": [
+          "unity.tykit-mcp"
+        ],
+        "ui.query": [
+          "unity.tykit-mcp"
+        ],
+        "ui.mutate": [
+          "unity.tykit-mcp"
+        ],
+        "animation.query": [
+          "unity.tykit-mcp"
+        ],
+        "animation.mutate": [
+          "unity.tykit-mcp"
+        ],
+        "capture.screenshot": [
+          "unity.tykit-mcp"
         ]
       },
       "godot": {
@@ -508,6 +574,24 @@
           "godot.qq-mcp"
         ],
         "asset.mutate": [
+          "godot.qq-mcp"
+        ],
+        "input.simulate": [
+          "godot.qq-mcp"
+        ],
+        "ui.query": [
+          "godot.qq-mcp"
+        ],
+        "ui.mutate": [
+          "godot.qq-mcp"
+        ],
+        "animation.query": [
+          "godot.qq-mcp"
+        ],
+        "animation.mutate": [
+          "godot.qq-mcp"
+        ],
+        "capture.screenshot": [
           "godot.qq-mcp"
         ]
       },
