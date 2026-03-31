@@ -107,7 +107,7 @@ def is_test_runtime_file(relative_path: str, engine: str) -> bool:
     path = Path(relative_path)
     lowered_parts = [part.lower() for part in path.parts]
     stem = path.stem.lower()
-    if any(part in {"tests", "test", "editmode", "playmode"} for part in lowered_parts):
+    if any(part in {"tests", "test", "editmode", "playmode", "unittests"} for part in lowered_parts):
         return True
     if stem.endswith("test") or stem.endswith("tests") or stem.startswith("test_") or stem.endswith("_test"):
         return True
@@ -115,6 +115,8 @@ def is_test_runtime_file(relative_path: str, engine: str) -> bool:
         return any(part in {"gut", "gdunit4", "gdunit"} for part in lowered_parts)
     if engine == "unreal":
         return any(part in {"automation", "functionaltests", "specs"} for part in lowered_parts) or stem.startswith("spec_") or stem.endswith("_spec")
+    if engine == "sbox":
+        return any(part in {"unittests", "tests"} for part in lowered_parts) or stem.endswith(".tests") or stem.endswith(".test")
     return False
 
 
@@ -154,6 +156,31 @@ def modified_markdown_files(project_dir: Path) -> set[str]:
     tracked = run_git_lines(project_dir, "diff", "--name-only", "HEAD", "--", "*.md")
     untracked = run_git_lines(project_dir, "ls-files", "--others", "--exclude-standard", "--", "*.md")
     return set(tracked + untracked)
+
+
+def find_sbox_project_file(project_dir: Path) -> Path | None:
+    hidden = project_dir / ".sbproj"
+    if hidden.is_file():
+        return hidden
+    for path in sorted(project_dir.glob("*.sbproj")):
+        if path.is_file():
+            return path
+    return None
+
+
+def detect_sbox_project_facts(project_dir: Path) -> dict[str, Any]:
+    project_file = find_sbox_project_file(project_dir)
+    libraries_root = project_dir / "Libraries"
+    library_dirs = sorted(path for path in libraries_root.iterdir() if path.is_dir()) if libraries_root.is_dir() else []
+    server_files = sorted(project_dir.glob("**/*.Server.cs"))
+    return {
+        "sbox_project_detected": project_file is not None,
+        "sbox_project_file": str(project_file.relative_to(project_dir)) if project_file else "",
+        "sbox_unit_tests_present": (project_dir / "UnitTests").is_dir(),
+        "sbox_library_count": len(library_dirs),
+        "sbox_editor_project_present": (project_dir / "Editor").is_dir(),
+        "sbox_server_code_present": bool(server_files),
+    }
 
 
 def detect_worktree_context(project_dir: Path) -> dict[str, Any]:
@@ -439,6 +466,14 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     test_status_raw, test_status_effective, test_status_fresh = effective_run_status(test_run, latest_runtime_change_mtime)
     changes_status_raw, changes_status_effective, changes_status_fresh = effective_run_status(changes_run, latest_local_change_mtime)
     worktree = detect_worktree_context(project_dir)
+    sbox_facts = detect_sbox_project_facts(project_dir) if engine == "sbox" else {
+        "sbox_project_detected": False,
+        "sbox_project_file": "",
+        "sbox_unit_tests_present": False,
+        "sbox_library_count": 0,
+        "sbox_editor_project_present": False,
+        "sbox_server_code_present": False,
+    }
 
     state: dict[str, Any] = {
         "project_dir": str(project_dir),
@@ -522,6 +557,12 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "worktree_can_merge_back": bool(worktree.get("canMergeBack")),
         "worktree_can_push_source": bool(worktree.get("canPushSource")),
         "worktree_can_cleanup": bool(worktree.get("canCleanup")),
+        "sbox_project_detected": bool(sbox_facts["sbox_project_detected"]),
+        "sbox_project_file": str(sbox_facts["sbox_project_file"]),
+        "sbox_unit_tests_present": bool(sbox_facts["sbox_unit_tests_present"]),
+        "sbox_library_count": int(sbox_facts["sbox_library_count"]),
+        "sbox_editor_project_present": bool(sbox_facts["sbox_editor_project_present"]),
+        "sbox_server_code_present": bool(sbox_facts["sbox_server_code_present"]),
     }
     state["changes_summary_fresh"] = changes_summary_fresh(state)
     state["mode_recommended_next"] = recommend_mode_next(state)

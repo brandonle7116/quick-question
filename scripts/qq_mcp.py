@@ -32,6 +32,7 @@ from qq_bridge_common import (
     run_command,
 )
 from godot_bridge import GodotBridge
+from sbox_bridge import SboxBridge
 from tykit_bridge import TykitBridge
 from unreal_bridge import UnrealBridge
 
@@ -423,6 +424,25 @@ class GodotDelegateBridge:
         return self.bridge.tool_result(structured, is_error=is_error)
 
 
+class SboxDelegateBridge:
+    def __init__(self, project_dir: str, profile: str | None = None):
+        self.engine = "sbox"
+        self.bridge = SboxBridge(default_project_dir=project_dir, profile=profile)
+        self.default_project_dir = self.bridge.default_project_dir
+        self.supported_protocol_versions = self.bridge.supported_protocol_versions
+        self.server_name = bridge_server_name("sbox") or "qq-sbox"
+        self.instructions = "This bridge also exposes typed S&box tools backed by the built-in qq editor bridge."
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return self.bridge.list_tools()
+
+    def call_tool(self, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        return self.bridge.call_tool(tool_name, arguments or {})
+
+    def tool_result(self, structured: dict[str, Any], is_error: bool | None = None) -> dict[str, Any]:
+        return self.bridge.tool_result(structured, is_error=is_error)
+
+
 class UnrealDelegateBridge:
     def __init__(self, project_dir: str, profile: str | None = None):
         self.engine = "unreal"
@@ -645,6 +665,8 @@ def build_bridge(project_dir: str, profile: str | None = None) -> BridgeAdapter:
             hidden_tools.add("unity_raw_command")
         elif engine == "godot":
             hidden_tools.add("godot_raw_command")
+        elif engine == "sbox":
+            hidden_tools.add("sbox_raw_command")
         elif engine == "unreal":
             hidden_tools.add("unreal_raw_command")
     generic = GenericScriptBridge(str(resolved_project), engine, profile=profile)
@@ -652,6 +674,8 @@ def build_bridge(project_dir: str, profile: str | None = None) -> BridgeAdapter:
         return CompositeBridge(generic, UnityDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
     if engine == "godot":
         return CompositeBridge(generic, GodotDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
+    if engine == "sbox":
+        return CompositeBridge(generic, SboxDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
     if engine == "unreal":
         return CompositeBridge(generic, UnrealDelegateBridge(str(resolved_project), profile=profile), hidden_tools=hidden_tools)
     return generic

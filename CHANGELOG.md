@@ -2,6 +2,28 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.9.0] — 2026-03-31
+
+### Added
+- first-party S&box runtime parity:
+  - `qq_engine.py` / `qq_mcp.py` now compose S&box as a first-class engine alongside Unity, Godot, and Unreal
+  - S&box compile/test/runtime bridge scripts and capabilities
+  - bundled S&box editor bridge runtime under `engines/sbox/Editor/QQ/QQSboxEditorBridge.cs`
+- modular install planning and a guided onboarding flow:
+  - `install.sh --wizard`
+  - preset installs: `quickstart`, `daily`, `stabilize`
+  - physical install modules resolved from engine/host/profile instead of copying the whole runtime by default
+
+### Changed
+- `install.sh` now installs only the selected runtime modules for the current engine/host surface
+- `qq-doctor` now reports installed-vs-expected modules and module drift
+- `qq-policy-check`, `qq-project-state`, `qq-compile.sh`, `qq-test.sh`, and `qq_mcp.py` now resolve S&box-aware runtime/test flows
+
+### Fixed
+- install-time `qq.yaml install` settings now merge correctly with local overrides instead of being reset by missing local config
+- `git-pre-push` is no longer installed implicitly just because a heavier workflow profile is selected; it is now explicit opt-in
+- `install.sync: true` now actually prunes stale managed runtime files during reinstall
+
 ## [1.8.0] — 2026-03-31
 
 ### Added

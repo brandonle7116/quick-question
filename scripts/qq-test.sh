@@ -33,6 +33,14 @@ if [[ "$ENGINE" == "unreal" && ${#ARGS[@]} -gt 0 ]]; then
     esac
 fi
 
+if [[ "$ENGINE" == "sbox" && ${#ARGS[@]} -gt 0 ]]; then
+    case "${ARGS[0]}" in
+        editmode|playmode|all)
+            ARGS=("unit" "${ARGS[@]:1}")
+            ;;
+    esac
+fi
+
 case "$ENGINE" in
     unity)
         exec "$SCRIPT_DIR/unity-test.sh" "${ARGS[@]}"
@@ -42,6 +50,9 @@ case "$ENGINE" in
         ;;
     unreal)
         exec "$SCRIPT_DIR/unreal-test.sh" "${ARGS[@]}"
+        ;;
+    sbox)
+        exec "$SCRIPT_DIR/sbox-test.sh" "${ARGS[@]}"
         ;;
     *)
         echo "Error: no supported engine detected for project: $PROJECT_DIR" >&2

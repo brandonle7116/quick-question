@@ -124,6 +124,10 @@ DEFAULT_RULES = {
         "get_all_actors_in_hot_path",
         "component_lookup_in_tick",
     },
+    "sbox": {
+        "sbox_whitelist_violation",
+        "sbox_library_boundary",
+    },
 }
 
 
@@ -362,6 +366,73 @@ def scan_unreal_cpp_file(path: Path, rel: str, enabled: set[str], findings: list
             method_depth = 0
 
 
+def is_sbox_editor_path(rel: str) -> bool:
+    normalized = rel.replace("\\", "/")
+    return normalized.startswith("Editor/") or "/Editor/" in normalized
+
+
+def scan_sbox_source_file(path: Path, rel: str, enabled: set[str], findings: list[dict[str, Any]]) -> None:
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    if is_sbox_editor_path(rel):
+        return
+
+    console_pattern = re.compile(r"\bConsole\.Log\s*\(")
+    io_pattern = re.compile(r"\b(System\.IO|FileInfo\b|DirectoryInfo\b|File\.|Directory\.|Path\.)")
+
+    for idx, line in enumerate(lines, start=1):
+        if "sbox_whitelist_violation" not in enabled:
+            continue
+        if console_pattern.search(line):
+            add_finding(
+                findings,
+                rule_id="sbox_whitelist_violation",
+                severity="moderate",
+                file=rel,
+                line=idx,
+                message="S&box runtime code should avoid Console.Log under whitelist restrictions.",
+                suggestion="Prefer Log.Info / Log.Warning / Log.Error in runtime code.",
+            )
+        if io_pattern.search(line):
+            add_finding(
+                findings,
+                rule_id="sbox_whitelist_violation",
+                severity="critical",
+                file=rel,
+                line=idx,
+                message="S&box runtime code references System.IO-style filesystem APIs under whitelist restrictions.",
+                suggestion="Use S&box-safe filesystem APIs or move editor-only file access into Editor/ code.",
+            )
+
+
+def scan_sbox_csproj_file(path: Path, rel: str, enabled: set[str], findings: list[dict[str, Any]]) -> None:
+    if "sbox_library_boundary" not in enabled:
+        return
+    normalized = rel.replace("\\", "/")
+    if not normalized.startswith("Libraries/"):
+        return
+
+    parts = Path(normalized).parts
+    if len(parts) < 2:
+        return
+    current_library = parts[1]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    reference_pattern = re.compile(r"Libraries[/\\\\]([^/\\\\<\"]+)[/\\\\]")
+
+    for idx, line in enumerate(text.splitlines(), start=1):
+        for match in reference_pattern.finditer(line):
+            referenced_library = str(match.group(1) or "").strip()
+            if referenced_library and referenced_library != current_library:
+                add_finding(
+                    findings,
+                    rule_id="sbox_library_boundary",
+                    severity="moderate",
+                    file=rel,
+                    line=idx,
+                    message=f"S&box library `{current_library}` references another library `{referenced_library}`.",
+                    suggestion="Keep libraries source-isolated; move shared code up to the main project or flatten the dependency.",
+                )
+
+
 enabled = load_enabled_rules()
 findings: list[dict[str, Any]] = []
 files_scanned: list[str] = []
@@ -388,6 +459,13 @@ for file_arg in files:
     if engine == "unreal":
         if path.suffix == ".cpp":
             scan_unreal_cpp_file(path, rel, enabled, findings)
+        continue
+
+    if engine == "sbox":
+        if path.suffix in {".cs", ".razor"}:
+            scan_sbox_source_file(path, rel, enabled, findings)
+        elif path.suffix == ".csproj":
+            scan_sbox_csproj_file(path, rel, enabled, findings)
         continue
 
 priority = {"critical": 0, "moderate": 1, "suggestion": 2}

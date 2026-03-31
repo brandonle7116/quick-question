@@ -60,6 +60,9 @@
     },
     "unreal": {
       "description": "Unreal engine adapter. Project-local direct path plus UnrealEditor command-line bridge."
+    },
+    "sbox": {
+      "description": "S&box engine adapter. Project-local direct runtime plus built-in qq MCP bridge for editor/query/object/assets workflows."
     }
   },
   "hostAdapters": {
@@ -356,6 +359,56 @@
         "asset.query": ["get_available_materials", "read_blueprint_content"],
         "asset.mutate": ["apply_material_to_actor", "apply_material_to_blueprint", "create_blueprint"]
       }
+    },
+    "sbox.qq-direct": {
+      "engineAdapter": "sbox",
+      "transportAdapter": "direct",
+      "hostAdapters": ["claude", "codex", "ci"],
+      "official": true,
+      "description": "Project-local qq scripts with direct S&box fast paths.",
+      "capabilities": [
+        "compile",
+        "test",
+        "artifact.scan",
+        "policy.check"
+      ],
+      "toolMappings": {
+        "compile": ["scripts/qq-compile.sh"],
+        "test": ["scripts/qq-test.sh"],
+        "artifact.scan": ["scripts/qq-project-state.py"],
+        "policy.check": ["scripts/qq-policy-check.sh"]
+      }
+    },
+    "sbox.qq-mcp": {
+      "engineAdapter": "sbox",
+      "transportAdapter": "mcp",
+      "hostAdapters": ["claude", "codex", "cursor"],
+      "official": true,
+      "description": "Built-in qq MCP bridge for typed S&box workflows, backed by the project-local qq S&box editor bridge.",
+      "capabilities": [
+        "compile",
+        "test",
+        "console.read",
+        "console.clear",
+        "artifact.scan",
+        "policy.check",
+        "scene.query",
+        "scene.mutate",
+        "asset.query",
+        "asset.mutate"
+      ],
+      "toolMappings": {
+        "compile": ["sbox_compile"],
+        "test": ["sbox_run_tests"],
+        "console.read": ["sbox_console"],
+        "console.clear": ["sbox_console"],
+        "artifact.scan": ["qq_project_state"],
+        "policy.check": ["qq_policy_check"],
+        "scene.query": ["sbox_query", "sbox_scene"],
+        "scene.mutate": ["sbox_editor", "sbox_object", "sbox_scene"],
+        "asset.query": ["sbox_query", "sbox_assets"],
+        "asset.mutate": ["sbox_assets"]
+      }
     }
   },
   "resolution": {
@@ -508,6 +561,42 @@
           "unreal.qq-mcp",
           "unreal.unreal-engine-mcp",
           "unreal.flop-mcp"
+        ]
+      },
+      "sbox": {
+        "compile": [
+          "sbox.qq-direct",
+          "sbox.qq-mcp"
+        ],
+        "test": [
+          "sbox.qq-direct",
+          "sbox.qq-mcp"
+        ],
+        "artifact.scan": [
+          "sbox.qq-direct",
+          "sbox.qq-mcp"
+        ],
+        "policy.check": [
+          "sbox.qq-direct",
+          "sbox.qq-mcp"
+        ],
+        "console.read": [
+          "sbox.qq-mcp"
+        ],
+        "console.clear": [
+          "sbox.qq-mcp"
+        ],
+        "scene.query": [
+          "sbox.qq-mcp"
+        ],
+        "scene.mutate": [
+          "sbox.qq-mcp"
+        ],
+        "asset.query": [
+          "sbox.qq-mcp"
+        ],
+        "asset.mutate": [
+          "sbox.qq-mcp"
         ]
       }
     }

@@ -215,7 +215,7 @@ qq_default_test_scope() {
     local scope
     scope="$(qq_config_field "default_test_scope")"
     case "$scope" in
-        editmode|playmode|all)
+        editmode|playmode|all|unit)
             printf '%s\n' "$scope"
             ;;
         *)

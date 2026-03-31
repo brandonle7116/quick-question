@@ -83,23 +83,41 @@
 
 ## 3. 当前 Provider 模型
 
-当前 registry 里的 provider 仍然全部是 Unity 侧实现：
+当前 registry 里已经存在三类 engine provider：
 
 - `unity.qq-direct`
 - `unity.tykit-mcp`
 - `unity.mcp-unity`
 - `unity.unity-mcp`
 - `unity.raw-tykit`
+- `godot.qq-direct`
+- `godot.qq-mcp`
+- `unreal.qq-direct`
+- `unreal.qq-mcp`
+- `unreal.unreal-engine-mcp`
+- `unreal.runreal-mcp`
+- `unreal.flop-mcp`
+- `sbox.qq-direct`
+- `sbox.qq-mcp`
 
-这不代表系统是 Unity-only。
+这仍然不代表系统已经是“任意引擎都可用”。
 
 它表示：
 
-- 当前只有 Unity provider 已强实现
-- 但 provider contract 已经允许以后增加：
+- 当前强实现仍然以 Unity 为主
+- Godot 已经达到 `qq-direct + built-in qq-mcp bridge` 的第一批非 Unity adapter 形态
+- Unreal 已经达到 `qq-direct + built-in qq-mcp bridge + third-party MCP fallback` 的第二批非 Unity adapter 形态
+- S&box 现在已经达到 `qq-direct + built-in qq-mcp bridge` 的 Godot-style typed adapter 形态：
+  direct compile/test/policy/project-state + typed `console/editor/query/object/scene/assets`, with local file-safe fallback when the live bridge is inactive
+- provider contract 继续允许以后增加：
+  - `sbox.*`
   - `godot.*`
   - `unreal.*`
   - `custom.*`
+
+与当前 contract 对齐的 `s&box` 适配方案见：
+
+- [S&box Adapter Spec](./sbox-adapter-spec.md)
 
 ## 4. Contract Rules
 
