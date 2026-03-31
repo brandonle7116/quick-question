@@ -16,6 +16,8 @@
 - `has_implementation_plan`
 - `has_uncommitted_cs_changes`
 - `changed_cs_files`
+- `has_uncommitted_test_changes`
+- `changed_test_files`
 - `last_compile_status`
 - `last_test_status`
 - `review_gate_status`
@@ -58,14 +60,15 @@
 - `policy_profile` 决定验证基线；`work_mode` 决定当前任务处在哪个阶段
 - `profile` 决定当前启用了哪些预设 pack、hook、skill 和 policy floor
 - `default_test_scope` 是当前 profile 下无参数 `/qq:test` 和 pre-push 的默认测试强度
+- `changed_test_files` / `has_uncommitted_test_changes` 用来区分“刚改了运行时代码，还没补测试”与“测试已经补上，下一步该执行验证”
 - `is_managed_worktree` / `worktree_*` 字段描述当前是否在 qq 创建的 linked worktree 中，以及 merge-back / push-source / cleanup 是否适用
 - `worktree_*library*` 字段描述当前 linked worktree 是否已经具备本地 `Library` / `PackageCache`，以及该 cache 是不是由 qq 自动种子过
 - `mode_recommended_next` 是单看任务阶段时最自然的下一步
 - `recommended_next` 是在 compile/test 阻塞和 `policy_profile` 验证下限之后的真实建议
 - `prototype`：默认轻，只要求 compile 绿和结果记录
-- `feature`：设计/计划/实现/测试是主路径
-- `fix`：先固定复现，再做最小修复和回归验证
-- `hardening`：风险重构、稳定性收口、发版前检查
+- `feature`：设计/计划/实现是主路径；compile 绿后如果还没补覆盖，先走 `/qq:add-tests`，再 `/qq:test`
+- `fix`：先固定复现，再做最小修复；如果还没补回归测试，先走 `/qq:add-tests`，再做回归验证
+- `hardening`：风险重构、稳定性收口、发版前检查；compile 绿但缺覆盖时同样先走 `/qq:add-tests`
 - compile/test 未通过时，优先修复，而不是跳到下一个阶段
 
 设计原则：

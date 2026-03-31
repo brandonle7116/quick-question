@@ -95,6 +95,19 @@ def has_uncommitted_cs_changes(project_dir: Path) -> tuple[bool, list[str]]:
     return bool(files), files
 
 
+def is_test_cs_file(relative_path: str) -> bool:
+    path = Path(relative_path)
+    lowered_parts = [part.lower() for part in path.parts]
+    stem = path.stem.lower()
+    if any(part in {"tests", "test", "editmode", "playmode"} for part in lowered_parts):
+        return True
+    return stem.endswith("test") or stem.endswith("tests")
+
+
+def select_changed_test_files(changed_files: list[str]) -> list[str]:
+    return [relative for relative in changed_files if is_test_cs_file(relative)]
+
+
 def detect_review_gate(project_dir: Path) -> str:
     latest = load_latest_run(project_dir, "review_gate")
     if latest:
@@ -197,6 +210,16 @@ def skill_enabled(state: dict[str, Any], name: str) -> bool:
     return name in set(state.get("enabled_skills") or [])
 
 
+def should_recommend_add_tests(state: dict[str, Any]) -> bool:
+    return (
+        state["has_uncommitted_cs_changes"]
+        and state["last_compile_status"] == "passed"
+        and state["last_test_status"] not in {"passed", "warning"}
+        and not state["has_uncommitted_test_changes"]
+        and skill_enabled(state, "add-tests")
+    )
+
+
 def changes_summary_fresh(state: dict[str, Any]) -> bool:
     if not state["has_meaningful_local_changes"]:
         return False
@@ -225,6 +248,8 @@ def recommend_feature_next(state: dict[str, Any]) -> str:
     if state["has_implementation_plan"] and not state["has_uncommitted_cs_changes"] and skill_enabled(state, "execute"):
         return "/qq:execute"
     if state["has_uncommitted_cs_changes"] and state["last_compile_status"] == "passed":
+        if should_recommend_add_tests(state) and state["policy_profile"] in {"feature", "hardening"}:
+            return "/qq:add-tests"
         if state["last_test_status"] not in {"passed", "warning"}:
             if skill_enabled(state, "best-practice"):
                 return "/qq:best-practice"
@@ -267,8 +292,11 @@ def recommend_fix_next(state: dict[str, Any]) -> str:
     if state["has_uncommitted_cs_changes"]:
         if state["last_compile_status"] == "passed" and state["last_test_status"] in {"passed", "warning"} and skill_enabled(state, "commit-push"):
             return "/qq:commit-push"
-        if state["last_compile_status"] == "passed" and skill_enabled(state, "test"):
-            return "/qq:test"
+        if state["last_compile_status"] == "passed":
+            if should_recommend_add_tests(state):
+                return "/qq:add-tests"
+            if skill_enabled(state, "test"):
+                return "/qq:test"
         return "verify_compile"
     return "reproduce_bug"
 
@@ -277,6 +305,8 @@ def recommend_hardening_next(state: dict[str, Any]) -> str:
     if state["has_uncommitted_cs_changes"]:
         if state["last_compile_status"] != "passed":
             return "verify_compile"
+        if should_recommend_add_tests(state):
+            return "/qq:add-tests"
         if state["last_test_status"] not in {"passed", "warning"} and skill_enabled(state, "test"):
             return "/qq:test"
         if state["review_gate_status"] != "verified" and skill_enabled(state, "claude-code-review"):
@@ -373,6 +403,7 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     all_design_docs = find_markdown_files(project_dir, ["Docs/design/*.md", "docs/design/*.md"])
     all_implementation_plans = find_markdown_files(project_dir, ["Docs/qq/**/*_implementation.md", "docs/qq/**/*_implementation.md"])
     has_changes, changed_cs = has_uncommitted_cs_changes(project_dir)
+    changed_test_files = select_changed_test_files(changed_cs)
     change_snapshot = meaningful_local_change_snapshot(project_dir)
     changed_files = [str(item) for item in change_snapshot.get("paths") or [] if str(item)]
     local_change_fingerprint = str(change_snapshot.get("fingerprint") or "")
@@ -426,6 +457,8 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "implementation_plans": [str(path.relative_to(project_dir)) for path in implementation_plans[:5]],
         "has_uncommitted_cs_changes": has_changes,
         "changed_cs_files": changed_cs[:20],
+        "has_uncommitted_test_changes": bool(changed_test_files),
+        "changed_test_files": changed_test_files[:20],
         "has_meaningful_local_changes": bool(changed_files),
         "changed_files": changed_files,
         "local_change_fingerprint": local_change_fingerprint,

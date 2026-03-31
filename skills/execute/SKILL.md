@@ -66,7 +66,7 @@ Step 1: Create IVehicleDamage interface          → direct write (1 file)
 Step 2: Implement VehicleDamageSystem            → direct write (1 file, depends on step 1)
 Step 3: Add FireEffect + ExplosionEffect         → parallel subagents (2 independent files)
 Step 4: Integrate into CollisionHandler          → direct write (1 file, depends on steps 1-3)
-Step 5: Unit tests                               → parallel subagents (2 test files)
+Step 5: Targeted tests                           → hand off to `/qq:add-tests` (shared test-authoring step)
 
 Proceed?
 ```
@@ -113,6 +113,13 @@ For each step, choose a strategy:
 - Merge results, resolve conflicts, verify compilation
 - Token cost: 4-15x a single session — only use when the task justifies it
 
+### Shared Test Authoring
+**When:** a plan step is primarily about adding or updating tests, or the implementation clearly needs new regression coverage.
+**Why:** keep test authoring explicit and reusable instead of burying it as ad hoc file edits inside every workflow.
+- Prefer `/qq:add-tests` over hand-writing test files inline when the work is mainly coverage
+- Pass the relevant plan step, code under test, and bug/regression context to that skill
+- Resume the remaining implementation steps after the tests are authored
+
 ## 4. Per-Step Verification
 
 After each step completes:
@@ -128,11 +135,12 @@ After all steps are done:
 2. Assess the result and recommend the next step:
 
 - **All steps clean, no issues** → "Implementation complete. Want to run `/qq:test` to verify?"
+- **Implementation is done but the changed area still needs explicit coverage** → "Implementation is complete. Want to run `/qq:add-tests` before `/qq:test`?"
 - **Had compilation issues that were fixed** → "Had some issues during implementation. I'd recommend `/qq:best-practice` to check for problems. Run it?"
 - **Complex changes across multiple modules** → "Touched N modules. Recommend `/qq:claude-code-review` for a deep review before testing. Run it?"
 
 **`--auto` mode:** skip asking, take the strictest path automatically:
-→ `/qq:best-practice` → fix if needed → `/qq:claude-code-review` → fix if needed → `/qq:test`
+→ `/qq:best-practice` → fix if needed → `/qq:claude-code-review` → fix if needed → `/qq:add-tests --auto` when the change needs new coverage → `/qq:test`
 
 ## Notes
 

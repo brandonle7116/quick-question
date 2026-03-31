@@ -34,7 +34,8 @@ Assess the current situation in this order:
 - **File path to a complete design doc** → "This looks like a design doc. Want to run `/qq:plan` to create an implementation plan?"
 - **File path to a rough draft / notes** → "This looks like an incomplete draft. Want to run `/qq:design` to flesh it out into a full design doc?"
 - **File path to an implementation plan** → "This is an implementation plan. Want to run `/qq:execute` to start building?"
-- **File path to .cs code** → "Want to run `/qq:best-practice` to check this code, or `/qq:test`?"
+- **File path to .cs code** → "Want to run `/qq:add-tests` to add targeted coverage for this code, `/qq:best-practice` to inspect it, or `/qq:test` to run existing tests?"
+- **A request to add tests / capture a regression** → "Want to run `/qq:add-tests` to author the smallest useful coverage first?"
 - **A brief feature description** → route by `work_mode` once state is loaded:
   - `prototype` → "Prototype mode is active. Skip design/plan unless you want them; build directly and keep compile green."
   - `feature` → "Want to start with `/qq:design` to write a game design doc, or skip straight to `/qq:plan` for a technical implementation plan?"
@@ -69,6 +70,7 @@ Interpretation:
   - `/qq:plan` → a design exists; recommend turning it into an implementation plan.
   - `/qq:execute` → a usable implementation plan exists; recommend building.
   - `/qq:best-practice` → feature-mode code exists; run the lightweight review path first.
+  - `/qq:add-tests` → author or update targeted regression/EditMode/PlayMode coverage before validation.
   - `/qq:test` → validate the changed area or rerun a failing path before advancing.
   - `/qq:claude-code-review` → hardening-mode code is ready for a heavier review pass.
   - `/qq:doc-drift` → hardening-mode code is ready; check docs match behavior before shipping.
@@ -84,7 +86,7 @@ Interpretation:
 - **Just finished discussing a new feature idea** → suggest `/qq:design`
 - **A design doc was recently written or reviewed** → suggest `/qq:plan`
 - **A plan was recently generated or reviewed** → suggest `/qq:execute`
-- **Code was recently written or modified** → suggest `/qq:best-practice` or `/qq:test`
+- **Code was recently written or modified** → if the user is asking for coverage, suggest `/qq:add-tests`; otherwise suggest `/qq:best-practice` or `/qq:test`
 - **Tests just passed** → suggest `/qq:commit-push`
 
 ### 4. Fall back to git state if project state is unavailable
@@ -110,14 +112,16 @@ Skip all questions. Read project state first, then choose the lightest valid pat
   - Has brief description / rough draft → `/qq:design --auto`
   - Has complete design doc → `/qq:plan --auto`
   - Has plan → `/qq:execute --auto`
-  - Has uncommitted code → `/qq:best-practice --auto`
+  - Has compile-green runtime changes but no fresh targeted coverage yet → `/qq:add-tests --auto`
+  - Has compile-green targeted coverage ready to validate → `/qq:test --auto`
   - Has passing tests → `/qq:commit-push`
 - `fix`
   - Compile red → stay on compile repair
-  - Otherwise go straight to `/qq:test --auto` once a patch exists
+  - If a patch exists but no regression coverage has been added yet → `/qq:add-tests --auto`
+  - Otherwise go straight to `/qq:test --auto`
   - Do not invent design docs or broad reviews for a small fix unless the user asks
 - `hardening`
-  - Prefer `/qq:test --auto` → `/qq:claude-code-review --auto` → `/qq:doc-drift --auto` → `/qq:commit-push`
+  - Prefer `/qq:add-tests --auto` when coverage is still missing, then `/qq:test --auto` → `/qq:claude-code-review --auto` → `/qq:doc-drift --auto` → `/qq:commit-push`
 
 ## Notes
 

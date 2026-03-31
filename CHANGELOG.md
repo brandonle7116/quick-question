@@ -2,6 +2,19 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.6.0] — 2026-03-31
+
+### Added
+- `/qq:add-tests` as an explicit test-authoring skill for targeted EditMode, PlayMode, and regression coverage
+
+### Changed
+- `feature`, `fix`, and `hardening` controller flows now route compile-green code changes to `/qq:add-tests` before `/qq:test` when fresh coverage is still missing
+- `workflow-basic` and `lightweight` now include explicit test authoring as part of the default runtime loop
+- docs, install output, benchmark suites, and marketplace metadata now reflect the new 23-skill surface
+
+### Fixed
+- `qq-worktree cleanup` now prunes copied local runtime artifacts before removal, so consumer linked worktrees no longer get stuck on untracked `qq.yaml` / `scripts/` noise during closeout
+
 ## [1.5.1] — 2026-03-31
 
 ### Fixed

@@ -110,8 +110,8 @@ PACKS: dict[str, dict[str, Any]] = {
         "hooks": [],
     },
     "workflow-basic": {
-        "description": "Basic execution and ship actions.",
-        "skills": ["execute", "commit-push"],
+        "description": "Basic execution, test authoring, and ship actions.",
+        "skills": ["execute", "add-tests", "commit-push"],
         "hooks": [],
     },
     "workflow-planning": {
@@ -166,7 +166,7 @@ PACKS: dict[str, dict[str, Any]] = {
 
 BUILTIN_PROFILES: dict[str, dict[str, Any]] = {
     "lightweight": {
-        "description": "Smallest usable qq footprint: runtime, compile/test, go, execute, and changes with almost no ceremony.",
+        "description": "Smallest usable qq footprint: runtime, compile/test, explicit test authoring, go, execute, and changes with almost no ceremony.",
         "work_mode": "prototype",
         "policy_profile": "core",
         "packs": [
@@ -184,7 +184,7 @@ BUILTIN_PROFILES: dict[str, dict[str, Any]] = {
     },
     "feature": {
         "extends": "core",
-        "description": "Balanced feature-development defaults: plan, review, compile, and targeted validation.",
+        "description": "Balanced feature-development defaults: plan, review, compile, explicit test authoring, and targeted validation.",
         "work_mode": "feature",
         "policy_profile": "feature",
         "add_packs": [

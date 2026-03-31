@@ -98,7 +98,7 @@ Ordered, each step is a shippable increment. Include:
 4. **Tests** — `Assets/Tests/EditMode/FooSystemTests.cs`
    - Test damage calculation, edge cases (zero, negative, overflow)
    - Depends on: step 2
-   - Done: all tests green
+   - Done: `/qq:add-tests` can implement this coverage without ambiguity, then all tests green
 
 ## Constraints
 - What NOT to do (anti-patterns to avoid)
@@ -135,6 +135,7 @@ After saving, assess the plan and recommend the next step:
 ## Notes
 
 - The plan must be consumable by `/qq:execute` — ordered steps with file paths and done criteria
+- Test steps must be concrete enough that `/qq:add-tests` can implement them without re-planning
 - Write actual interface signatures in the plan, not prose descriptions
 - Use Mermaid for architecture diagrams (GitHub renders them)
 - If the design doc is ambiguous, call it out in Open Questions — don't guess silently

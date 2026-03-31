@@ -56,6 +56,7 @@ rm -rf /tmp/qq-install
 
 또는 아무 스킬이나 직접 사용:
 ```bash
+/qq:add-tests                 # 먼저 타겟 테스트 커버리지 추가
 /qq:test                      # 테스트 실행
 /qq:best-practice             # 18개 규칙 빠른 점검
 /qq:codex-code-review         # 크로스 모델 리뷰

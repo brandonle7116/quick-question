@@ -235,7 +235,11 @@ def path_matches_runtime_artifact(relative_path: str, runtime_paths: set[str]) -
     normalized = Path(relative_path).as_posix().rstrip("/")
     for runtime_path in runtime_paths:
         candidate = runtime_path.rstrip("/")
-        if normalized == candidate or normalized.startswith(f"{candidate}/"):
+        if (
+            normalized == candidate
+            or normalized.startswith(f"{candidate}/")
+            or candidate.startswith(f"{normalized}/")
+        ):
             return True
     return False
 
@@ -261,6 +265,47 @@ def should_ignore_status_path(project_dir: Path, relative_path: str, status: str
         if descendants and all(is_ignored_runtime_leaf(descendant, project_dir) for descendant in descendants):
             return True
     return False
+
+
+def prune_untracked_runtime_tree(project_dir: Path, relative_path: str) -> list[str]:
+    target = project_dir / relative_path
+    if not target.exists() and not target.is_symlink():
+        return []
+
+    pruned: list[str] = []
+
+    if target.is_file() or target.is_symlink():
+        if not is_tracked_path(project_dir, relative_path):
+            target.unlink(missing_ok=True)
+            pruned.append(relative_path)
+        return pruned
+
+    descendants = sorted(target.rglob("*"), key=lambda path: len(path.parts), reverse=True)
+    for path in descendants:
+        rel = path.relative_to(project_dir).as_posix()
+        if path.is_file() or path.is_symlink():
+            if not is_tracked_path(project_dir, rel):
+                path.unlink(missing_ok=True)
+                pruned.append(rel)
+            continue
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+
+    try:
+        target.rmdir()
+        pruned.append(relative_path.rstrip("/") + "/")
+    except OSError:
+        pass
+    return pruned
+
+
+def prune_copied_runtime_artifacts(project_dir: Path, copied_runtime_paths: list[str]) -> list[str]:
+    pruned: list[str] = []
+    for relative_path in sorted({str(item) for item in copied_runtime_paths if str(item)}):
+        pruned.extend(prune_untracked_runtime_tree(project_dir, relative_path))
+    return sorted(set(pruned))
 
 
 def is_clean_worktree(project_dir: Path) -> bool:
@@ -940,6 +985,10 @@ def command_cleanup(args: argparse.Namespace) -> dict[str, Any]:
     status = build_status(project_dir)
     if not status["isManagedWorktree"]:
         raise RuntimeError("Current project is not a qq-managed worktree")
+    metadata = load_metadata(project_dir)
+    pruned_runtime_paths = prune_copied_runtime_artifacts(project_dir, metadata.get("copiedLocalRuntimeFiles") or [])
+    if pruned_runtime_paths:
+        status = build_status(project_dir)
     if status["localChanges"] and not args.force:
         raise RuntimeError("Current worktree has local changes; pass --force to remove it anyway")
     if not args.force:
@@ -988,6 +1037,7 @@ def command_cleanup(args: argparse.Namespace) -> dict[str, Any]:
         "action": "cleanup",
         "removedWorktreePath": str(current_path),
         "sourceWorktreePath": str(source_path),
+        "prunedRuntimePaths": pruned_runtime_paths,
         "deletedBranch": branch_deleted,
         "deletedRemoteBranch": deleted_remote_branch,
         "branch": current_branch_name,

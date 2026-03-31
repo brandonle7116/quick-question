@@ -704,6 +704,8 @@ state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(enc
 assert state["has_uncommitted_cs_changes"] is True
 assert state["policy_profile"] == "core"
 assert state["default_test_scope"] == "editmode"
+assert state["has_uncommitted_test_changes"] is False
+assert state["changed_test_files"] == []
 assert state["mode_recommended_next"] == "/qq:changes"
 assert state["recommended_next"] == "/qq:changes"
 PY
@@ -845,6 +847,183 @@ else
   fail "hardening profile escalates to doc drift after review"
 fi
 rm -rf "$POLICY_TEST_ROOT"
+
+FIX_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$FIX_TEST_ROOT/.qq"
+(
+  cd "$FIX_TEST_ROOT" &&
+  git init -q
+)
+cat > "$FIX_TEST_ROOT/qq.yaml" <<'EOF'
+version: 1
+default_profile: feature
+EOF
+cat > "$FIX_TEST_ROOT/.qq/local.yaml" <<'EOF'
+work_mode: fix
+policy_profile: feature
+EOF
+cat > "$FIX_TEST_ROOT/BugFix.cs" <<'EOF'
+using UnityEngine;
+
+public class BugFix : MonoBehaviour {}
+EOF
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-compile --backend test --transport local --summary "fix compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix compile passed" >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if python3 - "$FIX_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["work_mode"] == "fix"
+assert state["has_uncommitted_cs_changes"] is True
+assert state["has_uncommitted_test_changes"] is False
+assert state["changed_test_files"] == []
+assert state["recommended_next"] == "/qq:add-tests"
+PY
+then
+  pass "fix mode routes compile-green patches to add-tests before test execution"
+else
+  fail "fix mode routes compile-green patches to add-tests before test execution"
+fi
+
+mkdir -p "$FIX_TEST_ROOT/Assets/Tests/EditMode"
+cat > "$FIX_TEST_ROOT/Assets/Tests/EditMode/BugFixTests.cs" <<'EOF'
+public class BugFixTests {}
+EOF
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if python3 - "$FIX_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["has_uncommitted_test_changes"] is True
+assert state["changed_test_files"] == ["Assets/Tests/EditMode/BugFixTests.cs"]
+assert state["recommended_next"] == "verify_compile"
+PY
+then
+  pass "fix mode returns to compile verification after new test files are added"
+else
+  fail "fix mode returns to compile verification after new test files are added"
+fi
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-test-compile --backend test --transport local --summary "fix test compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix test compile passed" >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if python3 - "$FIX_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["has_uncommitted_test_changes"] is True
+assert state["changed_test_files"] == ["Assets/Tests/EditMode/BugFixTests.cs"]
+assert state["recommended_next"] == "/qq:test"
+PY
+then
+  pass "fix mode hands off to test once targeted test coverage compiles cleanly"
+else
+  fail "fix mode hands off to test once targeted test coverage compiles cleanly"
+fi
+rm -rf "$FIX_TEST_ROOT"
+
+FEATURE_TEST_ROOT="$(mktemp -d)"
+mkdir -p "$FEATURE_TEST_ROOT/.qq"
+(
+  cd "$FEATURE_TEST_ROOT" &&
+  git init -q
+)
+cat > "$FEATURE_TEST_ROOT/qq.yaml" <<'EOF'
+version: 1
+default_profile: feature
+EOF
+cat > "$FEATURE_TEST_ROOT/.qq/local.yaml" <<'EOF'
+work_mode: feature
+policy_profile: feature
+EOF
+cat > "$FEATURE_TEST_ROOT/FeatureWork.cs" <<'EOF'
+using UnityEngine;
+
+public class FeatureWork : MonoBehaviour {}
+EOF
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-compile --backend test --transport local --summary "feature compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature compile passed" >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["work_mode"] == "feature"
+assert state["has_uncommitted_cs_changes"] is True
+assert state["has_uncommitted_test_changes"] is False
+assert state["changed_test_files"] == []
+assert state["recommended_next"] == "/qq:add-tests"
+PY
+then
+  pass "feature mode routes compile-green runtime changes to add-tests first"
+else
+  fail "feature mode routes compile-green runtime changes to add-tests first"
+fi
+
+mkdir -p "$FEATURE_TEST_ROOT/Assets/Tests/EditMode"
+cat > "$FEATURE_TEST_ROOT/Assets/Tests/EditMode/FeatureWorkTests.cs" <<'EOF'
+public class FeatureWorkTests {}
+EOF
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["has_uncommitted_test_changes"] is True
+assert state["changed_test_files"] == ["Assets/Tests/EditMode/FeatureWorkTests.cs"]
+assert state["recommended_next"] == "verify_compile"
+PY
+then
+  pass "feature mode asks for a fresh compile after adding new test files"
+else
+  fail "feature mode asks for a fresh compile after adding new test files"
+fi
+
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-test-compile --backend test --transport local --summary "feature test compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature test compile passed" >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["has_uncommitted_test_changes"] is True
+assert state["changed_test_files"] == ["Assets/Tests/EditMode/FeatureWorkTests.cs"]
+assert state["recommended_next"] == "/qq:test"
+PY
+then
+  pass "feature mode hands off to test after targeted coverage compiles cleanly"
+else
+  fail "feature mode hands off to test after targeted coverage compiles cleanly"
+fi
+rm -rf "$FEATURE_TEST_ROOT"
 
 STALE_TEST_ROOT="$(mktemp -d)"
 mkdir -p "$STALE_TEST_ROOT/.qq"
@@ -1245,6 +1424,14 @@ else
   fail "qq-worktree merge-back merges the linked branch into the source branch"
 fi
 
+if [ -n "${WORKTREE_PATH:-}" ]; then
+  printf 'default_profile: lightweight\n' > "$WORKTREE_PATH/qq.yaml"
+  printf '# runtime tweak\n' >> "$WORKTREE_PATH/scripts/qq-doctor.py"
+  mkdir -p "$WORKTREE_PATH/.claude"
+  printf '{\"enabledPlugins\":{\"qq@quick-question-marketplace\":true}}\n' > "$WORKTREE_PATH/.claude/settings.local.json"
+  printf '{\"mcpServers\":{\"tykit\":{\"command\":\"python3\"}}}\n' > "$WORKTREE_PATH/.mcp.json"
+fi
+
 if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-worktree.py" cleanup --project "$WORKTREE_PATH" --delete-branch > "$WORKTREE_CLEANUP_JSON" && \
    python3 - "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" "$WORKTREE_CLEANUP_JSON" <<'PY'
 import json
@@ -1256,14 +1443,17 @@ root = Path(sys.argv[1])
 worktree = Path(sys.argv[2])
 payload = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 assert payload["deletedBranch"] is True
+assert "qq.yaml" in payload["prunedRuntimePaths"]
+assert "scripts/" in payload["prunedRuntimePaths"]
+assert any(item.startswith("scripts/qq-doctor.py") for item in payload["prunedRuntimePaths"])
 assert not worktree.exists()
 branches = subprocess.check_output(["git", "branch", "--list", "feature/ship-system-wt-sea-monster"], cwd=root, text=True).strip()
 assert branches == ""
 PY
 then
-  pass "qq-worktree cleanup removes the linked worktree and branch"
+  pass "qq-worktree cleanup prunes copied runtime files and removes the linked worktree"
 else
-  fail "qq-worktree cleanup removes the linked worktree and branch"
+  fail "qq-worktree cleanup prunes copied runtime files and removes the linked worktree"
 fi
 rm -f "$WORKTREE_STATUS_JSON" "$WORKTREE_MERGE_JSON" "$WORKTREE_CLEANUP_JSON"
 rm -rf "$WORKTREE_TEST_ROOT"

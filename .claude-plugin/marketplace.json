@@ -8,7 +8,7 @@
     {
       "name": "qq",
       "source": "./",
-      "description": "Unity game development harness — lifecycle-aware routing, auto-compile, test pipelines, code review (Claude-only or Claude + Codex), 22 skills, and tykit for Unity Editor control"
+      "description": "Unity game development harness — lifecycle-aware routing, explicit test authoring, auto-compile, test pipelines, code review (Claude-only or Claude + Codex), 23 skills, and tykit for Unity Editor control"
     }
   ]
 }

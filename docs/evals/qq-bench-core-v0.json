@@ -232,7 +232,7 @@
           },
           "expect": {
             "policy_profile": "feature",
-            "recommended_next": "/qq:test"
+            "recommended_next": "/qq:add-tests"
           }
         },
         {
@@ -294,7 +294,7 @@
           ],
           "expect": {
             "last_compile_status": "passed",
-            "recommended_next": "/qq:test"
+            "recommended_next": "/qq:add-tests"
           }
         }
       ]
@@ -302,7 +302,7 @@
     {
       "task_id": "targeted-fix-task",
       "runner": "timeline_case",
-      "summary": "Fix mode requires compile, then regression verification, then allows push.",
+      "summary": "Fix mode requires compile, then regression test authoring, then a fresh compile, then regression verification, then allows push.",
       "fixture": {
         "local_config": {
           "work_mode": "fix",
@@ -326,6 +326,29 @@
           ],
           "expect": {
             "work_mode": "fix",
+            "recommended_next": "/qq:add-tests"
+          }
+        },
+        {
+          "write_files": [
+            {
+              "path": "Assets/Tests/EditMode/BugFixTests.cs",
+              "content": "public class BugFixTests {}\n"
+            }
+          ],
+          "expect": {
+            "recommended_next": "verify_compile"
+          }
+        },
+        {
+          "record_stages": [
+            {
+              "stage": "compile",
+              "status": "passed",
+              "summary": "fix test compile passed"
+            }
+          ],
+          "expect": {
             "recommended_next": "/qq:test"
           }
         },

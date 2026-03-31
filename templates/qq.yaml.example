@@ -20,7 +20,7 @@ context_capsule:
 
 profiles:
   lightweight:
-    description: "Smallest usable qq footprint: runtime, compile/test, go, execute, and changes with almost no ceremony."
+    description: "Smallest usable qq footprint: runtime, compile/test, explicit test authoring, go, execute, and changes with almost no ceremony."
     work_mode: prototype
     policy_profile: core
     packs:
@@ -37,7 +37,7 @@ profiles:
 
   feature:
     extends: core
-    description: "Balanced feature-development defaults: plan, review, compile, and targeted validation."
+    description: "Balanced feature-development defaults: plan, review, compile, explicit test authoring, and targeted validation."
     work_mode: feature
     policy_profile: feature
     add_packs:

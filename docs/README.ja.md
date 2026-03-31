@@ -56,6 +56,7 @@ rm -rf /tmp/qq-install
 
 または任意のスキルを直接使用：
 ```bash
+/qq:add-tests                 # 先に狙ったテストを追加
 /qq:test                      # テスト実行
 /qq:best-practice             # 18 ルールのクイックチェック
 /qq:codex-code-review         # クロスモデルレビュー

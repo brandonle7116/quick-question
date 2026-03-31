@@ -46,7 +46,7 @@
 - **Cross-model code review** — Claude orchestrates, Codex reviews, every finding verified
 - **Optional skill packs** on top of the runtime — design, plan, execute, review, test, ship
 
-The qq plugin currently ships **22 slash commands / skills** on top of the runtime layer.
+The qq plugin currently ships **23 slash commands / skills** on top of the runtime layer.
 
 qq is moving toward explicit code-side execution: a lightweight `Task Contract`, a first-class `Evaluator` that decides `pass / block / continue`, structured `Run Evidence` in `.qq/`, and `Resume / Recover` flows that continue from runtime state instead of chat history.
 
@@ -86,7 +86,7 @@ The goal is not to make every task heavier. Low-risk work should stay light by m
 |---|---|---|
 | `prototype` | New mechanic, greybox, fun check | Keep compile green, stay playable, summarize keep/drop/observe instead of forcing docs |
 | `feature` | Building a retainable system | Concise design, implementation plan, compile, targeted tests, light review |
-| `fix` | Bug fix, regression repair | Reproduce first, smallest safe change, compile, regression verification |
+| `fix` | Bug fix, regression repair | Reproduce first, smallest safe change, add the regression guardrail, then verify |
 | `hardening` | Risky refactor, release prep, stability push | Tests, review, doc/code consistency, then ship |
 
 Type `/qq:go` — qq reads your project state from artifacts, recent run records, and `work_mode`, then routes you to the right next step. Use separate worktrees for unrelated tasks, and let each worktree keep its own `.qq/local.yaml`.
@@ -210,6 +210,7 @@ Control the process intensity yourself:
 Or use any skill directly:
 ```bash
 /qq:execute plan.md --worktree   # Create an isolated linked worktree first
+/qq:add-tests                 # Add targeted test coverage
 /qq:test                      # Run tests
 /qq:best-practice             # Quick 18-rule check
 /qq:codex-code-review         # Cross-model review
@@ -277,6 +278,7 @@ See [Containerization](docs/containerization.md) and [Developer Workflow](docs/d
 | `/qq:plan` | Generate a technical implementation plan from a design doc or description |
 | `/qq:execute` | Smart implementation — read a plan, pick execution strategy, build step by step |
 | **Testing** | |
+| `/qq:add-tests` | Author targeted EditMode, PlayMode, or regression coverage |
 | `/qq:test` | Run unit/integration tests with error checking |
 | **Code Review (Codex)** | *Requires [Codex CLI](https://github.com/openai/codex)* |
 | `/qq:codex-code-review` | Cross-model code review (Claude + Codex with verification) |
@@ -318,6 +320,8 @@ qq suggests `/qq:design`. Asks 3 questions (reference games? data format? MVP?),
 → "Plan ready. Run `/qq:execute`?" — creates `IFoodSource` interface, implements `HungerSystem` and `FoodContainer`, wires into existing `NeedSystem`. Each `.cs` save auto-compiles via hook.
 
 → "Run `/qq:best-practice`?" — catches `GetComponent` in `Update` and a missing event unsubscription. Fixed.
+
+→ "Run `/qq:add-tests`?" — adds focused EditMode coverage for hunger logic and a regression test for empty containers.
 
 → "Run `/qq:test`?" — all green. → "Run `/qq:commit-push`?"
 
@@ -412,9 +416,9 @@ tykit is just HTTP. Use it from Python, GitHub Actions, or any AI agent. If your
 ```mermaid
 flowchart LR
     A["prototype"] --> B["build directly / /qq:changes"]
-    C["feature"] --> D["design -> plan -> execute"]
-    E["fix"] --> F["reproduce -> minimal fix -> /qq:test"]
-    G["hardening"] --> H["/qq:test -> review -> /qq:doc-drift -> ship"]
+    C["feature"] --> D["design -> plan -> execute -> /qq:add-tests -> /qq:test"]
+    E["fix"] --> F["reproduce -> minimal fix -> /qq:add-tests -> /qq:test"]
+    G["hardening"] --> H["/qq:add-tests -> /qq:test -> review -> /qq:doc-drift -> ship"]
 ```
 
 ```mermaid
@@ -476,7 +480,7 @@ Use `.qq/local.yaml` for per-worktree overrides.
 
 Built-in profiles:
 
-- `lightweight` — smallest usable loop: runtime, `/qq:go`, `/qq:test`, `/qq:execute`, `/qq:changes`, auto-compile
+- `lightweight` — smallest usable loop: runtime, `/qq:go`, `/qq:add-tests`, `/qq:test`, `/qq:execute`, `/qq:changes`, auto-compile
 - `core` — low-friction daily work with light verification
 - `feature` — planning + review packs enabled
 - `hardening` — stronger tests, review, and doc-consistency pressure

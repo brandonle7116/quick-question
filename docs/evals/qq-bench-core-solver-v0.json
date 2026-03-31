@@ -84,7 +84,7 @@
     {
       "task_id": "policy-fix-hot-path-caching",
       "runner": "solver_fixture_case",
-      "summary": "External solver removes hot-path GetComponent and tag string checks, then routes to targeted testing.",
+      "summary": "External solver removes hot-path GetComponent and tag string checks, then routes to targeted test authoring.",
       "prompt": "Cache component access outside Update and replace string tag checks with CompareTag while keeping the change local.",
       "solver": {
         "command": [
@@ -150,7 +150,7 @@
           "work_mode": "feature",
           "last_compile_status": "passed",
           "last_test_status": "not_run",
-          "recommended_next": "/qq:test"
+          "recommended_next": "/qq:add-tests"
         }
       }
     }
