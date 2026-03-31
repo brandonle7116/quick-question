@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from qq_internal_changes import meaningful_local_change_snapshot
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -326,6 +328,44 @@ def command_finish(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_record(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project).resolve()
+    dirs = runtime_dirs(project_dir)
+
+    now = utc_now()
+    run_id = args.run_id or uuid.uuid4().hex[:12]
+    record = {
+        "run_id": run_id,
+        "command": args.command,
+        "stage": args.stage,
+        "status": normalize_status(args.status or "passed"),
+        "backend": args.backend or "",
+        "transport": args.transport or "",
+        "started_at": iso_timestamp(now),
+        "finished_at": iso_timestamp(now),
+        "duration_ms": int(args.duration_ms or 0),
+        "failure_category": args.failure_category or "",
+        "summary": args.summary or "",
+        "artifacts": {},
+        "details": {},
+    }
+    record.update(parse_extra_json(args.extra_json))
+    if args.capture_local_changes:
+        snapshot = meaningful_local_change_snapshot(project_dir)
+        record["changed_files"] = snapshot["paths"]
+        record["changed_fingerprint"] = snapshot["fingerprint"]
+
+    timestamp = now.strftime("%Y%m%dT%H%M%SZ")
+    path = dirs["runs"] / f"{timestamp}-{args.stage}-{run_id}.json"
+    record["record_path"] = str(path.relative_to(project_dir))
+    save_json(path, record)
+    write_latest_state(dirs, record)
+    write_telemetry_event(dirs, "record", record)
+    maybe_prune(project_dir, dirs)
+    print(json.dumps({"run_id": run_id, "path": str(path), "status": record["status"]}, ensure_ascii=False))
+    return 0
+
+
 def command_latest(args: argparse.Namespace) -> int:
     project_dir = Path(args.project).resolve()
     dirs = runtime_dirs(project_dir)
@@ -386,6 +426,20 @@ def build_parser() -> argparse.ArgumentParser:
     finish.add_argument("--summary")
     finish.add_argument("--extra-json")
     finish.set_defaults(func=command_finish)
+
+    record = subparsers.add_parser("record", parents=[common], help="Create a completed run record in one step")
+    record.add_argument("--run-id", help="Optional explicit run id")
+    record.add_argument("--stage", required=True)
+    record.add_argument("--command", required=True)
+    record.add_argument("--status", default="passed")
+    record.add_argument("--duration-ms", type=int)
+    record.add_argument("--failure-category")
+    record.add_argument("--backend")
+    record.add_argument("--transport")
+    record.add_argument("--summary")
+    record.add_argument("--extra-json")
+    record.add_argument("--capture-local-changes", action="store_true", help="Snapshot current meaningful local change paths into the record")
+    record.set_defaults(func=command_record)
 
     latest = subparsers.add_parser("latest", parents=[common], help="Read the latest run record")
     latest.add_argument("--stage")

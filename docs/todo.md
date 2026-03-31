@@ -18,6 +18,19 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
 
 ## Recently resolved
 
+- [x] `/qq:changes` now advances controller state, and worktree closeout now deletes the remote linked branch before removing the worktree directory.
+  - Fix:
+    - `qq-run-record.py record --capture-local-changes` now snapshots meaningful local change files plus a deterministic change fingerprint
+    - `qq-project-state.py` now treats `/qq:changes` as fresh only when the current local change snapshot still matches the recorded summary
+    - `skills/changes/SKILL.md` now tells the host to persist that `changes` run record after emitting the conversation summary
+    - `qq-worktree.py cleanup/closeout` now deletes the remote linked branch before removing the current managed worktree directory
+  - Validation:
+    - `./test.sh` now covers both transitions and passes
+    - a focused local bare-remote closeout repro now returns `deletedRemoteBranch=true`
+  - Meaning:
+    - prototype flows can move from `/qq:changes` to `/qq:commit-push` without a manual force
+    - managed-worktree closeout now leaves the remote branch state clean by default
+
 - [x] Real host multi-worktree collaboration E2E now includes successful `/qq:test` execution.
   - Fix:
     - `qq-worktree create` now seeds the source worktree `Library` into the linked worktree when one is available

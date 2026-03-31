@@ -745,6 +745,13 @@ def parse_upstream(upstream: str) -> tuple[str, str]:
     return remote, branch
 
 
+def remote_branch_exists(project_dir: Path, remote: str, branch: str) -> bool:
+    if not remote or not branch:
+        return False
+    result = run_git(project_dir, "ls-remote", "--heads", remote, f"refs/heads/{branch}", check=False)
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
 def command_create(args: argparse.Namespace) -> dict[str, Any]:
     project_dir = Path(args.project).resolve()
     root = repo_root(project_dir)
@@ -947,6 +954,23 @@ def command_cleanup(args: argparse.Namespace) -> dict[str, Any]:
     if not source_path.is_dir():
         raise RuntimeError(f"Source worktree path not found: {source_path}")
 
+    deleted_remote_branch = False
+    remote_branch = ""
+    remote_name = ""
+    if args.delete_branch:
+        current_upstream = branch_upstream(current_path, current_branch_name)
+        if current_upstream:
+            remote_name, remote_branch = parse_upstream(current_upstream)
+        else:
+            remote_name = default_push_remote(source_path)
+            if remote_name and remote_branch_exists(source_path, remote_name, current_branch_name):
+                remote_branch = current_branch_name
+        if remote_name and remote_branch and remote_branch_exists(source_path, remote_name, remote_branch):
+            delete_remote = run_git(source_path, "push", remote_name, "--delete", remote_branch, check=False)
+            if delete_remote.returncode != 0:
+                raise RuntimeError(delete_remote.stderr.strip() or delete_remote.stdout.strip() or "git push --delete failed")
+            deleted_remote_branch = True
+
     remove_args = ["worktree", "remove"]
     if args.force or not status["localChanges"]:
         remove_args.append("--force")
@@ -965,7 +989,10 @@ def command_cleanup(args: argparse.Namespace) -> dict[str, Any]:
         "removedWorktreePath": str(current_path),
         "sourceWorktreePath": str(source_path),
         "deletedBranch": branch_deleted,
+        "deletedRemoteBranch": deleted_remote_branch,
         "branch": current_branch_name,
+        "remoteName": remote_name,
+        "remoteBranch": remote_branch,
     }
 
 

@@ -2,6 +2,14 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.5.1] — 2026-03-31
+
+### Fixed
+- `/qq:changes` now persists a meaningful local-change snapshot, so prototype flows can advance from `/qq:changes` to `/qq:commit-push` without forcing the push path
+- changes summaries now invalidate immediately after newer local edits, even when the follow-up edit lands within the same filesystem timestamp bucket
+- `qq-worktree closeout` now deletes the remote linked branch before removing the managed worktree directory, so the normal closeout path no longer leaves behind a stale remote worktree branch
+- runtime change detection now ignores `.qq` and `qq.yaml` config/runtime noise when deciding whether controller flows should treat the project as having unfinished user work
+
 ## [1.5.0] — 2026-03-31
 
 ### Added

@@ -12,6 +12,20 @@ Review the current conversation context and identify all **file changes actually
 
 **The data source is the conversation context, not git diff.** The user may have gone through multiple rounds of changes in a single conversation — some already committed, some not. Summarize all of them.
 
+After producing the summary, if `./scripts/qq-run-record.py` exists, persist a `changes` run record so controller state can advance:
+
+```bash
+python3 ./scripts/qq-run-record.py record \
+  --project . \
+  --stage changes \
+  --command qq:changes \
+  --status checked \
+  --summary "Conversation change summary captured" \
+  --capture-local-changes
+```
+
+Only do this after the summary is complete.
+
 ## Output format
 
 ```

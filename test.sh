@@ -724,6 +724,51 @@ else
   fail "qq-runtime helpers expose core policy defaults"
 fi
 
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" record --project "$POLICY_TEST_ROOT" --stage changes --command qq:changes --status checked --summary "prototype summary captured" --capture-local-changes >/dev/null
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if python3 - "$POLICY_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["changes_summary_fresh"] is True
+assert state["last_changes_status"] == "checked"
+assert state["mode_recommended_next"] == "/qq:commit-push"
+assert state["recommended_next"] == "/qq:commit-push"
+PY
+then
+  pass "prototype changes summary advances the controller to commit-push"
+else
+  fail "prototype changes summary advances the controller to commit-push"
+fi
+
+printf '// follow-up\n' >> "$POLICY_TEST_ROOT/SeaMonsterSpike.cs"
+python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if python3 - "$POLICY_TEST_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(encoding="utf-8"))
+
+assert state["changes_summary_fresh"] is False
+assert state["mode_recommended_next"] == "verify_compile"
+assert state["recommended_next"] == "verify_compile"
+PY
+then
+  pass "prototype changes summary is invalidated by newer local edits"
+else
+  fail "prototype changes summary is invalidated by newer local edits"
+fi
+
+RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage compile --command policy-compile-refresh --backend test --transport local --summary "policy compile refresh start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy compile refresh passed" >/dev/null
+
 cat > "$POLICY_TEST_ROOT/.qq/local.yaml" <<'EOF'
 work_mode: prototype
 policy_profile: hardening
@@ -1222,6 +1267,67 @@ else
 fi
 rm -f "$WORKTREE_STATUS_JSON" "$WORKTREE_MERGE_JSON" "$WORKTREE_CLEANUP_JSON"
 rm -rf "$WORKTREE_TEST_ROOT"
+
+WORKTREE_REMOTE_ROOT="$(mktemp -d)"
+WORKTREE_REMOTE_BARE="${WORKTREE_REMOTE_ROOT}_remote.git"
+git init --bare -q "$WORKTREE_REMOTE_BARE"
+(
+  cd "$WORKTREE_REMOTE_ROOT" &&
+  git init -q &&
+  git config user.email qq@example.com &&
+  git config user.name "qq test" &&
+  printf 'base\n' > README.md &&
+  git add README.md &&
+  git commit -q -m "init" &&
+  git branch -M feature/ship-system &&
+  git remote add origin "$WORKTREE_REMOTE_BARE" &&
+  git push -q -u origin feature/ship-system
+)
+WORKTREE_REMOTE_PARENT="$(dirname "$WORKTREE_REMOTE_ROOT")"
+WORKTREE_REMOTE_JSON="$(mktemp)"
+if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_REMOTE_ROOT" --name remote-closeout --base-dir "$WORKTREE_REMOTE_PARENT" > "$WORKTREE_REMOTE_JSON" && \
+   python3 - "$WORKTREE_REMOTE_JSON" "$WORKTREE_REMOTE_ROOT" "$WORKTREE_REMOTE_BARE" "$SCRIPT_DIR" <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+root = Path(sys.argv[2])
+remote = Path(sys.argv[3])
+script_dir = Path(sys.argv[4])
+worktree = Path(payload["worktreePath"])
+
+subprocess.run(["git", "config", "user.email", "qq@example.com"], cwd=worktree, check=True)
+subprocess.run(["git", "config", "user.name", "qq test"], cwd=worktree, check=True)
+(worktree / "README.md").write_text("base\nremote closeout\n", encoding="utf-8")
+subprocess.run(["git", "add", "README.md"], cwd=worktree, check=True)
+subprocess.run(["git", "commit", "-q", "-m", "feat: remote closeout"], cwd=worktree, check=True)
+subprocess.run(["git", "push", "-q", "-u", "origin", payload["branch"]], cwd=worktree, check=True)
+
+closeout = subprocess.check_output(
+    ["python3", "scripts/qq-worktree.py", "closeout", "--project", str(worktree), "--auto-yes", "--delete-branch"],
+    cwd=script_dir,
+    text=True,
+)
+result = json.loads(closeout)
+cleanup = result["cleanup"]
+assert cleanup["deletedRemoteBranch"] is True
+assert cleanup["remoteName"] == "origin"
+assert cleanup["remoteBranch"] == payload["branch"]
+assert not worktree.exists()
+heads = subprocess.check_output(["git", "ls-remote", "--heads", str(remote)], text=True)
+assert f"refs/heads/{payload['branch']}" not in heads
+readme = (root / "README.md").read_text(encoding="utf-8")
+assert "remote closeout" in readme
+PY
+then
+  pass "qq-worktree closeout deletes the remote linked branch before removing the worktree"
+else
+  fail "qq-worktree closeout deletes the remote linked branch before removing the worktree"
+fi
+rm -f "$WORKTREE_REMOTE_JSON"
+rm -rf "$WORKTREE_REMOTE_ROOT" "$WORKTREE_REMOTE_BARE"
 
 WORKTREE_BLOCK_ROOT="$(mktemp -d)"
 (

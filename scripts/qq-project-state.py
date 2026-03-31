@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from qq_internal_changes import latest_change_mtime, meaningful_local_change_snapshot
 from qq_internal_config import POLICY_PROFILES, WORK_MODE_PROFILES, resolve_project_config
 from qq_internal_git import run_git
 
@@ -176,18 +177,6 @@ def select_active_artifacts(
     return []
 
 
-def latest_changed_file_mtime(project_dir: Path, changed_files: list[str]) -> float | None:
-    latest: float | None = None
-    for relative in changed_files:
-        path = project_dir / relative
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            continue
-        latest = mtime if latest is None else max(latest, mtime)
-    return latest
-
-
 def effective_run_status(run: dict[str, Any] | None, latest_change_mtime: float | None) -> tuple[str, str, bool]:
     raw_status = str((run or {}).get("status") or "not_run")
     if latest_change_mtime is None:
@@ -206,6 +195,26 @@ def effective_run_status(run: dict[str, Any] | None, latest_change_mtime: float 
 
 def skill_enabled(state: dict[str, Any], name: str) -> bool:
     return name in set(state.get("enabled_skills") or [])
+
+
+def changes_summary_fresh(state: dict[str, Any]) -> bool:
+    if not state["has_meaningful_local_changes"]:
+        return False
+    if state["last_changes_status"] not in {"passed", "checked", "warning"}:
+        return False
+    recorded_paths = sorted(set(str(item) for item in state.get("last_changes_files") or [] if str(item)))
+    current_paths = sorted(set(state.get("changed_files") or []))
+    if not recorded_paths or recorded_paths != current_paths:
+        return False
+    if str(state.get("last_changes_fingerprint") or "") != str(state.get("local_change_fingerprint") or ""):
+        return False
+    finished_at = parse_run_timestamp(state.get("last_changes_finished_at"))
+    if finished_at is None:
+        return False
+    latest_change = state.get("latest_local_change_mtime")
+    if latest_change is None:
+        return True
+    return finished_at.timestamp() >= float(latest_change)
 
 
 def recommend_feature_next(state: dict[str, Any]) -> str:
@@ -245,12 +254,12 @@ def recommend_prototype_next(state: dict[str, Any]) -> str:
         return "/qq:execute"
     if state["has_design_doc"] and not state["has_implementation_plan"] and skill_enabled(state, "plan"):
         return "/qq:plan"
-    if state["has_uncommitted_cs_changes"]:
+    if state["has_meaningful_local_changes"]:
         if state["last_compile_status"] == "passed":
+            if changes_summary_fresh(state):
+                return "/qq:commit-push" if skill_enabled(state, "commit-push") else "prototype_direct"
             return "/qq:changes" if skill_enabled(state, "changes") else "prototype_direct"
         return "verify_compile"
-    if state["last_test_status"] == "passed" and skill_enabled(state, "changes"):
-        return "/qq:changes"
     return "prototype_direct"
 
 
@@ -364,8 +373,12 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     all_design_docs = find_markdown_files(project_dir, ["Docs/design/*.md", "docs/design/*.md"])
     all_implementation_plans = find_markdown_files(project_dir, ["Docs/qq/**/*_implementation.md", "docs/qq/**/*_implementation.md"])
     has_changes, changed_cs = has_uncommitted_cs_changes(project_dir)
+    change_snapshot = meaningful_local_change_snapshot(project_dir)
+    changed_files = [str(item) for item in change_snapshot.get("paths") or [] if str(item)]
+    local_change_fingerprint = str(change_snapshot.get("fingerprint") or "")
     compile_run = load_latest_run(project_dir, "compile")
     test_run = load_latest_run(project_dir, "test")
+    changes_run = load_latest_run(project_dir, "changes")
     work_mode = str(config.get("work_mode") or "feature")
     work_mode_source = str(config.get("work_mode_source") or "default")
     policy_profile = str(config.get("policy_profile") or "feature")
@@ -374,9 +387,11 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     changed_md = modified_markdown_files(project_dir)
     design_docs = select_active_artifacts(project_dir, all_design_docs, modified_files=changed_md, task_focus=task_focus)
     implementation_plans = select_active_artifacts(project_dir, all_implementation_plans, modified_files=changed_md, task_focus=task_focus)
-    latest_change_mtime = latest_changed_file_mtime(project_dir, changed_cs)
-    compile_status_raw, compile_status_effective, compile_status_fresh = effective_run_status(compile_run, latest_change_mtime)
-    test_status_raw, test_status_effective, test_status_fresh = effective_run_status(test_run, latest_change_mtime)
+    latest_code_change_mtime = latest_change_mtime(project_dir, changed_cs)
+    latest_local_change_mtime = latest_change_mtime(project_dir, changed_files)
+    compile_status_raw, compile_status_effective, compile_status_fresh = effective_run_status(compile_run, latest_code_change_mtime)
+    test_status_raw, test_status_effective, test_status_fresh = effective_run_status(test_run, latest_code_change_mtime)
+    changes_status_raw, changes_status_effective, changes_status_fresh = effective_run_status(changes_run, latest_local_change_mtime)
     worktree = detect_worktree_context(project_dir)
 
     state: dict[str, Any] = {
@@ -411,6 +426,10 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "implementation_plans": [str(path.relative_to(project_dir)) for path in implementation_plans[:5]],
         "has_uncommitted_cs_changes": has_changes,
         "changed_cs_files": changed_cs[:20],
+        "has_meaningful_local_changes": bool(changed_files),
+        "changed_files": changed_files,
+        "local_change_fingerprint": local_change_fingerprint,
+        "latest_local_change_mtime": latest_local_change_mtime,
         "last_compile_status_raw": compile_status_raw,
         "last_compile_status": compile_status_effective,
         "compile_status_fresh": compile_status_fresh,
@@ -421,6 +440,13 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "last_compile_failure_category": str((compile_run or {}).get("failure_category") or ""),
         "last_test_summary": str((test_run or {}).get("summary") or ""),
         "last_test_failure_category": str((test_run or {}).get("failure_category") or ""),
+        "last_changes_status_raw": changes_status_raw,
+        "last_changes_status": changes_status_effective,
+        "changes_status_fresh": changes_status_fresh,
+        "last_changes_summary": str((changes_run or {}).get("summary") or ""),
+        "last_changes_finished_at": str((changes_run or {}).get("finished_at") or (changes_run or {}).get("started_at") or ""),
+        "last_changes_files": (changes_run or {}).get("changed_files") or [],
+        "last_changes_fingerprint": str((changes_run or {}).get("changed_fingerprint") or ""),
         "review_gate_status": detect_review_gate(project_dir),
         "doc_drift_status": "not_checked",
         "is_managed_worktree": bool(worktree.get("isManagedWorktree")),
@@ -443,6 +469,7 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "worktree_can_push_source": bool(worktree.get("canPushSource")),
         "worktree_can_cleanup": bool(worktree.get("canCleanup")),
     }
+    state["changes_summary_fresh"] = changes_summary_fresh(state)
     state["mode_recommended_next"] = recommend_mode_next(state)
     state["recommended_next"] = recommend_next(state)
     return state
