@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -39,6 +40,7 @@ IGNORED_STATUS_SUFFIXES = (
     ".pyo",
 )
 MCP_SERVER_NAME = "tykit"
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,123 @@ def current_branch(project_dir: Path) -> str:
 def current_commit(project_dir: Path) -> str:
     result = run_git(project_dir, "rev-parse", "HEAD")
     return result.stdout.strip()
+
+
+def is_unity_project(project_dir: Path) -> bool:
+    return (project_dir / "ProjectSettings" / "ProjectVersion.txt").is_file()
+
+
+def has_repo_dev_docker(project_dir: Path) -> bool:
+    return (project_dir / "scripts" / "docker-dev.sh").is_file() and (project_dir / ".devcontainer" / "devcontainer.json").is_file()
+
+
+def shell_join(parts: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def build_recommended_execution(project_dir: Path) -> dict[str, str]:
+    if is_unity_project(project_dir):
+        return {
+            "mode": "host",
+            "reason": "Unity / tykit validation should stay on the host machine for this worktree.",
+        }
+    if has_repo_dev_docker(project_dir):
+        return {
+            "mode": "docker",
+            "reason": "Repository-side qq development is standardized through scripts/docker-dev.sh in this worktree.",
+        }
+    return {
+        "mode": "host",
+        "reason": "No repo-dev Docker helper was detected in this worktree; use the host machine.",
+    }
+
+
+def build_closeout_command(project_dir: Path) -> str:
+    local_helper = project_dir / "scripts" / "qq-worktree.py"
+    if local_helper.is_file():
+        return shell_join(
+            [
+                "python3",
+                "./scripts/qq-worktree.py",
+                "closeout",
+                "--project",
+                ".",
+                "--auto-yes",
+                "--delete-branch",
+                "--pretty",
+            ]
+        )
+    return shell_join(
+        [
+            "python3",
+            str((SCRIPT_DIR / "qq-worktree.py").resolve()),
+            "closeout",
+            "--project",
+            str(project_dir),
+            "--auto-yes",
+            "--delete-branch",
+            "--pretty",
+        ]
+    )
+
+
+def build_doctor_command(project_dir: Path) -> str:
+    local_shell = project_dir / "scripts" / "qq-doctor.sh"
+    if local_shell.is_file():
+        return "./scripts/qq-doctor.sh --pretty"
+    local_helper = project_dir / "scripts" / "qq-doctor.py"
+    if local_helper.is_file():
+        return shell_join(["python3", "./scripts/qq-doctor.py", "--pretty"])
+    return shell_join(
+        [
+            "python3",
+            str((SCRIPT_DIR / "qq-doctor.py").resolve()),
+            "--project",
+            str(project_dir),
+            "--pretty",
+        ]
+    )
+
+
+def build_create_next_steps(project_dir: Path, execution: dict[str, str]) -> list[dict[str, str]]:
+    steps: list[dict[str, str]] = [
+        {
+            "label": "enter-worktree",
+            "command": shell_join(["cd", str(project_dir)]),
+            "reason": "Switch into the dedicated linked worktree before handing it to an agent.",
+        }
+    ]
+    if execution["mode"] == "docker":
+        steps.append(
+            {
+                "label": "open-repo-dev-shell",
+                "command": "./scripts/docker-dev.sh shell",
+                "reason": "Use the standard Docker repo-dev environment for qq-core development.",
+            }
+        )
+        steps.append(
+            {
+                "label": "run-repo-dev-validation",
+                "command": "./scripts/docker-dev.sh test",
+                "reason": "Run the standard repo-side validation loop before handoff or merge-back.",
+            }
+        )
+    else:
+        steps.append(
+            {
+                "label": "inspect-worktree-state",
+                "command": build_doctor_command(project_dir),
+                "reason": "Inspect provider, controller, and safety guidance before host-side work starts.",
+            }
+        )
+    steps.append(
+        {
+            "label": "closeout-worktree",
+            "command": build_closeout_command(project_dir),
+            "reason": "Merge back and clean up this linked worktree after verification is complete.",
+        }
+    )
+    return steps
 
 
 def relevant_status_lines(project_dir: Path) -> list[str]:
@@ -570,6 +689,8 @@ def command_create(args: argparse.Namespace) -> dict[str, Any]:
         },
     }
     metadata_file = write_metadata(target_path, metadata)
+    recommended_execution = build_recommended_execution(target_path)
+    next_steps = build_create_next_steps(target_path, recommended_execution)
     return {
         "ok": True,
         "action": "create",
@@ -589,6 +710,14 @@ def command_create(args: argparse.Namespace) -> dict[str, Any]:
             "strategy": library_seed.strategy,
             "error": library_seed.error,
         },
+        "recommendedExecution": recommended_execution,
+        "parallelAgentSafe": True,
+        "parallelAgentSafety": {
+            "status": "ok",
+            "summary": "This dedicated linked worktree is safe to hand to exactly one agent.",
+            "recommendedAction": next_steps[0]["command"],
+        },
+        "nextSteps": next_steps,
     }
 
 

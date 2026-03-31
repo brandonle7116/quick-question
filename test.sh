@@ -671,6 +671,17 @@ assert payload["librarySeed"]["strategy"]
 assert (target / "Library" / "PackageCache" / "mock" / "seed.txt").is_file()
 assert metadata["librarySeed"]["action"] == "seeded"
 assert metadata["librarySeed"]["strategy"]
+assert payload["recommendedExecution"]["mode"] == "host"
+assert "Unity" in payload["recommendedExecution"]["reason"]
+assert payload["parallelAgentSafe"] is True
+assert payload["parallelAgentSafety"]["status"] == "ok"
+assert "exactly one agent" in payload["parallelAgentSafety"]["summary"]
+labels = [item["label"] for item in payload["nextSteps"]]
+assert labels[0] == "enter-worktree"
+assert "inspect-worktree-state" in labels
+assert "closeout-worktree" in labels
+assert any("qq-doctor.py" in item["command"] for item in payload["nextSteps"])
+assert any("qq-worktree.py" in item["command"] and "closeout" in item["command"] for item in payload["nextSteps"])
 PY
   then
     pass "qq-worktree create builds a managed linked worktree"
@@ -850,6 +861,58 @@ else
   pass "qq-worktree blocks protected source branches by default"
 fi
 rm -rf "$WORKTREE_BLOCK_ROOT"
+
+WORKTREE_DOCKER_ROOT="$(mktemp -d)"
+(
+  cd "$WORKTREE_DOCKER_ROOT" &&
+  git init -q &&
+  git config user.email qq@example.com &&
+  git config user.name "qq test" &&
+  mkdir -p .devcontainer scripts &&
+  printf '{\"name\":\"qq-dev\"}\n' > .devcontainer/devcontainer.json &&
+  cat > scripts/docker-dev.sh <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x scripts/docker-dev.sh &&
+  printf 'base\n' > README.md &&
+  git add README.md .devcontainer/devcontainer.json scripts/docker-dev.sh &&
+  git commit -q -m "init" &&
+  git checkout -q -b feature/repo-dev
+)
+WORKTREE_DOCKER_CREATE_JSON="$(mktemp)"
+if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_DOCKER_ROOT" --name docker-flow --base-dir "$(dirname "$WORKTREE_DOCKER_ROOT")" --pretty > "$WORKTREE_DOCKER_CREATE_JSON" && \
+   python3 - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert payload["recommendedExecution"]["mode"] == "docker"
+labels = [item["label"] for item in payload["nextSteps"]]
+assert "open-repo-dev-shell" in labels
+assert "run-repo-dev-validation" in labels
+assert any(item["command"] == "./scripts/docker-dev.sh shell" for item in payload["nextSteps"])
+assert any(item["command"] == "./scripts/docker-dev.sh test" for item in payload["nextSteps"])
+PY
+then
+  pass "qq-worktree create recommends Docker for repo-dev worktrees"
+else
+  fail "qq-worktree create recommends Docker for repo-dev worktrees"
+fi
+python3 - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY' >/dev/null
+import json
+import shutil
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+worktree = Path(payload["worktreePath"])
+if worktree.exists():
+    shutil.rmtree(worktree)
+PY
+rm -f "$WORKTREE_DOCKER_CREATE_JSON"
+rm -rf "$WORKTREE_DOCKER_ROOT"
 
 WORKTREE_CLOSEOUT_ROOT="$(mktemp -d)"
 WORKTREE_CLOSEOUT_REMOTE="$(mktemp -d)/origin.git"
@@ -1086,6 +1149,12 @@ assert payload["controller"]["repositoryImplementationPlanCount"] == 0
 assert payload["controller"]["modeProfile"]["changes_summary_expected"] is True
 assert payload["controller"]["isManagedWorktree"] is False
 assert payload["controller"]["worktreeRole"] == "primary"
+assert payload["recommendedExecution"]["mode"] == "host"
+assert payload["recommendedExecution"]["recommendedAction"] == "./scripts/unity-compile-smart.sh"
+assert "Unity" in payload["recommendedExecution"]["reason"]
+assert payload["parallelAgentSafety"]["status"] == "warn"
+assert "primary worktree" in payload["parallelAgentSafety"]["summary"]
+assert "qq-worktree.py" in payload["parallelAgentSafety"]["recommendedAction"]
 assert providers["unity.qq-direct"]["status"] == "available"
 assert providers["unity.tykit-mcp"]["status"] == "available"
 assert providers["unity.raw-tykit"]["status"] == "available"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +30,73 @@ def load_optional_json(path: Path) -> dict[str, Any]:
 
 def is_unity_project(project_dir: Path) -> bool:
     return (project_dir / "ProjectSettings" / "ProjectVersion.txt").is_file()
+
+
+def has_repo_dev_docker(project_dir: Path) -> bool:
+    return (project_dir / "scripts" / "docker-dev.sh").is_file() and (project_dir / ".devcontainer" / "devcontainer.json").is_file()
+
+
+def shell_join(parts: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def build_host_recommended_action(project_dir: Path) -> str:
+    if (project_dir / "scripts" / "unity-compile-smart.sh").is_file():
+        return "./scripts/unity-compile-smart.sh"
+    if (project_dir / "scripts" / "qq-project-state.py").is_file():
+        return "python3 ./scripts/qq-project-state.py --pretty"
+    return ""
+
+
+def build_recommended_execution(project_dir: Path) -> dict[str, str]:
+    if is_unity_project(project_dir):
+        return {
+            "mode": "host",
+            "reason": "Unity / tykit validation should stay on the host machine for this project.",
+            "recommendedAction": build_host_recommended_action(project_dir),
+        }
+    if has_repo_dev_docker(project_dir):
+        return {
+            "mode": "docker",
+            "reason": "Repository-side qq development is standardized through scripts/docker-dev.sh in this repository.",
+            "recommendedAction": "./scripts/docker-dev.sh shell",
+        }
+    return {
+        "mode": "host",
+        "reason": "No repo-dev Docker helper was detected in this repository; continue on the host machine.",
+        "recommendedAction": build_host_recommended_action(project_dir),
+    }
+
+
+def build_parallel_agent_safety(project_dir: Path, controller: dict[str, Any], recommended_execution: dict[str, str]) -> dict[str, str]:
+    if bool(controller.get("isManagedWorktree")):
+        return {
+            "status": "ok",
+            "summary": "Current directory is a dedicated managed worktree and is safe to hand to exactly one agent.",
+            "recommendedAction": recommended_execution.get("recommendedAction") or "continue in this worktree",
+        }
+
+    helper = SCRIPT_DIR / "qq-worktree.py"
+    recommended_action = ""
+    if helper.is_file():
+        recommended_action = shell_join(
+            [
+                "python3",
+                str(helper),
+                "create",
+                "--project",
+                str(project_dir),
+                "--name",
+                "<task>",
+                "--pretty",
+            ]
+        )
+
+    return {
+        "status": "warn",
+        "summary": "Current directory is the primary worktree. For unrelated parallel work, create a dedicated linked worktree first.",
+        "recommendedAction": recommended_action,
+    }
 
 
 def find_tykit_info(project_dir: Path) -> Path | None:
@@ -435,6 +503,8 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
     shared_policy_path = project_dir / "qq-policy.json"
     local_policy_path = project_dir / ".qq" / "local-policy.json"
     codex_host = codex_mcp_host_state(project_dir)
+    recommended_execution = build_recommended_execution(project_dir)
+    parallel_agent_safety = build_parallel_agent_safety(project_dir, controller, recommended_execution)
     provider_items = []
     provider_status: dict[str, dict[str, Any]] = {}
     for provider_id, definition in sorted((registry.get("providers") or {}).items()):
@@ -469,6 +539,8 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
             "effectiveProfileExpectations": controller.get("policyProfileExpectations") or {},
         },
         "controller": controller,
+        "recommendedExecution": recommended_execution,
+        "parallelAgentSafety": parallel_agent_safety,
         "hosts": {
             "codex": codex_host,
         },
