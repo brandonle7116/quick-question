@@ -2,6 +2,22 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.8.0] — 2026-03-31
+
+### Added
+- first-party Unreal runtime parity:
+  - `qq_engine.py` / `qq_mcp.py` now compose Unreal as a first-class engine alongside Unity and Godot
+  - Unreal compile/test/runtime bridge scripts and capabilities
+  - bundled Unreal editor bridge bootstrap under `engines/unreal/python/qq_unreal_bridge.py`
+
+### Changed
+- `install.sh` now detects Unreal projects, enables required Unreal project plugins, installs support scripts, and wires the built-in live editor bridge
+- `qq-doctor`, `qq-policy-check`, `qq-compile.sh`, and `qq-test.sh` now resolve Unreal-aware runtime/test flows
+- trust-level MCP filtering now applies consistently to Unreal raw tools as well as Unity/Godot
+
+### Fixed
+- engine-generic MCP composition now keeps trust-level raw-command restrictions intact while adding Unreal runtime delegates
+- regression coverage now exercises Unreal provider resolution, compile/test routing, and install-time project bootstrap
 ## [1.7.0] — 2026-03-31
 
 ### Added
