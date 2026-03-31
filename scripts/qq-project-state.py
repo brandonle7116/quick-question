@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from qq_engine import verification_patterns
 from qq_internal_config import POLICY_PROFILES, WORK_MODE_PROFILES, resolve_project_config
 from qq_internal_git import run_git
 
@@ -87,11 +88,18 @@ def run_git_lines(project_dir: Path, *args: str) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def has_uncommitted_cs_changes(project_dir: Path) -> tuple[bool, list[str]]:
-    tracked = run_git_lines(project_dir, "diff", "--name-only", "HEAD", "--", "*.cs")
-    untracked = run_git_lines(project_dir, "ls-files", "--others", "--exclude-standard", "--", "*.cs")
-    files = sorted(set(tracked + untracked))
-    return bool(files), files
+def detect_uncommitted_engine_changes(project_dir: Path, engine: str) -> tuple[bool, list[str]]:
+    patterns = verification_patterns(engine)
+    if not patterns:
+        return False, []
+    files: set[str] = set()
+    for pattern in patterns:
+        tracked = run_git_lines(project_dir, "diff", "--name-only", "HEAD", "--", pattern)
+        untracked = run_git_lines(project_dir, "ls-files", "--others", "--exclude-standard", "--", pattern)
+        files.update(tracked)
+        files.update(untracked)
+    ordered = sorted(files)
+    return bool(ordered), ordered
 
 
 def detect_review_gate(project_dir: Path) -> str:
@@ -213,9 +221,9 @@ def recommend_feature_next(state: dict[str, Any]) -> str:
         return "/qq:plan"
     if state["has_design_doc"] and not state["has_implementation_plan"] and skill_enabled(state, "execute"):
         return "/qq:execute"
-    if state["has_implementation_plan"] and not state["has_uncommitted_cs_changes"] and skill_enabled(state, "execute"):
+    if state["has_implementation_plan"] and not state["has_uncommitted_runtime_changes"] and skill_enabled(state, "execute"):
         return "/qq:execute"
-    if state["has_uncommitted_cs_changes"] and state["last_compile_status"] == "passed":
+    if state["has_uncommitted_runtime_changes"] and state["last_compile_status"] == "passed":
         if state["last_test_status"] not in {"passed", "warning"}:
             if skill_enabled(state, "best-practice"):
                 return "/qq:best-practice"
@@ -223,7 +231,7 @@ def recommend_feature_next(state: dict[str, Any]) -> str:
                 return "/qq:test"
             return "/qq:commit-push" if skill_enabled(state, "commit-push") else "feature_direct"
         return "/qq:commit-push" if skill_enabled(state, "commit-push") else "feature_direct"
-    if state["has_uncommitted_cs_changes"]:
+    if state["has_uncommitted_runtime_changes"]:
         if skill_enabled(state, "best-practice"):
             return "/qq:best-practice"
         if skill_enabled(state, "test"):
@@ -241,11 +249,11 @@ def recommend_feature_next(state: dict[str, Any]) -> str:
 
 
 def recommend_prototype_next(state: dict[str, Any]) -> str:
-    if state["has_implementation_plan"] and not state["has_uncommitted_cs_changes"] and skill_enabled(state, "execute"):
+    if state["has_implementation_plan"] and not state["has_uncommitted_runtime_changes"] and skill_enabled(state, "execute"):
         return "/qq:execute"
     if state["has_design_doc"] and not state["has_implementation_plan"] and skill_enabled(state, "plan"):
         return "/qq:plan"
-    if state["has_uncommitted_cs_changes"]:
+    if state["has_uncommitted_runtime_changes"]:
         if state["last_compile_status"] == "passed":
             return "/qq:changes" if skill_enabled(state, "changes") else "prototype_direct"
         return "verify_compile"
@@ -255,7 +263,7 @@ def recommend_prototype_next(state: dict[str, Any]) -> str:
 
 
 def recommend_fix_next(state: dict[str, Any]) -> str:
-    if state["has_uncommitted_cs_changes"]:
+    if state["has_uncommitted_runtime_changes"]:
         if state["last_compile_status"] == "passed" and state["last_test_status"] in {"passed", "warning"} and skill_enabled(state, "commit-push"):
             return "/qq:commit-push"
         if state["last_compile_status"] == "passed" and skill_enabled(state, "test"):
@@ -265,7 +273,7 @@ def recommend_fix_next(state: dict[str, Any]) -> str:
 
 
 def recommend_hardening_next(state: dict[str, Any]) -> str:
-    if state["has_uncommitted_cs_changes"]:
+    if state["has_uncommitted_runtime_changes"]:
         if state["last_compile_status"] != "passed":
             return "verify_compile"
         if state["last_test_status"] not in {"passed", "warning"} and skill_enabled(state, "test"):
@@ -313,7 +321,7 @@ def apply_core_policy_profile(state: dict[str, Any], candidate: str) -> str:
 def apply_feature_policy_profile(state: dict[str, Any], candidate: str) -> str:
     if not policy_can_override(candidate):
         return candidate
-    if state["has_uncommitted_cs_changes"] and state["last_compile_status"] == "passed":
+    if state["has_uncommitted_runtime_changes"] and state["last_compile_status"] == "passed":
         if candidate in {"/qq:changes", "/qq:best-practice", "/qq:claude-code-review", "/qq:doc-drift", "/qq:commit-push"} and state["last_test_status"] not in {"passed", "warning"} and skill_enabled(state, "test"):
             return "/qq:test"
     return candidate
@@ -323,7 +331,7 @@ def apply_hardening_policy_profile(state: dict[str, Any], candidate: str) -> str
     if not policy_can_override(candidate):
         return candidate
     escalation_targets = {"/qq:changes", "/qq:best-practice", "/qq:claude-code-review", "/qq:doc-drift", "/qq:commit-push"}
-    if state["has_uncommitted_cs_changes"] and state["last_compile_status"] == "passed":
+    if state["has_uncommitted_runtime_changes"] and state["last_compile_status"] == "passed":
         if candidate in escalation_targets and state["last_test_status"] not in {"passed", "warning"} and skill_enabled(state, "test"):
             return "/qq:test"
         if candidate in escalation_targets and state["review_gate_status"] != "verified" and skill_enabled(state, "claude-code-review"):
@@ -350,7 +358,7 @@ def apply_policy_profile(state: dict[str, Any], candidate: str) -> str:
 
 
 def recommend_next(state: dict[str, Any]) -> str:
-    if state["has_uncommitted_cs_changes"] and state["last_compile_status"] == "not_run":
+    if state["has_uncommitted_runtime_changes"] and state["last_compile_status"] == "not_run":
         return "verify_compile"
     if state["last_compile_status"] in {"failed", "blocked"}:
         return "fix_compile"
@@ -361,9 +369,10 @@ def recommend_next(state: dict[str, Any]) -> str:
 
 def build_state(project_dir: Path) -> dict[str, Any]:
     config = resolve_project_config(project_dir)
+    engine = str(config.get("engine") or "")
     all_design_docs = find_markdown_files(project_dir, ["Docs/design/*.md", "docs/design/*.md"])
     all_implementation_plans = find_markdown_files(project_dir, ["Docs/qq/**/*_implementation.md", "docs/qq/**/*_implementation.md"])
-    has_changes, changed_cs = has_uncommitted_cs_changes(project_dir)
+    has_changes, changed_engine_files = detect_uncommitted_engine_changes(project_dir, engine)
     compile_run = load_latest_run(project_dir, "compile")
     test_run = load_latest_run(project_dir, "test")
     work_mode = str(config.get("work_mode") or "feature")
@@ -374,7 +383,7 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     changed_md = modified_markdown_files(project_dir)
     design_docs = select_active_artifacts(project_dir, all_design_docs, modified_files=changed_md, task_focus=task_focus)
     implementation_plans = select_active_artifacts(project_dir, all_implementation_plans, modified_files=changed_md, task_focus=task_focus)
-    latest_change_mtime = latest_changed_file_mtime(project_dir, changed_cs)
+    latest_change_mtime = latest_changed_file_mtime(project_dir, changed_engine_files)
     compile_status_raw, compile_status_effective, compile_status_fresh = effective_run_status(compile_run, latest_change_mtime)
     test_status_raw, test_status_effective, test_status_fresh = effective_run_status(test_run, latest_change_mtime)
     worktree = detect_worktree_context(project_dir)
@@ -389,6 +398,8 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "profile": str(config.get("profile") or "feature"),
         "profile_source": str(config.get("profile_source") or "default"),
         "profile_description": str(config.get("profile_description") or ""),
+        "engine": engine,
+        "engine_source": str(config.get("engine_source") or ""),
         "work_mode": work_mode,
         "work_mode_source": work_mode_source,
         "mode_profile": config.get("mode_profile") or WORK_MODE_PROFILES[work_mode],
@@ -409,8 +420,8 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "has_implementation_plan": bool(implementation_plans),
         "design_docs": [str(path.relative_to(project_dir)) for path in design_docs[:5]],
         "implementation_plans": [str(path.relative_to(project_dir)) for path in implementation_plans[:5]],
-        "has_uncommitted_cs_changes": has_changes,
-        "changed_cs_files": changed_cs[:20],
+        "has_uncommitted_runtime_changes": has_changes,
+        "changed_runtime_files": changed_engine_files[:20],
         "last_compile_status_raw": compile_status_raw,
         "last_compile_status": compile_status_effective,
         "compile_status_fresh": compile_status_fresh,
@@ -433,12 +444,13 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "worktree_source_branch_upstream": str(worktree.get("sourceBranchUpstream") or ""),
         "worktree_source_branch_publish_state": str(worktree.get("sourceBranchPublishState") or ""),
         "worktree_source_branch_published": bool(worktree.get("sourceBranchPublished")),
-        "worktree_source_library_exists": bool(worktree.get("sourceLibraryExists")),
-        "worktree_local_library_exists": bool(worktree.get("localLibraryExists")),
-        "worktree_local_package_cache_exists": bool(worktree.get("localPackageCacheExists")),
-        "worktree_can_seed_library": bool(worktree.get("canSeedLibrary")),
-        "worktree_library_seed_state": str(worktree.get("librarySeedState") or ""),
-        "worktree_library_seed_strategy": str(worktree.get("librarySeedStrategy") or ""),
+        "worktree_runtime_cache_dir": str(worktree.get("runtimeCacheDir") or ""),
+        "worktree_source_runtime_cache_exists": bool(worktree.get("sourceRuntimeCacheExists")),
+        "worktree_local_runtime_cache_exists": bool(worktree.get("localRuntimeCacheExists")),
+        "worktree_local_runtime_cache_support_exists": bool(worktree.get("localRuntimeCacheSupportExists")),
+        "worktree_can_seed_runtime_cache": bool(worktree.get("canSeedRuntimeCache")),
+        "worktree_runtime_cache_seed_state": str(worktree.get("runtimeCacheSeedState") or ""),
+        "worktree_runtime_cache_seed_strategy": str(worktree.get("runtimeCacheSeedStrategy") or ""),
         "worktree_can_merge_back": bool(worktree.get("canMergeBack")),
         "worktree_can_push_source": bool(worktree.get("canPushSource")),
         "worktree_can_cleanup": bool(worktree.get("canCleanup")),
