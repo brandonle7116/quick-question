@@ -32,10 +32,7 @@
     <img src="docs/images/unreal-dark.svg" width="40" alt="Unreal">
   </picture>
   &nbsp;&nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sbox-light.svg">
-    <img src="docs/images/sbox-dark.svg" width="40" alt="S&amp;box">
-  </picture>
+  <img src="docs/images/sbox.svg" width="40" alt="S&amp;box">
 </p>
 
 <p align="center">
