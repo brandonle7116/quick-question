@@ -15,7 +15,7 @@ IFS=: read -r ts count expected < "$GATE_FILE"
 new_count=$(( ${count:-0} + 1 ))
 echo "${ts}:${new_count}:${expected}" > "$GATE_FILE"
 
-if [[ $new_count -ge 1 ]] && [[ ${expected:-0} -eq 0 || $new_count -ge ${expected:-0} ]]; then
+if [[ ${expected:-0} -gt 0 && $new_count -eq ${expected:-0} ]]; then
   run_json=$(qq_run_record_start "review_gate" "review-gate-count" "local" "hook" "Review gate verification recorded")
   run_id=$(printf '%s' "$run_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
   qq_run_record_finish "$run_id" "verified" "" "All verification subagents completed" "{\"verified_count\":$new_count}" >/dev/null

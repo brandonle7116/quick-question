@@ -23,13 +23,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Defined in `hooks/hooks.json`, hooks are the plugin's runtime behavior:
 
-- **PreToolUse (Edit|Write):** Codex Review Gate — blocks code edits while cross-model review verification is pending
+- **PreToolUse (Edit|Write):** Review Gate — blocks code edits while review verification is pending
 - **PostToolUse (Write|Edit):** Auto-compiles `.cs` files via `unity-compile-smart.sh`; tracks skill file modifications for review enforcement
 - **PostToolUse (Bash):** Activates review gate when `code-review.sh` or `plan-review.sh` runs
 - **PostToolUse (Agent):** Increments verification subagent counter (to release review gate)
 - **Stop:** Blocks session end if skills were modified without running `/qq:self-review`; cleans up gate files
 
-All temp files are keyed by `$PPID` for session isolation (e.g., `/tmp/claude-codex-review-gate-$PPID`).
+All temp files are keyed by `$PPID` for session isolation (e.g., `$QQ_TEMP_DIR/review-gate-$PPID`).
 
 ### Artifact-driven Controller
 
@@ -58,15 +58,13 @@ Shared utilities live in `unity-common.sh` (Editor detection, Unity path lookup,
 
 UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play/stop, console, find/inspect. Port stored in `Temp/tykit.json` (hash of project path).
 
-### Cross-Model Review (Codex Tribunal)
+### Code Review
 
-`/qq:codex-code-review` implements a verification loop:
-1. Codex CLI reviews the diff
-2. Subagents verify each finding against actual source
-3. Over-engineering check — is the fix proportionate?
-4. Fix confirmed critical issues, loop until clean (max 5 rounds)
+Two review modes, same verification loop:
+- **Cross-model** (`/qq:codex-code-review`): Codex CLI reviews the diff, then verification subagents check each finding against actual source
+- **Single-model** (`/qq:claude-code-review`): A Claude subagent reviews the diff, then separate verification subagents check each finding
 
-The review gate (`scripts/hooks/codex-review-gate-*.sh`) blocks code edits until at least one verification subagent completes.
+Both modes: over-engineering check, fix confirmed issues, loop until clean (max 5 rounds). The review gate (`scripts/hooks/review-gate-*.sh`) blocks code edits until at least one verification subagent completes.
 
 ## Development Commands
 
@@ -87,6 +85,6 @@ There is no build step or package manager for this repo itself. Run `./test.sh` 
 
 - Scripts use `set -euo pipefail` and source `unity-common.sh` for shared functions
 - Skills are each a directory under `skills/<name>/` containing `SKILL.md`
-- Hook scripts in `scripts/hooks/` follow the naming pattern `codex-review-gate-{check,set,count}.sh`
+- Hook scripts in `scripts/hooks/` follow the naming pattern `review-gate-{check,set,count,stop}.sh`
 - Comments in shell scripts are in Chinese (author preference); code and user-facing output are in English
 - The `install.sh` output now uses the current plugin skill names (`/qq:test`, `/qq:commit-push`, etc.)
