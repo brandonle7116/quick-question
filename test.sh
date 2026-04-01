@@ -3940,6 +3940,32 @@ for script_name in code-review plan-review claude-review claude-plan-review; do
   fi
 done
 
+# ── skill refactoring ──
+echo -e "${CYAN}[skills] review skill structure${NC}"
+
+# claude-code-review calls claude-review.sh
+if grep -q 'claude-review\.sh' skills/claude-code-review/SKILL.md; then
+  pass "claude-code-review skill calls claude-review.sh"
+else
+  fail "claude-code-review skill does not call claude-review.sh"
+fi
+
+# claude-plan-review calls claude-plan-review.sh
+if grep -q 'claude-plan-review\.sh' skills/claude-plan-review/SKILL.md; then
+  pass "claude-plan-review skill calls claude-plan-review.sh"
+else
+  fail "claude-plan-review skill does not call claude-plan-review.sh"
+fi
+
+# all 4 skills write expected count
+for skill in claude-code-review claude-plan-review codex-code-review codex-plan-review; do
+  if grep -q 'review-gate-\$PPID' "skills/${skill}/SKILL.md"; then
+    pass "${skill} writes expected count to gate"
+  else
+    fail "${skill} missing expected count write"
+  fi
+done
+
 # ── Summary ──
 echo ""
 TOTAL=$((PASS + FAIL))

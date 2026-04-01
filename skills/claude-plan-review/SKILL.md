@@ -26,32 +26,20 @@ Try in priority order:
 
 Each round:
 
-#### 2a. Dispatch Subagent for Review
+#### 2a. Send to Claude for Review
 
-Dispatch a subagent (`subagent_type: "general-purpose"`, `model: "opus"`) to review the document with the following prompt:
-
+Use the Bash tool with `run_in_background: true` to run in the background:
+```bash
+./scripts/claude-plan-review.sh <file_path>
 ```
-You are a senior game systems architect and developer. Review the following design document across six dimensions:
+The script calls `claude -p`, with results output to stdout and `<filename>_review.md`.
+The script automatically reads the project root's `CLAUDE.md` and includes the coding standards in the Claude prompt.
+Claude CLI review typically takes 2-5 minutes. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
+Notify the user that the background task has been submitted and will continue processing automatically when complete.
 
-1. Architectural soundness: Is module separation clear? Are dependencies reasonable? Any risk of circular dependencies?
-2. Logical correctness: Is the state machine complete (no deadlocks or missing states)? Are edge cases handled?
-3. Completeness: Are there undefined behaviors, missing error handling, or unconsidered player actions?
-4. Data flow: Where does data come from, where does it go, who owns it, who mutates it — any consistency issues?
-5. Performance: Per-frame full-entity iteration, frequent GC allocations, unnecessary serialization?
-6. Compatibility with existing systems: Read CLAUDE.md for coding standards and AGENTS.md for architecture rules (if it exists), check if the design conflicts with existing modules.
-
-You must read relevant source code to verify your findings — do not infer code state from the document alone.
-
-Project coding standards: read the root CLAUDE.md.
-Architecture rules (if AGENTS.md exists): read the root AGENTS.md.
-Design document content: <paste full document>
-
-Classify findings by severity: [Critical] [Moderate] [Suggestion]. For each finding provide the specific location and a concrete fix recommendation.
-```
-
-**From round 2 onward:** If any suggestions from the previous round were flagged as over-engineered, append to the prompt:
-```
-Additional context: The following suggestions from the previous round were deemed over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect.
+**From round 2 onward:** If the previous round had findings deemed over-engineered, append a custom prompt with context:
+```bash
+./scripts/claude-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### 2b. Summarize Review Results
@@ -65,12 +53,7 @@ Present the summary to the user. **Do not modify the spec yet — proceed to the
 
 #### 2c. Independent Verification (required, parallel subagents, gate-enforced)
 
-**Before dispatching subagents, activate the Review Gate:**
-```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-echo "$(date +%s):0" > "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
-```
-This locks Edit/Write on .cs and docs files until verification subagents complete (same gate as Codex review).
+> **Review Gate:** After the review script runs, a PreToolUse hook blocks Edit/Write on `.cs` and `Docs/*.md` files until at least 1 verification subagent completes. This is a mechanical constraint — you cannot edit the document until findings are verified.
 
 For each critical and moderate issue, **dispatch a subagent to verify it in depth** — do not draw conclusions from a quick scan in the main session.
 
@@ -82,6 +65,14 @@ For each critical and moderate issue, **dispatch a subagent to verify it in dept
 5. Required output: **Confirmed** (code corroborates) / **Rejected** (code does not support the claim) / **Partially confirmed** (needs rewording), with the cited file path and key code snippet as evidence
 
 **Over-engineering check:** Also ask each subagent to assess whether the implied fix for each confirmed finding is proportionate to the problem. Flag disproportionate suggestions as **Confirmed but over-engineered**.
+
+After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
+```bash
+source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
+echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
+```
+(Replace N with the actual number of verification subagents dispatched.)
 
 **Aggregate:** After all subagents return, consolidate the results and present each finding's verdict and supporting evidence to the user.
 
@@ -103,7 +94,7 @@ Print `=== Round N/5 ===` at the start of each round.
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
 source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-rm -f "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
+rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
 ## Handoff
@@ -116,7 +107,8 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** skip asking → `/qq:execute <path> --auto`
 
 ## Notes
-- **Never blindly trust review results** — subagents may misread code or reference stale information. Every finding must go through the verification step
+- The review script is at `./scripts/claude-plan-review.sh` and requires Claude CLI (`claude`) to be available
+- **Never blindly trust Claude review results** — subagents may misread code or reference stale information. Every finding must go through the verification step
 - **Watch for over-engineering** — always ask: "Is the proposed fix proportionate to the problem?"
 - Do not alter the design intent on your own initiative — only fix what the review found
 - When revising, preserve the overall document structure; only change what needs changing

@@ -81,6 +81,14 @@ For each critical and moderate issue, **dispatch a subagent to verify each findi
 
 For disproportionate suggestions, ask the subagent to flag them as **Confirmed but over-engineered** — acknowledge the real issue, propose a simpler fix.
 
+After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
+```bash
+source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
+echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
+```
+(Replace N with the actual number of verification subagents dispatched.)
+
 **Aggregation:** After all subagents return, aggregate results and present each finding's verdict and evidence to the user.
 
 #### d. Fix the Code
@@ -107,7 +115,7 @@ Output `=== Round N/5 ===` at the start of each round.
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
 source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-rm -f "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
+rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
 ## Handoff

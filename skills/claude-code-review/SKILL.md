@@ -27,14 +27,6 @@ Arguments: $ARGUMENTS
 
 ## Execution Flow
 
-### 1. Collect Changes
-
-Collect the code changes to review based on arguments:
-```bash
-git diff <range> -- '*.cs'
-```
-Save the diff content for the subagent to use. Also read CLAUDE.md for coding standards and AGENTS.md for architecture rules (if it exists).
-
 ### 2–5. Automated Review Loop
 
 **Loop automatically — do not ask the user between rounds.** Stop when any of the following is true:
@@ -44,32 +36,20 @@ Save the diff content for the subagent to use. Also read CLAUDE.md for coding st
 
 Each round:
 
-#### a. Dispatch Subagent for Review
+#### a. Send to Claude for Review
+Before sending the diff to Claude, if `./scripts/qq-policy-check.sh` exists, run it on the same changed `.cs` files first. Treat those deterministic findings as already-established local policy results. Claude should focus on bugs, behavior, architecture, and anything not trivially captured by deterministic checks.
 
-Dispatch a subagent (`subagent_type: "general-purpose"`, `model: "opus"`) to review the code with the following prompt:
-
+Use the Bash tool with `run_in_background: true` to run in the background:
+```bash
+./scripts/claude-review.sh $ARGUMENTS
 ```
-You are a senior C#/Unity code reviewer. Review the following code changes across six dimensions:
+The script calls `claude -p`, with results output to stdout and `Docs/qq/<branch-name>/claude-code-review_<timestamp>.md`.
+Claude CLI review typically takes 2-5 minutes. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
+Notify the user that the background task has been submitted and will continue processing automatically when complete.
 
-1. Bugs: null references, out-of-bounds, race conditions, resource leaks, logic errors
-2. Architecture: single-responsibility violations, circular dependency introductions, public API design
-3. Performance: per-frame allocations (new/LINQ/string concat), unnecessary GetComponent, O(n²) traversals
-4. Unity best practices: MonoBehaviour lifecycle, coroutine leaks, SerializeField usage
-5. Security: injection risks, exposure of interfaces that should be internal
-6. Code style: naming consistency, dead code, over-defensive programming (unnecessary null checks)
-
-Project coding standards: <CLAUDE.md content>
-Architecture rules (if AGENTS.md exists): <AGENTS.md content>
-Unity best-practice checklist: read skills/best-practice/SKILL.md from the plugin directory for the 18-rule checklist. Every rule in that file must be checked — treat violations as [Critical] or [Moderate] based on the severity listed there.
-Code changes: <diff content>
-
-You must read the relevant source files to verify your findings — do not infer context from diff snippets alone.
-For each finding: specify the file name and line number, describe the problem, and give a fix recommendation. Classify by severity: [Critical] [Moderate] [Suggestion].
-```
-
-**From round 2 onward:** If any suggestions from the previous round were flagged as over-engineered, append to the prompt:
-```
-Additional context: The following suggestions from the previous round were deemed over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect.
+**From round 2 onward:** If the previous round had findings deemed over-engineered, append `--prompt` to the original arguments:
+```bash
+./scripts/claude-review.sh $ARGUMENTS --prompt "Review these code changes using the same criteria as round 1 (bugs, architecture, performance, security, style). Additional context: the following suggestions from the previous round were deemed over-engineered and replaced with simpler solutions: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Classify by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### b. Summarize Review Results
@@ -83,12 +63,7 @@ Present the summary to the user. **Do not fix code yet — proceed to the verifi
 
 #### c. Independent Verification (required, parallel subagents, gate-enforced)
 
-**Before dispatching subagents, activate the Review Gate:**
-```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-echo "$(date +%s):0" > "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
-```
-This locks Edit/Write on .cs and docs files until verification subagents complete (same gate as Codex review).
+> **Review Gate:** After the review script runs, a PreToolUse hook blocks Edit/Write on `.cs` and `Docs/*.md` files until at least 1 verification subagent completes. This is a mechanical constraint — you cannot edit code until findings are verified.
 
 For each critical and moderate issue, **dispatch a subagent to verify it in depth** — do not draw conclusions from a quick scan in the main session.
 
@@ -100,6 +75,14 @@ For each critical and moderate issue, **dispatch a subagent to verify it in dept
 5. Required output: **Confirmed** / **Rejected** / **Partially confirmed**, with the cited file path, line number, and key code snippet as evidence
 
 **Over-engineering check:** Also ask each subagent to assess whether the implied fix for each confirmed finding is proportionate to the problem. Flag disproportionate suggestions as **Confirmed but over-engineered**.
+
+After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
+```bash
+source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
+echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
+```
+(Replace N with the actual number of verification subagents dispatched.)
 
 **Aggregate:** After all subagents return, consolidate the results and present each finding's verdict and supporting evidence to the user.
 
@@ -127,7 +110,7 @@ Print `=== Round N/5 ===` at the start of each round.
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
 source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
-rm -f "$QQ_TEMP_DIR/claude-codex-review-gate-$PPID"
+rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
 ## Handoff
@@ -141,7 +124,8 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** skip asking → `/qq:test --auto`
 
 ## Notes
-- **Never blindly trust review results** — subagents may misread code or reference wrong line numbers. Every finding must go through the verification step
+- The review script is at `./scripts/claude-review.sh` and requires Claude CLI (`claude`) to be available
+- **Never blindly trust Claude review results** — subagents may misread code or reference wrong line numbers. Every finding must go through the verification step
 - **Watch for over-engineering** — always ask: "Is the proposed fix proportionate to the problem?"
 - When fixing, only address the actual issues the review identified — do not opportunistically refactor surrounding code
 - Output path for any generated artifacts uses `Docs/qq/<branch-name>/` where branch name is obtained via `git branch --show-current | tr '/' '_'`
