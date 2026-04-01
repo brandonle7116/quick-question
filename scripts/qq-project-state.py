@@ -130,14 +130,24 @@ def detect_review_gate(project_dir: Path) -> str:
         return str(latest.get("status") or "unknown")
 
     temp_dir = Path(os.environ.get("QQ_TEMP_DIR") or os.environ.get("TMPDIR") or "/tmp")
-    gate_files = sorted(temp_dir.glob("claude-codex-review-gate-*"), key=lambda path: path.stat().st_mtime, reverse=True)
+    gate_files = sorted(temp_dir.glob("review-gate-*"), key=lambda path: path.stat().st_mtime, reverse=True)
     if not gate_files:
         return "not_started"
 
     try:
         raw = gate_files[0].read_text(encoding="utf-8").strip()
-        _, count = raw.split(":", 1)
-        return "verified" if int(count) > 0 else "locked"
+        parts = raw.split(":")
+        if len(parts) >= 3:
+            # 三字段格式: <ts>:<completed>:<expected>
+            completed = int(parts[1])
+            expected = int(parts[2])
+            if expected > 0 and completed >= expected:
+                return "verified"
+            return "verified" if completed > 0 else "locked"
+        else:
+            # 旧两字段格式: <ts>:<count>
+            _, count = raw.split(":", 1)
+            return "verified" if int(count) > 0 else "locked"
     except Exception:
         return "unknown"
 

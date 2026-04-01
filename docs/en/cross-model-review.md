@@ -1,5 +1,7 @@
 # Cross-Model Review (Codex Tribunal)
 
+> This document covers both review modes: cross-model (Codex) and Claude-only. Both share the same verification loop, gate mechanism, and round limits.
+
 Single-model code review has blind spots. A model reviewing its own output tends to share the same assumptions that produced the code in the first place. Cross-model review addresses this by having Codex independently review the diff while Claude verifies each finding against the actual source. Each model catches things the other misses, producing higher-confidence results than either alone.
 
 ## The Tribunal Flow
@@ -12,7 +14,7 @@ The cross-model review (`/qq:codex-code-review`) runs as an automated loop with 
 4. Claude dispatches parallel subagents to verify each finding against the actual source code
 5. Each subagent performs an over-engineering check: is the proposed fix proportionate to the problem?
 6. Confirmed critical issues are fixed; over-engineered suggestions get simpler alternatives
-7. The gate unlocks once at least one verification subagent completes
+7. The gate unlocks once ALL verification subagents complete
 8. The loop repeats until no critical issues remain or 5 rounds are reached
 
 ```mermaid
@@ -34,10 +36,12 @@ flowchart TD
 
 The review gate is a mechanical constraint that prevents code edits while findings are unverified.
 
-- **Gate file:** `$QQ_TEMP_DIR/claude-codex-review-gate-$PPID`
-- **Activation:** The PostToolUse hook sets the gate after `code-review.sh` runs
+- **Gate file:** `$QQ_TEMP_DIR/review-gate-$PPID`
+- **Format:** `<ts>:<completed>:<expected>` — timestamp, number of completed verification subagents, total expected
+- **Activation:** The PostToolUse hook sets the gate after `code-review.sh`, `claude-review.sh`, `plan-review.sh`, or `claude-plan-review.sh` runs
 - **Effect:** The PreToolUse hook blocks all Edit and Write operations on `.cs` and `Docs/*.md` files
-- **Release:** The gate unlocks once at least one verification subagent completes (tracked by the PostToolUse Agent hook)
+- **Release:** The gate unlocks once ALL verification subagents complete (`completed >= expected`), tracked by the PostToolUse Agent hook
+- **Stop hook:** `review-gate-stop.sh` prevents session exit while verification is still incomplete
 - **Isolation:** Each session uses `$PPID` to scope its gate file, so concurrent sessions do not interfere
 
 The gate is cleaned up automatically when the review loop ends.
@@ -54,11 +58,9 @@ All review commands -- cross-model and Claude-only alike -- classify findings in
 
 Only P0 (Critical) findings trigger automatic fixes and additional review rounds. P1 findings are fixed at discretion. P2 findings are reported but typically not acted on.
 
-## Claude-Only Alternative
+## Claude Review Alternative
 
-`/qq:claude-code-review` provides the same review loop without requiring Codex CLI. Instead of sending the diff to an external model, it dispatches a Claude subagent (Opus) to perform the initial review. The verification step is identical: parallel subagents verify each finding against the source code, with the same over-engineering checks.
-
-The Claude-only variant also uses the review gate to block edits during verification. The loop structure, round limits, and termination conditions are the same.
+`/qq:claude-code-review` provides the same review loop using `claude-review.sh`, which invokes `claude -p` as a process-isolated reviewer. This is architecturally symmetric with the Codex path: a separate process performs the initial review, then verification subagents check each finding against the actual source. The verification step is structurally identical — parallel subagents verify each finding with the same over-engineering checks — but because the reviewer and verifiers share the same model family, the cross-model blind-spot advantage is reduced. The loop structure, review gate, round limits, and termination conditions are all shared.
 
 ## Plan Review
 
@@ -66,8 +68,9 @@ The cross-model pattern extends beyond code. Both `/qq:codex-plan-review` and `/
 
 ## Requirements
 
-- **Cross-model review** (`/qq:codex-code-review`, `/qq:codex-plan-review`): Requires Codex CLI (`npm install -g @openai/codex`)
-- **Claude-only review** (`/qq:claude-code-review`, `/qq:claude-plan-review`): No additional requirements
+- **Codex review** (`/qq:codex-code-review`, `/qq:codex-plan-review`): Requires Codex CLI (`npm install -g @openai/codex`)
+- **Claude review** (`/qq:claude-code-review`, `/qq:claude-plan-review`): Requires Claude CLI (`claude`)
+- **MCP one-shot review**: `qq_code_review` and `qq_plan_review` MCP tools are available for non-Claude hosts (one-shot, no verification loop)
 
 ## Related Docs
 

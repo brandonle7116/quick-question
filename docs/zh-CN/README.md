@@ -8,7 +8,7 @@
 
 qq 是 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 之上的运行时层，让 AI agent 深度感知游戏开发周期。它不会把所有任务一视同仁——qq 知道你是在验证新玩法原型、构建生产功能、修复回归 bug，还是在发版前加固——并据此调整流程强度。artifact 驱动的控制器 `/qq:go` 从 `.qq/` 读取结构化项目状态、最近的运行记录和你配置的 `work_mode`，然后推荐具体的下一步。
 
-每次代码编辑，qq 都会通过引擎专属的 hook 自动编译（Unity 和 S&box 的 `.cs`、Godot 的 `.gd`、Unreal 的 C++）。它运行测试流水线，在深度模型审阅之前执行确定性策略检查，并编排跨模型代码审阅——Claude 协调、Codex 独立审阅——每条发现都由子 agent 验证后才修改代码。编辑器控制内置：Unity 的 tykit、Godot/Unreal/S&box 的编辑器桥接。
+每次代码编辑，qq 都会通过引擎专属的 hook 自动编译（Unity 和 S&box 的 `.cs`、Godot 的 `.gd`、Unreal 的 C++）。它运行测试流水线，在深度模型审阅之前执行确定性策略检查，并编排结构化代码审阅——跨模型模式下 Codex 审阅、Claude 子 agent 验证，单模型模式下 Claude 审阅、独立 Claude 子 agent 验证——每条发现都经过对照源码验证后才修改代码。编辑器控制内置：Unity 的 tykit、Godot/Unreal/S&box 的编辑器桥接。
 
 qq 提供 23 个 slash 命令，覆盖从设计到发布的完整工作流：`/qq:design` → `/qq:plan` → `/qq:execute` → `/qq:test` → `/qq:codex-code-review` → `/qq:commit-push`。方法论基于 [AI 编程实践：独立开发者的文档驱动方法](https://tyksworks.com/posts/ai-coding-workflow-zh/)。
 
@@ -17,7 +17,7 @@ qq 提供 23 个 slash 命令，覆盖从设计到发布的完整工作流：`/q
 - **`/qq:go` — 生命周期感知路由** — 读取项目状态、`work_mode` 和运行历史，为当前阶段推荐正确的下一步
 - **自动编译** — hook 驱动，每次代码编辑自动触发；支持 `.cs`（Unity/S&box）、`.gd`（Godot）和 C++（Unreal）
 - **测试流水线** — Unity 的 EditMode + PlayMode、Godot 的 GUT/GdUnit4、Unreal 的 Automation、S&box 的运行时测试，全部结构化通过/失败报告
-- **跨模型审阅** — Claude 编排，Codex 独立审阅 diff，子 agent 逐条验证后才应用修复
+- **结构化代码审阅** — 跨模型（Codex 审阅，Claude 验证）或单模型（Claude 审阅，独立 Claude 子 agent 验证）；每条发现都经过对照源码验证后才应用修复
 - **编辑器控制** — tykit（Unity 进程内 HTTP 服务器），加上 Godot、Unreal、S&box 的 Python 桥接；零手动配置
 - **工作模式** — `prototype`、`feature`、`fix`、`hardening` — 每种模式施加适当的流程强度，原型保持轻量，发版获得完整验证
 - **运行时数据** — `.qq/` 中的结构化状态提供跨会话的循环连续性，并为控制器提供数据
@@ -167,7 +167,7 @@ Edit .cs/.gd file
 
 **Hooks** 在工具使用时自动触发——代码编辑后编译、追踪 skill 修改、审阅验证期间阻止编辑。**`/qq:go`** 是控制器：读取项目状态（`work_mode`、`policy_profile`、最近的编译/测试结果）并路由到正确的 skill。**引擎桥接**提供经过验证的进程内执行，而非盲目文件写入。**运行时数据**在 `.qq/` 中为每一层提供共享的结构化项目健康视图。
 
-对于跨模型审阅，Codex Tribunal 对你的 diff 运行 Codex CLI，然后 Claude 子 agent 验证每条发现并检查是否过度设计——最多 5 轮直到通过。
+代码审阅提供两种对称模式：Codex 审阅（`code-review.sh` → `codex exec`）和 Claude 审阅（`claude-review.sh` → `claude -p`）。两者都产出发现，然后独立的验证子 agent 对照实际源码逐条检查并标记过度设计——最多 5 轮直到通过。审阅门在所有验证完成前阻止编辑（三字段格式：`<ts>:<completed>:<expected>`）。跨模型审阅（Codex + Claude）能捕获单模型审阅无法发现的盲区。MCP 为非 Claude 宿主提供一次性 `qq_code_review` 和 `qq_plan_review` 工具。
 
 参见[架构总览](../dev/architecture/overview.md)获取架构图和层级详情，[Hook 系统](hooks.md)了解自动编译和审阅门控内部机制，[跨模型审阅](cross-model-review.md)了解 Codex Tribunal 流程，[并行 Worktree](worktrees.md) 了解并行任务隔离。
 

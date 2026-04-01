@@ -60,11 +60,11 @@ UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity 
 
 ### Code Review
 
-Two review modes, same verification loop:
-- **Cross-model** (`/qq:codex-code-review`): Codex CLI reviews the diff, then verification subagents check each finding against actual source
-- **Single-model** (`/qq:claude-code-review`): A Claude subagent reviews the diff, then separate verification subagents check each finding
+Two symmetric review modes, same verification loop:
+- **Claude review** (`/qq:claude-code-review`): `claude-review.sh` → `claude -p` (process-isolated), then verification subagents check each finding
+- **Codex review** (`/qq:codex-code-review`): `code-review.sh` → `codex exec` (cross-model), then verification subagents check each finding
 
-Both modes: over-engineering check, fix confirmed issues, loop until clean (max 5 rounds). The review gate (`scripts/hooks/review-gate-*.sh`) blocks code edits until at least one verification subagent completes.
+Both modes: over-engineering check, fix confirmed issues, loop until clean (max 5 rounds). The review gate (`scripts/hooks/review-gate-*.sh`) blocks code edits until ALL verification subagents complete (three-field gate format: `<ts>:<completed>:<expected>`). MCP exposes one-shot `qq_code_review` and `qq_plan_review` tools for non-Claude hosts.
 
 ## Development Commands
 

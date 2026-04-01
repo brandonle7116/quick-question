@@ -17,7 +17,7 @@ qq는 설계부터 배포까지 전체 워크플로우를 커버하는 23개의 
 - **`/qq:go` — 라이프사이클 인식 라우팅** — 프로젝트 상태, `work_mode`, 실행 이력을 읽고 현재 단계에 맞는 다음 단계를 추천
 - **자동 컴파일** — 코드 편집마다 훅 기반 컴파일이 실행됨; `.cs`(Unity/S&box), `.gd`(Godot), C++(Unreal) 지원
 - **테스트 파이프라인** — Unity의 EditMode + PlayMode, Godot의 GUT/GdUnit4, Unreal의 Automation, S&box의 런타임 테스트, 구조화된 통과/실패 리포팅
-- **크로스 모델 리뷰** — Claude가 조율하고, Codex가 diff를 독립적으로 리뷰하며, 서브에이전트가 수정 적용 전에 각 발견 사항을 소스 대조 검증
+- **구조화된 코드 리뷰** — 크로스 모델(Codex 리뷰, Claude 검증) 또는 Claude 리뷰(`claude -p`로 프로세스 격리, 별도 서브에이전트가 검증); 어느 경우든 수정 적용 전에 소스 대조로 각 발견 사항을 검증
 - **에디터 제어** — tykit(Unity용 인프로세스 HTTP 서버) + Godot/Unreal/S&box용 Python 브리지; 수동 설정 불필요
 - **작업 모드** — `prototype`, `feature`, `fix`, `hardening` — 각각 적절한 프로세스 강도를 적용하여 프로토타입은 가볍게, 릴리스는 완전한 검증으로
 - **런타임 데이터** — `.qq/`의 구조화된 상태가 세션 간 루프 연속성을 제공하고 컨트롤러에 데이터를 공급
@@ -167,7 +167,7 @@ Edit .cs/.gd file
 
 **훅**은 도구 사용 시 자동으로 실행된다 — 코드 편집 후 컴파일, 스킬 수정 추적, 리뷰 검증 중 편집 차단. **`/qq:go`**는 컨트롤러다: `.qq/state/`에서 프로젝트 상태(`work_mode`, `policy_profile`, 최근 컴파일/테스트 결과)를 읽고 적절한 스킬로 라우팅한다. **엔진 브리지**는 맹목적인 파일 쓰기 대신 검증된 인프로세스 실행을 제공한다. **런타임 데이터** `.qq/`는 모든 레이어에 프로젝트 건강 상태에 대한 공유된 구조화된 뷰를 제공한다.
 
-크로스 모델 리뷰의 경우, Codex Tribunal이 diff에 대해 Codex CLI를 실행한 뒤 Claude 서브에이전트가 각 발견 사항을 검증하고 오버엔지니어링 여부를 확인한다 — 클린할 때까지 최대 5라운드.
+코드 리뷰는 두 가지 대칭 모드를 제공한다: Codex 리뷰(`code-review.sh` → `codex exec`)와 Claude 리뷰(`claude-review.sh` → `claude -p`). 두 모드 모두 별도의 검증 서브에이전트가 각 발견 사항을 소스와 대조하고 오버엔지니어링 여부를 확인한다 — 클린할 때까지 최대 5라운드.
 
 다이어그램과 레이어 상세는 [Architecture Overview](../dev/architecture/overview.md), 자동 컴파일과 리뷰 게이트 내부 구조는 [Hook System](../en/hooks.md), Codex Tribunal 흐름은 [Cross-Model Review](../en/cross-model-review.md), 병렬 작업 격리는 [Worktrees](../en/worktrees.md) 참조.
 
@@ -197,7 +197,7 @@ tykit은 qq 없이도 단독으로 동작한다 — [UPM 패키지](../../packag
 네, 미리보기 상태입니다. [Git for Windows](https://gitforwindows.org/)가 필요합니다(bash, curl 및 핵심 유틸리티 제공).
 
 **Codex CLI가 필요한가요?**
-아닙니다. Codex CLI는 크로스 모델 리뷰(`/qq:codex-code-review`)를 활성화하지만, Claude 단독 리뷰 `/qq:claude-code-review`는 없이도 동작합니다.
+아닙니다. Codex CLI는 크로스 모델 리뷰(`/qq:codex-code-review`)를 활성화하지만, Claude 리뷰 `/qq:claude-code-review`는 Codex 없이도 동작합니다. Claude 리뷰에는 Claude CLI가 필요합니다.
 
 **Cursor/Copilot과 함께 사용할 수 있나요?**
 `/qq:*` 스킬은 Claude Code가 필요합니다. tykit은 HTTP를 통해 어떤 도구와도 단독으로 동작하며, MCP 브리지(`tykit_mcp.py`)가 다른 에이전트에 노출합니다.
