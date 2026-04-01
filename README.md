@@ -17,22 +17,30 @@
 </p>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/unity-light.svg">
-    <img src="docs/images/unity-dark.svg" width="40" alt="Unity">
-  </picture>
-  &nbsp;&nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/godot-light.svg">
-    <img src="docs/images/godot-dark.svg" width="40" alt="Godot">
-  </picture>
-  &nbsp;&nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/unreal-light.svg">
-    <img src="docs/images/unreal-dark.svg" width="40" alt="Unreal">
-  </picture>
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/images/sbox.svg" width="40" alt="S&amp;box">
+  <a href="https://unity.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/unity-light.svg">
+      <img src="docs/images/unity-dark.svg" width="56" alt="Unity">
+    </picture>
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://godotengine.org">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/godot-light.svg">
+      <img src="docs/images/godot-dark.svg" width="56" alt="Godot">
+    </picture>
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://www.unrealengine.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/unreal-light.svg">
+      <img src="docs/images/unreal-dark.svg" width="56" alt="Unreal">
+    </picture>
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/Facepunch/sbox-public">
+    <img src="docs/images/sbox.svg" width="56" alt="S&amp;box">
+  </a>
 </p>
 
 <p align="center">
