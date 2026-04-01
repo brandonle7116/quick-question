@@ -17,10 +17,25 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Unity-2021.3+-000000?logo=unity&logoColor=white" alt="Unity">
-  <img src="https://img.shields.io/badge/Godot-4.x-478CBF?logo=godotengine&logoColor=white" alt="Godot">
-  <img src="https://img.shields.io/badge/Unreal-5.x-0E1128?logo=unrealengine&logoColor=white" alt="Unreal">
-  <img src="https://img.shields.io/badge/S%26box-latest-E4A032" alt="S&box">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/unity-light.svg">
+    <img src="docs/images/unity-dark.svg" width="40" alt="Unity">
+  </picture>
+  &nbsp;&nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/godot-light.svg">
+    <img src="docs/images/godot-dark.svg" width="40" alt="Godot">
+  </picture>
+  &nbsp;&nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/unreal-light.svg">
+    <img src="docs/images/unreal-dark.svg" width="40" alt="Unreal">
+  </picture>
+  &nbsp;&nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sbox-light.svg">
+    <img src="docs/images/sbox-dark.svg" width="40" alt="S&amp;box">
+  </picture>
 </p>
 
 <p align="center">
