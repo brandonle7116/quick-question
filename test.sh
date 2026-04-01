@@ -3882,6 +3882,64 @@ else
   fail "pre-push hook adapts test scope from policy profile"
 fi
 
+# ── review script symmetry ──
+echo -e "${CYAN}[review] script symmetry${NC}"
+
+# code-review.sh accepts --files
+if grep -q '\-\-files)' "$SCRIPT_DIR/scripts/code-review.sh"; then
+  pass "code-review.sh accepts --files"
+else
+  fail "code-review.sh missing --files"
+fi
+
+# severity label consistency
+if grep -q '\[Moderate\]' "$SCRIPT_DIR/scripts/code-review.sh" && ! grep -q '\[Medium\]' "$SCRIPT_DIR/scripts/code-review.sh"; then
+  pass "code-review.sh uses [Moderate] not [Medium]"
+else
+  fail "code-review.sh still uses [Medium]"
+fi
+
+if grep -q '\[Moderate\]' "$SCRIPT_DIR/scripts/plan-review.sh" && ! grep -q '\[Medium\]' "$SCRIPT_DIR/scripts/plan-review.sh"; then
+  pass "plan-review.sh uses [Moderate] not [Medium]"
+else
+  fail "plan-review.sh still uses [Medium]"
+fi
+
+# claude-review.sh exists and uses claude -p
+if [[ -x "$SCRIPT_DIR/scripts/claude-review.sh" ]]; then
+  pass "claude-review.sh exists and is executable"
+else
+  fail "claude-review.sh missing or not executable"
+fi
+
+if grep -q 'claude -p' "$SCRIPT_DIR/scripts/claude-review.sh"; then
+  pass "claude-review.sh calls claude -p"
+else
+  fail "claude-review.sh does not call claude -p"
+fi
+
+if grep -q '\-\-files)' "$SCRIPT_DIR/scripts/claude-review.sh" && grep -q '\-\-base)' "$SCRIPT_DIR/scripts/claude-review.sh"; then
+  pass "claude-review.sh accepts --files and --base"
+else
+  fail "claude-review.sh missing expected args"
+fi
+
+# claude-plan-review.sh exists and uses claude -p
+if [[ -x "$SCRIPT_DIR/scripts/claude-plan-review.sh" ]] && grep -q 'claude -p' "$SCRIPT_DIR/scripts/claude-plan-review.sh"; then
+  pass "claude-plan-review.sh exists and calls claude -p"
+else
+  fail "claude-plan-review.sh missing or wrong CLI"
+fi
+
+# gate-set regex matches all 4 review scripts
+for script_name in code-review plan-review claude-review claude-plan-review; do
+  if grep -qE 'claude-review|claude-plan-review' "$SCRIPT_DIR/scripts/hooks/review-gate-set.sh"; then
+    pass "gate-set detects ${script_name}.sh"
+  else
+    fail "gate-set misses ${script_name}.sh"
+  fi
+done
+
 # ── Summary ──
 echo ""
 TOTAL=$((PASS + FAIL))

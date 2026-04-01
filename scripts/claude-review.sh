@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
-# code-review.sh — Send code changes to Codex CLI for review
+# claude-review.sh — Send code changes to Claude CLI for review
 #
 # Usage:
-#   ./scripts/code-review.sh                           # Default: main...HEAD
-#   ./scripts/code-review.sh --base main               # Custom base branch
-#   ./scripts/code-review.sh --commits                 # Last commit only
-#   ./scripts/code-review.sh --ext "*.py"              # Filter by extension
-#   ./scripts/code-review.sh --prompt "custom prompt"  # Custom prompt
+#   ./scripts/claude-review.sh                           # Default: main...HEAD
+#   ./scripts/claude-review.sh --base main               # Custom base branch
+#   ./scripts/claude-review.sh --commits                 # Last commit only
+#   ./scripts/claude-review.sh --ext "*.py"              # Filter by extension
+#   ./scripts/claude-review.sh --prompt "custom prompt"  # Custom prompt
+#   ./scripts/claude-review.sh --files "a.cs b.cs"       # Specific files
 #
 # Output:
-#   Review saved to Docs/<branch>/codex-code-review_<timestamp>.md
+#   Review saved to Docs/<branch>/claude-code-review_<timestamp>.md
 #   Also printed to stdout
 
 set -euo pipefail
 
 source "$(dirname "$0")/platform/detect.sh"
 
-if ! command -v codex &>/dev/null; then
-  echo "Error: codex CLI not found. Install with: npm install -g @openai/codex" >&2
+if ! command -v claude &>/dev/null; then
+  echo "Error: claude CLI not found. Install Claude Code CLI first." >&2
   exit 1
 fi
 
@@ -86,9 +87,9 @@ BRANCH=$(git branch --show-current | tr '/' '_')
 TIMESTAMP=$(date +"%Y-%m-%d-%H%M")
 OUT_DIR="Docs/${BRANCH}"
 mkdir -p "$OUT_DIR"
-REVIEW_FILE="${OUT_DIR}/codex-code-review_${TIMESTAMP}.md"
+REVIEW_FILE="${OUT_DIR}/claude-code-review_${TIMESTAMP}.md"
 
-# Write diff to temp file so Codex reads it from disk (avoids ARG_MAX)
+# Write diff to temp file so Claude reads it from disk (avoids ARG_MAX)
 DIFF_FILE=$(mktemp "$QQ_TEMP_DIR/code-review-diff-XXXXXXXX")
 printf '%s' "$DIFF" > "$DIFF_FILE"
 
@@ -111,7 +112,7 @@ For anything you're unsure about, mark it [Uncertain] — do NOT guess.
 Be concise. Only output review findings."
 fi
 
-# Tell Codex to read files from disk instead of inlining content
+# Tell Claude to read files from disk instead of inlining content
 FULL_PROMPT="${REVIEW_PROMPT}
 
 ---
@@ -157,10 +158,10 @@ Code Quality:
 
 Read ${DIFF_FILE} for the full diff."
 
-echo ">>> Sending code changes (${DIFF_DESC}) to Codex for review..." >&2
+echo ">>> Sending code changes (${DIFF_DESC}) to Claude for review..." >&2
 echo ">>> Diff written to ${DIFF_FILE} ($(wc -l < "$DIFF_FILE") lines)" >&2
 
-codex exec --sandbox read-only "$FULL_PROMPT" | tee "$REVIEW_FILE"
+claude -p "$FULL_PROMPT" | tee "$REVIEW_FILE"
 
 rm -f "$DIFF_FILE"
 

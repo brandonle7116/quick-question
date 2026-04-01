@@ -11,7 +11,7 @@ fi
 
 cmd=$(jq -r '.tool_input.command // ""')
 
-if echo "$cmd" | grep -qE '\./scripts/(code-review|plan-review)\.sh'; then
+if echo "$cmd" | grep -qE '\./scripts/(code-review|plan-review|claude-review|claude-plan-review)\.sh'; then
   echo "$(date +%s):0:0" > "$QQ_TEMP_DIR/review-gate-$PPID"
   run_json=$(qq_run_record_start "review_gate" "review-gate-set" "local" "hook" "Review gate activated")
   run_id=$(printf '%s' "$run_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')

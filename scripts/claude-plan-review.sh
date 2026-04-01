@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# plan-review.sh — Send a design document to Codex CLI for review
+# claude-plan-review.sh — Send a design document to Claude CLI for review
 #
 # Usage:
-#   ./scripts/plan-review.sh <document>                    # Default review
-#   ./scripts/plan-review.sh <document> "custom prompt"    # Custom prompt
+#   ./scripts/claude-plan-review.sh <document>                    # Default review
+#   ./scripts/claude-plan-review.sh <document> "custom prompt"    # Custom prompt
 #
 # Output:
-#   Review saved to <document_name>_review.md (same directory)
+#   Review saved to <document_name>_claude_review.md (same directory)
 #   Also printed to stdout
 
 set -euo pipefail
@@ -19,15 +19,15 @@ if [[ ! -f "$DOC_FILE" ]]; then
   exit 1
 fi
 
-if ! command -v codex &>/dev/null; then
-  echo "Error: codex CLI not found. Install with: npm install -g @openai/codex" >&2
+if ! command -v claude &>/dev/null; then
+  echo "Error: claude CLI not found. Install Claude Code CLI first." >&2
   exit 1
 fi
 
-# Output file: foo.md -> foo_review.md
+# Output file: foo.md -> foo_claude_review.md
 DIR=$(dirname "$DOC_FILE")
 BASE=$(basename "$DOC_FILE" .md)
-REVIEW_FILE="${DIR}/${BASE}_review.md"
+REVIEW_FILE="${DIR}/${BASE}_claude_review.md"
 
 # Resolve absolute path for the document
 DOC_ABS_PATH="$(cd "$DIR" && pwd)/$( basename "$DOC_FILE")"
@@ -53,7 +53,7 @@ For anything you're unsure about, mark it [Uncertain] — do NOT guess.
 Be concise. Only output review findings, nothing else."
 fi
 
-# Tell Codex to read files from disk instead of inlining content
+# Tell Claude to read files from disk instead of inlining content
 FULL_PROMPT="${REVIEW_PROMPT}
 
 ---
@@ -68,9 +68,9 @@ Read the CLAUDE.md file at the project root for coding standards.
 
 Read ${DOC_ABS_PATH} for the full document content."
 
-echo ">>> Sending ${DOC_FILE} to Codex for review..." >&2
+echo ">>> Sending ${DOC_FILE} to Claude for review..." >&2
 
-codex exec --sandbox read-only "$FULL_PROMPT" | tee "$REVIEW_FILE"
+claude -p "$FULL_PROMPT" | tee "$REVIEW_FILE"
 
 echo "" >&2
 echo ">>> Review saved to: ${REVIEW_FILE}" >&2
