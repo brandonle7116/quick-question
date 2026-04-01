@@ -10,10 +10,12 @@ case "$(uname -s)" in
   *)                    QQ_PLATFORM="unknown"  ;;
 esac
 
-if [[ "$QQ_PLATFORM" == "windows" ]]; then
-  QQ_TEMP_DIR="${TEMP:-/tmp}"
-else
-  QQ_TEMP_DIR="/tmp"
+if [[ -z "${QQ_TEMP_DIR:-}" ]]; then
+  if [[ "$QQ_PLATFORM" == "windows" ]]; then
+    QQ_TEMP_DIR="${TEMP:-/tmp}"
+  else
+    QQ_TEMP_DIR="/tmp"
+  fi
 fi
 
 export QQ_PLATFORM QQ_TEMP_DIR
