@@ -16,6 +16,7 @@ Arguments: $ARGUMENTS (path to a design document, or empty to use the most recen
    - Read the design document
    - **Independently** explore the codebase (Services, configs, existing design docs) to verify claims — do not rely solely on what the document says exists
    - Output the review in the format specified in the reviewer prompt
-3. **Present the review** to the user.
-4. **If verdict is HAS GAPS or NEEDS REWORK:** revise the document together with the user. Re-run the subagent review after revisions. Loop until SOLID or the user explicitly accepts the gaps.
-5. **If verdict is SOLID:** confirm and recommend `/qq:plan`.
+3. **Verify the findings:** as the main agent, independently spot-check the subagent's claims against the codebase. The subagent may misread code or reference stale information. For each finding, confirm or reject it with your own evidence before presenting to the user.
+4. **Present the verified review** to the user — only include findings you confirmed. Note any subagent findings you rejected and why.
+5. **If verdict is HAS GAPS or NEEDS REWORK:** revise the document together with the user. Re-run the subagent review after revisions. Loop until SOLID or the user explicitly accepts the gaps.
+6. **If verdict is SOLID:** confirm and recommend `/qq:plan`.
