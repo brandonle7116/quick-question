@@ -2,6 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Python compatibility
+: "${QQ_PY:=python3}"
+command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_TAG="${QQ_DEV_IMAGE_TAG:-quick-question-dev}"
 
@@ -31,7 +35,7 @@ require_cmd() {
 git_dir_abs() {
   local git_dir
   git_dir="$(git -C "$REPO_ROOT" rev-parse --git-dir)"
-  python3 - "$REPO_ROOT" "$git_dir" <<'PY'
+  $QQ_PY - "$REPO_ROOT" "$git_dir" <<'PY'
 import sys
 from pathlib import Path
 
@@ -46,7 +50,7 @@ PY
 mount_root_abs() {
   local git_dir
   git_dir="$(git_dir_abs)"
-  python3 - "$REPO_ROOT" "$git_dir" <<'PY'
+  $QQ_PY - "$REPO_ROOT" "$git_dir" <<'PY'
 import os
 import sys
 
@@ -60,7 +64,7 @@ print_json() {
   local git_dir mount_root
   git_dir="$(git_dir_abs)"
   mount_root="$(mount_root_abs)"
-  python3 - "$REPO_ROOT" "$git_dir" "$mount_root" "$IMAGE_TAG" <<'PY'
+  $QQ_PY - "$REPO_ROOT" "$git_dir" "$mount_root" "$IMAGE_TAG" <<'PY'
 import json
 import sys
 

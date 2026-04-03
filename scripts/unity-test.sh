@@ -30,6 +30,10 @@ TRIGGER_FILE=""
 source "$(dirname "$0")/unity-common.sh"
 source "$(dirname "$0")/qq-runtime.sh"
 
+# Python 兼容（Windows Git Bash 上 python3 不可用）
+QQ_PY="python3"
+python3 --version >/dev/null 2>&1 || QQ_PY="python"
+
 # 兼容别名
 is_editor_open() { is_editor_open_for_project; }
 
@@ -123,16 +127,16 @@ trigger_editor_tests() {
         check=$(curl -s --connect-timeout 5 --max-time 10 -X POST "http://localhost:$port/" \
             -d '{"command":"get-test-result"}' -H 'Content-Type: application/json' 2>/dev/null) || true
         local check_state
-        check_state=$(echo "$check" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('state',''))" 2>/dev/null) || true
+        check_state=$(echo "$check" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('state',''))" 2>/dev/null) || true
         if [ "$check_state" = "running" ]; then
-            run_id=$(echo "$check" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('runId',''))" 2>/dev/null) || true
+            run_id=$(echo "$check" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('runId',''))" 2>/dev/null) || true
             break
         fi
 
         local response
         response=$(curl -s --connect-timeout 5 --max-time 15 -X POST "http://localhost:$port/" \
             -d "{\"command\":\"run-tests\",\"args\":$args_json}" -H 'Content-Type: application/json' 2>/dev/null) || { sleep 2; continue; }
-        run_id=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['runId'])" 2>/dev/null) || { sleep 2; continue; }
+        run_id=$(echo "$response" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin)['data']['runId'])" 2>/dev/null) || { sleep 2; continue; }
         break
     done
 
@@ -158,15 +162,15 @@ trigger_editor_tests() {
             -H 'Content-Type: application/json' 2>/dev/null) || { printf "\r${CYAN}Running tests...${NC} %ds " $elapsed; sleep 1; continue; }
 
         local state total passed failed skipped duration
-        state=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('state',''))" 2>/dev/null) || { sleep 1; continue; }
+        state=$(echo "$result" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('state',''))" 2>/dev/null) || { sleep 1; continue; }
 
         case "$state" in
             passed|failed)
-                total=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['total'])" 2>/dev/null)
-                passed=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['passed'])" 2>/dev/null)
-                failed=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['failed'])" 2>/dev/null)
-                skipped=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['skipped'])" 2>/dev/null)
-                duration=$(echo "$result" | python3 -c "import sys,json; print(f'{json.load(sys.stdin)[\"data\"][\"duration\"]:.6f}')" 2>/dev/null)
+                total=$(echo "$result" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin)['data']['total'])" 2>/dev/null)
+                passed=$(echo "$result" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin)['data']['passed'])" 2>/dev/null)
+                failed=$(echo "$result" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin)['data']['failed'])" 2>/dev/null)
+                skipped=$(echo "$result" | $QQ_PY -c "import sys,json; print(json.load(sys.stdin)['data']['skipped'])" 2>/dev/null)
+                duration=$(echo "$result" | $QQ_PY -c "import sys,json; print(f'{json.load(sys.stdin)[\"data\"][\"duration\"]:.6f}')" 2>/dev/null)
 
                 echo ""
                 if [ "$state" = "passed" ]; then
@@ -174,7 +178,7 @@ trigger_editor_tests() {
                 else
                     echo -e "${RED}❌ Tests failed${NC}"
                     # 输出失败详情
-                    echo "$result" | python3 -c "
+                    echo "$result" | $QQ_PY -c "
 import sys,json
 data = json.load(sys.stdin)['data']
 for f in data.get('failures', []):
@@ -208,7 +212,7 @@ ensure_editor_edit_mode() {
         -d '{"command":"status"}' -H 'Content-Type: application/json' 2>/dev/null) || return 0
 
     local state
-    state=$(echo "$status" | python3 -c '
+    state=$(echo "$status" | $QQ_PY -c '
 import json, sys
 data = json.load(sys.stdin).get("data", {})
 print("busy" if data.get("isPlaying") or data.get("isPaused") else "ready")
@@ -235,7 +239,7 @@ print("busy" if data.get("isPlaying") or data.get("isPaused") else "ready")
 
         status=$(curl -s --connect-timeout 5 --max-time 10 -X POST "http://localhost:$port/" \
             -d '{"command":"status"}' -H 'Content-Type: application/json' 2>/dev/null) || { sleep 1; continue; }
-        state=$(echo "$status" | python3 -c '
+        state=$(echo "$status" | $QQ_PY -c '
 import json, sys
 data = json.load(sys.stdin).get("data", {})
 print("busy" if data.get("isPlaying") or data.get("isPaused") else "ready")
@@ -310,11 +314,21 @@ run_batch_tests() {
     echo -e "${BOLD}Running ${platform} tests (Batch mode)${NC}"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
+    # Windows Unity.exe needs Windows-style paths
+    local proj_path="$PROJECT_DIR"
+    local res_path="$results_file"
+    local log_path="$log_file"
+    if [[ "$QQ_PLATFORM" == "windows" ]]; then
+        proj_path=$(cygpath -w "$PROJECT_DIR")
+        res_path=$(cygpath -w "$results_file")
+        log_path=$(cygpath -w "$log_file")
+    fi
+
     local cmd=(
         "$UNITY_BIN" -batchmode -nographics
-        -projectPath "$PROJECT_DIR"
+        -projectPath "$proj_path"
         -runTests -testPlatform "$platform"
-        -testResults "$results_file" -logFile "$log_file"
+        -testResults "$res_path" -logFile "$log_path"
     )
 
     [ -n "$filter" ] && cmd+=(-testFilter "$filter") && echo -e "${CYAN}Filter:${NC}   $filter"
@@ -378,14 +392,14 @@ ensure_managed_worktree_runtime_cache_seed() {
 
     echo -e "${CYAN}Managed worktree has no Unity runtime cache; seeding from source worktree...${NC}"
     local payload
-    if ! payload=$(python3 "$helper" seed-runtime-cache --project "$PROJECT_DIR" 2>&1); then
+    if ! payload=$($QQ_PY "$helper" seed-runtime-cache --project "$PROJECT_DIR" 2>&1); then
         echo -e "${YELLOW}⚠️ Runtime cache seed failed; falling back to cold batch mode${NC}"
         echo "$payload"
         return 0
     fi
 
     local summary
-    summary=$(QQ_WORKTREE_SEED_PAYLOAD="$payload" python3 - <<'PY'
+    summary=$(QQ_WORKTREE_SEED_PAYLOAD="$payload" $QQ_PY - <<'PY'
 import json
 import os
 import sys
@@ -490,14 +504,14 @@ SKIPPED_COUNT=0
 DURATION_TOTAL=0
 
 RUN_JSON=$(qq_run_record_start "test" "unity-test" "pending" "script" "test run started")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
 
 accumulate_last_summary() {
     TOTAL_COUNT=$((TOTAL_COUNT + QQ_LAST_TOTAL))
     PASSED_COUNT=$((PASSED_COUNT + QQ_LAST_PASSED))
     FAILED_COUNT=$((FAILED_COUNT + QQ_LAST_FAILED))
     SKIPPED_COUNT=$((SKIPPED_COUNT + QQ_LAST_SKIPPED))
-    DURATION_TOTAL=$(python3 - <<PY
+    DURATION_TOTAL=$($QQ_PY - <<PY
 total = float("${DURATION_TOTAL}")
 last = float("${QQ_LAST_DURATION}")
 print(f"{total + last:.6f}")

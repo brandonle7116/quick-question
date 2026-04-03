@@ -18,7 +18,16 @@ if [[ -z "${QQ_TEMP_DIR:-}" ]]; then
   fi
 fi
 
-export QQ_PLATFORM QQ_TEMP_DIR
+# Python command: python3 on macOS/Linux, python on Windows (Git Bash)
+# Note: Windows Store has a python3 alias that exists but doesn't work,
+# so we verify with --version, not just command -v.
+if python3 --version >/dev/null 2>&1; then
+  QQ_PY="python3"
+else
+  QQ_PY="python"
+fi
+
+export QQ_PLATFORM QQ_TEMP_DIR QQ_PY
 
 _QQ_PLATFORM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$_QQ_PLATFORM_DIR/${QQ_PLATFORM}.sh" ]]; then

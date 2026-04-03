@@ -22,7 +22,7 @@ If `--worktree` is present, treat this run as the start of an isolated feature s
 4. Create the linked worktree:
 
 ```bash
-python3 ./scripts/qq-worktree.py create --name "<slug>" --pretty
+"${QQ_PY:-python3}" ./scripts/qq-worktree.py create --name "<slug>" --pretty
 ```
 
 Interpret the result like this:

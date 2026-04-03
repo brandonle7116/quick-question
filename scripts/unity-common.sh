@@ -35,6 +35,8 @@ find_unity_eval() {
 get_tykit_port() {
     local json_file="$PROJECT_DIR/Temp/tykit.json"
     if [ -f "$json_file" ]; then
-        python3 -c "import json; print(json.load(open('$json_file'))['port'])" 2>/dev/null
+        local py_cmd="python3"
+        python3 --version >/dev/null 2>&1 || py_cmd="python"
+        $py_cmd -c "import json; print(json.load(open('$json_file'))['port'])" 2>/dev/null
     fi
 }

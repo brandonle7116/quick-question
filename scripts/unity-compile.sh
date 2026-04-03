@@ -62,11 +62,19 @@ START_TIME=$(date +%s)
 # -logFile: 日志文件
 # -quit: 完成后退出
 # -buildTarget: 保持当前平台（不触发平台切换）
+# Windows Unity.exe needs Windows-style paths
+PROJ_PATH="$PROJECT_DIR"
+LOG_PATH="$LOG_FILE"
+if [[ "$QQ_PLATFORM" == "windows" ]]; then
+    PROJ_PATH=$(cygpath -w "$PROJECT_DIR")
+    LOG_PATH=$(cygpath -w "$LOG_FILE")
+fi
+
 "$UNITY_BIN" \
     -batchmode \
     -nographics \
-    -projectPath "$PROJECT_DIR" \
-    -logFile "$LOG_FILE" \
+    -projectPath "$PROJ_PATH" \
+    -logFile "$LOG_PATH" \
     -quit \
     2>&1 || true
 

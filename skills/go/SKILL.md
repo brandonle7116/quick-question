@@ -47,7 +47,7 @@ Assess the current situation in this order:
 If `./scripts/qq-project-state.py` exists, run it first:
 
 ```bash
-python3 ./scripts/qq-project-state.py --pretty
+"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
 ```
 
 Use that structured state as the primary routing signal.

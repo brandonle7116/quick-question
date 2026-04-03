@@ -19,7 +19,7 @@ Arguments: $ARGUMENTS
 If `./scripts/qq-project-state.py` exists, read it before choosing scope:
 
 ```bash
-python3 ./scripts/qq-project-state.py --pretty
+"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
 ```
 
 Use it for:

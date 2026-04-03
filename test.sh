@@ -4,6 +4,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Python compatibility (Windows Git Bash has python, not python3)
+# Note: Windows Store has a python3 alias that exists but doesn't work,
+# so we verify with --version, not just command -v.
+QQ_PY="python3"
+python3 --version >/dev/null 2>&1 || QQ_PY="python"
+
 PASS=0
 FAIL=0
 RED='\033[0;31m'
@@ -38,7 +45,7 @@ fi
 echo -e "${CYAN}[2/10] Python compilation${NC}"
 PY_FILES=$(find "$SCRIPT_DIR/scripts" -name "*.py" -not -type l)
 for py_file in $PY_FILES; do
-  if python3 -m py_compile "$py_file" >/dev/null 2>&1; then
+  if $QQ_PY -m py_compile "$py_file" >/dev/null 2>&1; then
     pass "$(basename "$py_file")"
   else
     fail "$(basename "$py_file")"
@@ -49,7 +56,7 @@ done
 echo -e "${CYAN}[3/10] JSON validity${NC}"
 for json_file in scripts/qq-capabilities.json scripts/tykit_capabilities.json scripts/godot_capabilities.json scripts/unreal_capabilities.json scripts/sbox_capabilities.json hooks/hooks.json .claude-plugin/plugin.json .claude-plugin/marketplace.json docs/evals/foundation-smoke.json docs/evals/unity-local.json docs/evals/collaboration-multi-actor.json docs/evals/qq-bench-foundation.json docs/evals/qq-bench-core-v0.json docs/evals/qq-bench-core-v1.json docs/evals/qq-bench-core-solver-v0.json .devcontainer/devcontainer.json; do
   if [ -f "$SCRIPT_DIR/$json_file" ]; then
-    if python3 -m json.tool "$SCRIPT_DIR/$json_file" >/dev/null 2>&1; then
+    if $QQ_PY -m json.tool "$SCRIPT_DIR/$json_file" >/dev/null 2>&1; then
       pass "$json_file"
     else
       fail "$json_file — invalid JSON"
@@ -177,7 +184,7 @@ for f in "$SCRIPT_DIR"/scripts/*.sh "$SCRIPT_DIR"/scripts/*.py "$SCRIPT_DIR"/scr
 done
 
 DOCKER_DEV_META=$("$SCRIPT_DIR/scripts/docker-dev.sh" print-json)
-if printf '%s' "$DOCKER_DEV_META" | python3 -c '
+if printf '%s' "$DOCKER_DEV_META" | $QQ_PY -c '
 import json
 import os
 import sys
@@ -223,11 +230,11 @@ public class Sample : MonoBehaviour
 }
 EOF
 
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$RUNTIME_TEST_ROOT" --stage compile --command smoke --backend test --transport local --summary "smoke start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$RUNTIME_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "smoke finish" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$RUNTIME_TEST_ROOT" --stage compile --command smoke --backend test --transport local --summary "smoke start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$RUNTIME_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "smoke finish" >/dev/null
 
-if python3 - "$RUNTIME_TEST_ROOT" <<'PY'
+if $QQ_PY - "$RUNTIME_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -247,8 +254,8 @@ else
   fail "run record writes state + telemetry"
 fi
 
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$RUNTIME_TEST_ROOT" >/dev/null
-if python3 - "$RUNTIME_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$RUNTIME_TEST_ROOT" >/dev/null
+if $QQ_PY - "$RUNTIME_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -289,9 +296,9 @@ fi
 
 CAPSULE_BUILD_JSON="$(mktemp)"
 CAPSULE_STATUS_JSON="$(mktemp)"
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" build --project "$RUNTIME_TEST_ROOT" --trigger resume --pretty > "$CAPSULE_BUILD_JSON" && \
-   python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" status --project "$RUNTIME_TEST_ROOT" --pretty > "$CAPSULE_STATUS_JSON" && \
-   python3 - "$RUNTIME_TEST_ROOT" "$CAPSULE_BUILD_JSON" "$CAPSULE_STATUS_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" build --project "$RUNTIME_TEST_ROOT" --trigger resume --pretty > "$CAPSULE_BUILD_JSON" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" status --project "$RUNTIME_TEST_ROOT" --pretty > "$CAPSULE_STATUS_JSON" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT" "$CAPSULE_BUILD_JSON" "$CAPSULE_STATUS_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -325,8 +332,8 @@ else
   fail "context capsule builds a thin resume handoff from runtime state"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" prompt --project "$RUNTIME_TEST_ROOT" --refresh --note "Focus on the recommended next step." > "$CAPSULE_BUILD_JSON" && \
-   python3 - "$CAPSULE_BUILD_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" prompt --project "$RUNTIME_TEST_ROOT" --refresh --note "Focus on the recommended next step." > "$CAPSULE_BUILD_JSON" && \
+   $QQ_PY - "$CAPSULE_BUILD_JSON" <<'PY'
 from pathlib import Path
 import sys
 
@@ -342,8 +349,8 @@ else
   fail "context capsule can render a standard resume consumer prompt"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$RUNTIME_TEST_ROOT" --agent claude --pretty > "$CAPSULE_STATUS_JSON" && \
-   python3 - "$CAPSULE_STATUS_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$RUNTIME_TEST_ROOT" --agent claude --pretty > "$CAPSULE_STATUS_JSON" && \
+   $QQ_PY - "$CAPSULE_STATUS_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -363,8 +370,8 @@ else
   fail "context capsule exposes a host-neutral consume interface"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$RUNTIME_TEST_ROOT" --agent cursor --no-resume --pretty > "$CAPSULE_STATUS_JSON" && \
-   python3 - "$CAPSULE_STATUS_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$RUNTIME_TEST_ROOT" --agent cursor --no-resume --pretty > "$CAPSULE_STATUS_JSON" && \
+   $QQ_PY - "$CAPSULE_STATUS_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -391,9 +398,9 @@ version: 1
 default_profile: feature
 trust_level: strict
 EOF
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" build --project "$CAPSULE_STRICT_TEST_ROOT" --trigger resume >/dev/null && \
-   python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$CAPSULE_STRICT_TEST_ROOT" --agent codex --pretty > "$CAPSULE_STATUS_JSON" && \
-   python3 - "$CAPSULE_STATUS_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" build --project "$CAPSULE_STRICT_TEST_ROOT" --trigger resume >/dev/null && \
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" consume --project "$CAPSULE_STRICT_TEST_ROOT" --agent codex --pretty > "$CAPSULE_STATUS_JSON" && \
+   $QQ_PY - "$CAPSULE_STATUS_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -424,8 +431,8 @@ cat > "$CAPSULE_AUTO_TEST_ROOT/qq.yaml" <<'EOF'
 version: 1
 default_profile: feature
 EOF
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" maybe-build --project "$CAPSULE_AUTO_TEST_ROOT" --trigger pre_clear --pretty > "$CAPSULE_BUILD_JSON" && \
-   python3 - "$CAPSULE_AUTO_TEST_ROOT" "$CAPSULE_BUILD_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" maybe-build --project "$CAPSULE_AUTO_TEST_ROOT" --trigger pre_clear --pretty > "$CAPSULE_BUILD_JSON" && \
+   $QQ_PY - "$CAPSULE_AUTO_TEST_ROOT" "$CAPSULE_BUILD_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -448,8 +455,8 @@ context_capsule:
   mode: off
 EOF
 
-if python3 "$SCRIPT_DIR/scripts/qq-context-capsule.py" maybe-build --project "$CAPSULE_AUTO_TEST_ROOT" --trigger pre_clear --pretty > "$CAPSULE_BUILD_JSON" && \
-   python3 - "$CAPSULE_AUTO_TEST_ROOT" "$CAPSULE_BUILD_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-context-capsule.py" maybe-build --project "$CAPSULE_AUTO_TEST_ROOT" --trigger pre_clear --pretty > "$CAPSULE_BUILD_JSON" && \
+   $QQ_PY - "$CAPSULE_AUTO_TEST_ROOT" "$CAPSULE_BUILD_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -479,9 +486,9 @@ EOF
 if PROJECT_DIR="$CAPSULE_AUTO_TEST_ROOT" bash -lc '
   source "'"$SCRIPT_DIR"'/scripts/qq-runtime.sh"
   run_json=$(qq_run_record_start "compile" "auto-capsule-test" "test" "local" "compile start")
-  run_id=$(printf "%s" "$run_json" | python3 -c '"'"'import json,sys; print(json.load(sys.stdin)["run_id"])'"'"')
+  run_id=$(printf "%s" "$run_json" | $QQ_PY -c '"'"'import json,sys; print(json.load(sys.stdin)["run_id"])'"'"')
   qq_run_record_finish "$run_id" "failed" "compile_failed" "compile failed for auto capsule" >/dev/null
-' && python3 - "$CAPSULE_AUTO_TEST_ROOT" <<'PY'
+' && $QQ_PY - "$CAPSULE_AUTO_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -501,7 +508,7 @@ else
 fi
 
 if PROJECT_DIR="$CAPSULE_AUTO_TEST_ROOT" bash "$SCRIPT_DIR/scripts/hooks/session-cleanup.sh" && \
-   python3 - "$CAPSULE_AUTO_TEST_ROOT" <<'PY'
+   $QQ_PY - "$CAPSULE_AUTO_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -534,8 +541,8 @@ work_mode: prototype
 policy_profile: hardening
 EOF
 rm -f "$RUNTIME_TEST_ROOT/Docs/design/sample.md" "$RUNTIME_TEST_ROOT/Docs/qq/demo/sample_implementation.md"
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$RUNTIME_TEST_ROOT" >/dev/null
-if python3 - "$RUNTIME_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$RUNTIME_TEST_ROOT" >/dev/null
+if $QQ_PY - "$RUNTIME_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -576,8 +583,8 @@ profiles:
       - workflow-review
       - hooks-review-gate
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$YAML_CONFIG_TEST_ROOT" >/dev/null
-if python3 - "$YAML_CONFIG_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$YAML_CONFIG_TEST_ROOT" >/dev/null
+if $QQ_PY - "$YAML_CONFIG_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -607,8 +614,8 @@ cat > "$YAML_CONFIG_TEST_ROOT/.qq/local.yaml" <<'EOF'
 profile: reviewless
 work_mode: hardening
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$YAML_CONFIG_TEST_ROOT" >/dev/null
-if python3 - "$YAML_CONFIG_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$YAML_CONFIG_TEST_ROOT" >/dev/null
+if $QQ_PY - "$YAML_CONFIG_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -646,8 +653,8 @@ version: 1
 default_profile: feature
 work_mode: prototype
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
-if python3 - "$FOCUS_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FOCUS_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -672,8 +679,8 @@ work_mode: prototype
 policy_profile: feature
 task_focus: crew weapon
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
-if python3 - "$FOCUS_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FOCUS_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FOCUS_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -712,17 +719,17 @@ public class SeaMonsterSpike : MonoBehaviour
     }
 }
 EOF
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage compile --command policy-compile --backend test --transport local --summary "policy compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy compile passed" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage compile --command policy-compile --backend test --transport local --summary "policy compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy compile passed" >/dev/null
 cat > "$POLICY_TEST_ROOT/qq.yaml" <<'EOF'
 version: 1
 engine: unity
 default_profile: core
 work_mode: prototype
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -755,9 +762,9 @@ else
   fail "qq-runtime helpers expose core policy defaults"
 fi
 
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" record --project "$POLICY_TEST_ROOT" --stage changes --command qq:changes --status checked --summary "prototype summary captured" --capture-local-changes >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" record --project "$POLICY_TEST_ROOT" --stage changes --command qq:changes --status checked --summary "prototype summary captured" --capture-local-changes >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -777,8 +784,8 @@ else
 fi
 
 printf '// follow-up\n' >> "$POLICY_TEST_ROOT/SeaMonsterSpike.cs"
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -796,16 +803,16 @@ else
   fail "prototype changes summary is invalidated by newer local edits"
 fi
 
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage compile --command policy-compile-refresh --backend test --transport local --summary "policy compile refresh start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy compile refresh passed" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage compile --command policy-compile-refresh --backend test --transport local --summary "policy compile refresh start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy compile refresh passed" >/dev/null
 
 cat > "$POLICY_TEST_ROOT/.qq/local.yaml" <<'EOF'
 work_mode: prototype
 policy_profile: hardening
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -835,11 +842,11 @@ else
   fail "qq-runtime helpers respect local profile override"
 fi
 
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage test --command policy-test --backend test --transport local --summary "policy test start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy test passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage test --command policy-test --backend test --transport local --summary "policy test start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "policy test passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -855,11 +862,11 @@ else
   fail "hardening profile escalates to review after tests pass"
 fi
 
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage review_gate --command policy-review --backend test --transport local --summary "policy review start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status verified --summary "policy review verified" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
-if python3 - "$POLICY_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$POLICY_TEST_ROOT" --stage review_gate --command policy-review --backend test --transport local --summary "policy review start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$POLICY_TEST_ROOT" --run-id "$RUN_ID" --status verified --summary "policy review verified" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$POLICY_TEST_ROOT" >/dev/null
+if $QQ_PY - "$POLICY_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -970,11 +977,11 @@ using UnityEngine;
 
 public class BugFix : MonoBehaviour {}
 EOF
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-compile --backend test --transport local --summary "fix compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix compile passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
-if python3 - "$FIX_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-compile --backend test --transport local --summary "fix compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix compile passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FIX_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -998,8 +1005,8 @@ mkdir -p "$FIX_TEST_ROOT/Assets/Tests/EditMode"
 cat > "$FIX_TEST_ROOT/Assets/Tests/EditMode/BugFixTests.cs" <<'EOF'
 public class BugFixTests {}
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
-if python3 - "$FIX_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FIX_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1016,11 +1023,11 @@ then
 else
   fail "fix mode returns to compile verification after new test files are added"
 fi
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-test-compile --backend test --transport local --summary "fix test compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix test compile passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
-if python3 - "$FIX_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FIX_TEST_ROOT" --stage compile --command fix-test-compile --backend test --transport local --summary "fix test compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FIX_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "fix test compile passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FIX_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FIX_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1059,11 +1066,11 @@ using UnityEngine;
 
 public class FeatureWork : MonoBehaviour {}
 EOF
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-compile --backend test --transport local --summary "feature compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature compile passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
-if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-compile --backend test --transport local --summary "feature compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature compile passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FEATURE_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1087,8 +1094,8 @@ mkdir -p "$FEATURE_TEST_ROOT/Assets/Tests/EditMode"
 cat > "$FEATURE_TEST_ROOT/Assets/Tests/EditMode/FeatureWorkTests.cs" <<'EOF'
 public class FeatureWorkTests {}
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
-if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FEATURE_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1106,11 +1113,11 @@ else
   fail "feature mode asks for a fresh compile after adding new test files"
 fi
 
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-test-compile --backend test --transport local --summary "feature test compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature test compile passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
-if python3 - "$FEATURE_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$FEATURE_TEST_ROOT" --stage compile --command feature-test-compile --backend test --transport local --summary "feature test compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$FEATURE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "feature test compile passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$FEATURE_TEST_ROOT" >/dev/null
+if $QQ_PY - "$FEATURE_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1141,18 +1148,18 @@ engine: unity
 default_profile: hardening
 work_mode: prototype
 EOF
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage test --command stale-test --backend test --transport local --summary "stale test start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale test passed" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage test --command stale-test --backend test --transport local --summary "stale test start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale test passed" >/dev/null
 sleep 1
 cat > "$STALE_TEST_ROOT/Probe.cs" <<'EOF'
 public class Probe {}
 EOF
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage compile --command stale-compile --backend test --transport local --summary "stale compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale compile passed" >/dev/null
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
-if python3 - "$STALE_TEST_ROOT" <<'PY'
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$STALE_TEST_ROOT" --stage compile --command stale-compile --backend test --transport local --summary "stale compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$STALE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "stale compile passed" >/dev/null
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
+if $QQ_PY - "$STALE_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1180,8 +1187,8 @@ sleep 1
 cat >> "$STALE_TEST_ROOT/Probe.cs" <<'EOF'
 public class Probe2 {}
 EOF
-python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
-if python3 - "$STALE_TEST_ROOT" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$STALE_TEST_ROOT" >/dev/null
+if $QQ_PY - "$STALE_TEST_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1231,8 +1238,8 @@ EOF
 cat >> "$WORKTREE_BARE_STATE_ROOT/Probe.cs" <<'EOF'
 public class Probe2 {}
 EOF
-if python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_BARE_STATE_ROOT" >/dev/null && \
-   python3 - "$WORKTREE_BARE_STATE_ROOT" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_BARE_STATE_ROOT" >/dev/null && \
+   $QQ_PY - "$WORKTREE_BARE_STATE_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1264,9 +1271,9 @@ WORKTREE_BARE_CREATE_ROOT="$(mktemp -d)"
   git config core.bare true
 )
 WORKTREE_BARE_CREATE_PARENT="$(dirname "$WORKTREE_BARE_CREATE_ROOT")"
-if BARE_CREATE_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_BARE_CREATE_ROOT" --name bare-create --base-dir "$WORKTREE_BARE_CREATE_PARENT"); then
-  BARE_WORKTREE_PATH=$(printf '%s' "$BARE_CREATE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["worktreePath"])')
-  if python3 - "$BARE_CREATE_JSON" "$BARE_WORKTREE_PATH" <<'PY'
+if BARE_CREATE_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_BARE_CREATE_ROOT" --name bare-create --base-dir "$WORKTREE_BARE_CREATE_PARENT"); then
+  BARE_WORKTREE_PATH=$(printf '%s' "$BARE_CREATE_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["worktreePath"])')
+  if $QQ_PY - "$BARE_CREATE_JSON" "$BARE_WORKTREE_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1283,7 +1290,7 @@ PY
   else
     fail "qq-worktree create works in bare worktree repos"
   fi
-  python3 "$SCRIPT_DIR/scripts/qq-worktree.py" cleanup --project "$BARE_WORKTREE_PATH" --delete-branch >/dev/null 2>&1 || true
+  $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" cleanup --project "$BARE_WORKTREE_PATH" --delete-branch >/dev/null 2>&1 || true
 else
   fail "qq-worktree create works in bare worktree repos"
 fi
@@ -1327,16 +1334,16 @@ EOF
   git commit -q -m "init" &&
   git checkout -q -b feature/ship-system
 )
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$WORKTREE_TEST_ROOT" --stage compile --command source-compile --backend test --transport local --summary "source compile start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$WORKTREE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "source compile passed" >/dev/null
-RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$WORKTREE_TEST_ROOT" --stage test --command source-test --backend test --transport local --summary "source test start")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$WORKTREE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "source test passed" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$WORKTREE_TEST_ROOT" --stage compile --command source-compile --backend test --transport local --summary "source compile start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$WORKTREE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "source compile passed" >/dev/null
+RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$WORKTREE_TEST_ROOT" --stage test --command source-test --backend test --transport local --summary "source test start")
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$WORKTREE_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "source test passed" >/dev/null
 WORKTREE_PARENT="$(dirname "$WORKTREE_TEST_ROOT")"
-if CREATE_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_TEST_ROOT" --name "Sea Monster" --base-dir "$WORKTREE_PARENT" --allow-dirty-source); then
-  WORKTREE_PATH=$(printf '%s' "$CREATE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["worktreePath"])')
-  if python3 - "$CREATE_JSON" "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" <<'PY'
+if CREATE_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_TEST_ROOT" --name "Sea Monster" --base-dir "$WORKTREE_PARENT" --allow-dirty-source); then
+  WORKTREE_PATH=$(printf '%s' "$CREATE_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["worktreePath"])')
+  if $QQ_PY - "$CREATE_JSON" "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1406,8 +1413,8 @@ if [ -n "${WORKTREE_PATH:-}" ]; then
   rm -rf "$WORKTREE_PATH/Library"
 fi
 
-if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-worktree.py" seed-runtime-cache --project "$WORKTREE_PATH" --pretty > "$WORKTREE_SEED_JSON" && \
-   python3 - "$WORKTREE_SEED_JSON" "$WORKTREE_PATH" <<'PY'
+if [ -n "${WORKTREE_PATH:-}" ] && $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" seed-runtime-cache --project "$WORKTREE_PATH" --pretty > "$WORKTREE_SEED_JSON" && \
+   $QQ_PY - "$WORKTREE_SEED_JSON" "$WORKTREE_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1432,8 +1439,8 @@ if [ -n "${WORKTREE_PATH:-}" ]; then
   printf 'note\n' > "$WORKTREE_PATH/notes.md"
 fi
 
-if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_PATH" >/dev/null && \
-   python3 - "$WORKTREE_PATH" <<'PY'
+if [ -n "${WORKTREE_PATH:-}" ] && $QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_PATH" >/dev/null && \
+   $QQ_PY - "$WORKTREE_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1459,9 +1466,9 @@ WORKTREE_STATUS_JSON="$(mktemp)"
 WORKTREE_MERGE_JSON="$(mktemp)"
 WORKTREE_CLEANUP_JSON="$(mktemp)"
 
-if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-worktree.py" status --project "$WORKTREE_PATH" > "$WORKTREE_STATUS_JSON" && \
-   python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_PATH" >/dev/null && \
-   python3 - "$WORKTREE_STATUS_JSON" "$WORKTREE_PATH" <<'PY'
+if [ -n "${WORKTREE_PATH:-}" ] && $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" status --project "$WORKTREE_PATH" > "$WORKTREE_STATUS_JSON" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$WORKTREE_PATH" >/dev/null && \
+   $QQ_PY - "$WORKTREE_STATUS_JSON" "$WORKTREE_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1505,8 +1512,8 @@ if [ -n "${WORKTREE_PATH:-}" ]; then
   printf 'compiled\n' > "$WORKTREE_TEST_ROOT/scripts/__pycache__/qq-worktree.cpython-312.pyc"
 fi
 
-if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-worktree.py" merge-back --project "$WORKTREE_PATH" --auto-yes > "$WORKTREE_MERGE_JSON" && \
-   python3 - "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" "$WORKTREE_MERGE_JSON" <<'PY'
+if [ -n "${WORKTREE_PATH:-}" ] && $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" merge-back --project "$WORKTREE_PATH" --auto-yes > "$WORKTREE_MERGE_JSON" && \
+   $QQ_PY - "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" "$WORKTREE_MERGE_JSON" <<'PY'
 import json
 import subprocess
 import sys
@@ -1537,8 +1544,8 @@ if [ -n "${WORKTREE_PATH:-}" ]; then
   printf '{\"mcpServers\":{\"tykit\":{\"command\":\"python3\"}}}\n' > "$WORKTREE_PATH/.mcp.json"
 fi
 
-if [ -n "${WORKTREE_PATH:-}" ] && python3 "$SCRIPT_DIR/scripts/qq-worktree.py" cleanup --project "$WORKTREE_PATH" --delete-branch > "$WORKTREE_CLEANUP_JSON" && \
-   python3 - "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" "$WORKTREE_CLEANUP_JSON" <<'PY'
+if [ -n "${WORKTREE_PATH:-}" ] && $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" cleanup --project "$WORKTREE_PATH" --delete-branch > "$WORKTREE_CLEANUP_JSON" && \
+   $QQ_PY - "$WORKTREE_TEST_ROOT" "$WORKTREE_PATH" "$WORKTREE_CLEANUP_JSON" <<'PY'
 import json
 import subprocess
 import sys
@@ -1580,8 +1587,8 @@ git init --bare -q "$WORKTREE_REMOTE_BARE"
 )
 WORKTREE_REMOTE_PARENT="$(dirname "$WORKTREE_REMOTE_ROOT")"
 WORKTREE_REMOTE_JSON="$(mktemp)"
-if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_REMOTE_ROOT" --name remote-closeout --base-dir "$WORKTREE_REMOTE_PARENT" > "$WORKTREE_REMOTE_JSON" && \
-   python3 - "$WORKTREE_REMOTE_JSON" "$WORKTREE_REMOTE_ROOT" "$WORKTREE_REMOTE_BARE" "$SCRIPT_DIR" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_REMOTE_ROOT" --name remote-closeout --base-dir "$WORKTREE_REMOTE_PARENT" > "$WORKTREE_REMOTE_JSON" && \
+   $QQ_PY - "$WORKTREE_REMOTE_JSON" "$WORKTREE_REMOTE_ROOT" "$WORKTREE_REMOTE_BARE" "$SCRIPT_DIR" <<'PY'
 import json
 import subprocess
 import sys
@@ -1635,7 +1642,7 @@ WORKTREE_BLOCK_ROOT="$(mktemp -d)"
   git commit -q -m "init" &&
   git branch -M main
 )
-if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_BLOCK_ROOT" --name blocked >/dev/null 2>&1; then
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_BLOCK_ROOT" --name blocked >/dev/null 2>&1; then
   fail "qq-worktree blocks protected source branches by default"
 else
   pass "qq-worktree blocks protected source branches by default"
@@ -1661,8 +1668,8 @@ EOF
   git checkout -q -b feature/repo-dev
 )
 WORKTREE_DOCKER_CREATE_JSON="$(mktemp)"
-if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_DOCKER_ROOT" --name docker-flow --base-dir "$(dirname "$WORKTREE_DOCKER_ROOT")" --pretty > "$WORKTREE_DOCKER_CREATE_JSON" && \
-   python3 - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_DOCKER_ROOT" --name docker-flow --base-dir "$(dirname "$WORKTREE_DOCKER_ROOT")" --pretty > "$WORKTREE_DOCKER_CREATE_JSON" && \
+   $QQ_PY - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1680,7 +1687,7 @@ then
 else
   fail "qq-worktree create recommends Docker for repo-dev worktrees"
 fi
-python3 - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY' >/dev/null
+$QQ_PY - "$WORKTREE_DOCKER_CREATE_JSON" <<'PY' >/dev/null
 import json
 import shutil
 import sys
@@ -1722,8 +1729,8 @@ EOF
   git push -q -u origin feature/crew
 )
 WORKTREE_CLOSEOUT_CREATE_JSON="$(mktemp)"
-python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_CLOSEOUT_ROOT" --name closeout --pretty > "$WORKTREE_CLOSEOUT_CREATE_JSON"
-WORKTREE_CLOSEOUT_PATH="$(python3 - "$WORKTREE_CLOSEOUT_CREATE_JSON" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_CLOSEOUT_ROOT" --name closeout --pretty > "$WORKTREE_CLOSEOUT_CREATE_JSON"
+WORKTREE_CLOSEOUT_PATH="$($QQ_PY - "$WORKTREE_CLOSEOUT_CREATE_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1742,8 +1749,8 @@ PY
   git push -q -u origin "$(git branch --show-current)"
 )
 WORKTREE_CLOSEOUT_RESULT="$(mktemp)"
-if python3 "$SCRIPT_DIR/scripts/qq-worktree.py" closeout --project "$WORKTREE_CLOSEOUT_PATH" --auto-yes --delete-branch --pretty > "$WORKTREE_CLOSEOUT_RESULT" && \
-   python3 - "$WORKTREE_CLOSEOUT_RESULT" "$WORKTREE_CLOSEOUT_ROOT" "$WORKTREE_CLOSEOUT_PATH" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" closeout --project "$WORKTREE_CLOSEOUT_PATH" --auto-yes --delete-branch --pretty > "$WORKTREE_CLOSEOUT_RESULT" && \
+   $QQ_PY - "$WORKTREE_CLOSEOUT_RESULT" "$WORKTREE_CLOSEOUT_ROOT" "$WORKTREE_CLOSEOUT_PATH" <<'PY'
 import json
 import subprocess
 import sys
@@ -1788,8 +1795,8 @@ WORKTREE_CODEX_ROOT="$(mktemp -d)"
 )
 WORKTREE_CODEX_PARENT="$(dirname "$WORKTREE_CODEX_ROOT")"
 WORKTREE_CODEX_CREATE_JSON="$(mktemp)"
-python3 "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_CODEX_ROOT" --name codex-closeout --base-dir "$WORKTREE_CODEX_PARENT" --pretty > "$WORKTREE_CODEX_CREATE_JSON"
-WORKTREE_CODEX_PATH="$(python3 - "$WORKTREE_CODEX_CREATE_JSON" <<'PY'
+$QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" create --project "$WORKTREE_CODEX_ROOT" --name codex-closeout --base-dir "$WORKTREE_CODEX_PARENT" --pretty > "$WORKTREE_CODEX_CREATE_JSON"
+WORKTREE_CODEX_PATH="$($QQ_PY - "$WORKTREE_CODEX_CREATE_JSON" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1799,8 +1806,8 @@ print(payload["worktreePath"])
 PY
 )"
 WORKTREE_CODEX_DRY_RUN="$(mktemp)"
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" "$WORKTREE_CODEX_PATH" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" "$WORKTREE_CODEX_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1837,8 +1844,8 @@ else
   fail "qq-codex-exec auto-resumes managed worktree closeout context"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$RUNTIME_TEST_ROOT" --resume --resume-refresh --resume-note "Continue carefully." --dry-run --pretty > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$RUNTIME_TEST_ROOT" --resume --resume-refresh --resume-note "Continue carefully." --dry-run --pretty > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1860,8 +1867,8 @@ else
   fail "qq-codex-exec can consume the latest context capsule as a resume prompt"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --no-resume --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" "$WORKTREE_CODEX_PATH" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --no-resume --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" "$WORKTREE_CODEX_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1890,8 +1897,8 @@ cat > "$WORKTREE_CODEX_PATH/.qq/local.yaml" <<'EOF'
 trust_level: balanced
 EOF
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "Summarize current state." > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "Summarize current state." > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1915,8 +1922,8 @@ else
   fail "balanced trust level blocks automatic source-worktree widening for non-closeout Codex execs"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1943,8 +1950,8 @@ cat > "$WORKTREE_CODEX_PATH/.qq/local.yaml" <<'EOF'
 trust_level: strict
 EOF
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1966,8 +1973,8 @@ else
   fail "strict trust level requires explicit source-worktree widening"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --allow-source-worktree --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
-   python3 - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" --allow-source-worktree --dry-run --pretty "closeout" > "$WORKTREE_CODEX_DRY_RUN" && \
+   $QQ_PY - "$WORKTREE_CODEX_DRY_RUN" "$WORKTREE_CODEX_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -1990,7 +1997,7 @@ fi
 
 FAKE_CODEX_BIN_DIR="$(mktemp -d)"
 FAKE_CODEX_LOG="$(mktemp)"
-CURRENT_CODEX_SERVER="$(python3 - "$WORKTREE_CODEX_PATH" <<'PY'
+CURRENT_CODEX_SERVER="$($QQ_PY - "$WORKTREE_CODEX_PATH" <<'PY'
 import hashlib
 import re
 import sys
@@ -2002,7 +2009,7 @@ digest = hashlib.sha1(str(project).encode("utf-8")).hexdigest()[:8]
 print(f"qq-unity-{slug}-{digest}")
 PY
 )"
-OTHER_CODEX_SERVER="$(python3 - "$WORKTREE_CODEX_ROOT" <<'PY'
+OTHER_CODEX_SERVER="$($QQ_PY - "$WORKTREE_CODEX_ROOT" <<'PY'
 import hashlib
 import re
 import sys
@@ -2084,8 +2091,8 @@ if PATH="$FAKE_CODEX_BIN_DIR:$PATH" \
    FAKE_CODEX_OTHER_SERVER="$OTHER_CODEX_SERVER" \
    FAKE_CODEX_CURRENT_PROJECT="$WORKTREE_CODEX_PATH" \
    FAKE_CODEX_OTHER_PROJECT="$WORKTREE_CODEX_ROOT" \
-   python3 "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" "Use the unity_health tool" >/dev/null && \
-   python3 - "$FAKE_CODEX_LOG" "$CURRENT_CODEX_SERVER" "$OTHER_CODEX_SERVER" <<'PY'
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-codex-exec.py" --project "$WORKTREE_CODEX_PATH" "Use the unity_health tool" >/dev/null && \
+   $QQ_PY - "$FAKE_CODEX_LOG" "$CURRENT_CODEX_SERVER" "$OTHER_CODEX_SERVER" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2144,8 +2151,8 @@ for path in \
   : > "$RUNTIME_TEST_ROOT/scripts/$path"
 done
 
-if python3 "$SCRIPT_DIR/scripts/qq-capability.py" validate --pretty > "$RUNTIME_TEST_ROOT/capability-validate.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/capability-validate.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-capability.py" validate --pretty > "$RUNTIME_TEST_ROOT/capability-validate.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/capability-validate.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2160,8 +2167,8 @@ else
   fail "capability registry validates"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine unity --capability compile --available unity.tykit-mcp unity.unity-mcp > "$RUNTIME_TEST_ROOT/capability-resolve.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/capability-resolve.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine unity --capability compile --available unity.tykit-mcp unity.unity-mcp > "$RUNTIME_TEST_ROOT/capability-resolve.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/capability-resolve.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2176,8 +2183,8 @@ else
   fail "capability resolver prefers configured provider order"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine unreal --capability scene.query --available unreal.runreal-mcp unreal.flop-mcp > "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine unreal --capability scene.query --available unreal.runreal-mcp unreal.flop-mcp > "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/capability-resolve-unreal.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2192,8 +2199,8 @@ else
   fail "capability resolver can fall back to compatible third-party Unreal providers"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine sbox --capability compile --available sbox.qq-direct > "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-capability.py" resolve --engine sbox --capability compile --available sbox.qq-direct > "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/capability-resolve-sbox.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2209,7 +2216,7 @@ else
 fi
 
 if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$RUNTIME_TEST_ROOT" --write-state > "$RUNTIME_TEST_ROOT/doctor.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/doctor.json" "$RUNTIME_TEST_ROOT/.qq/state/provider-resolution.json" <<'PY'
+   $QQ_PY - "$RUNTIME_TEST_ROOT/doctor.json" "$RUNTIME_TEST_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2285,7 +2292,7 @@ default_profile: feature
 trust_level: strict
 EOF
 
-if python3 - "$SCRIPT_DIR" "$MCP_TRUST_TEST_ROOT" <<'PY'
+if $QQ_PY - "$SCRIPT_DIR" "$MCP_TRUST_TEST_ROOT" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2309,7 +2316,7 @@ fi
 if (
   cd "$RUNTIME_TEST_ROOT" &&
   "$SCRIPT_DIR/scripts/qq-policy-check.sh" --json Sample.cs > policy.json &&
-  python3 - <<'PY'
+  $QQ_PY - <<'PY'
 import json
 from pathlib import Path
 
@@ -2326,8 +2333,8 @@ else
   fail "policy checker finds deterministic violations"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/foundation-smoke.json" > "$RUNTIME_TEST_ROOT/eval-suite.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/eval-suite.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/foundation-smoke.json" > "$RUNTIME_TEST_ROOT/eval-suite.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/eval-suite.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2343,8 +2350,8 @@ else
   fail "eval harness runs foundation smoke suite"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/collaboration-multi-actor.json" > "$RUNTIME_TEST_ROOT/collaboration-eval-suite.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/collaboration-eval-suite.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/collaboration-multi-actor.json" > "$RUNTIME_TEST_ROOT/collaboration-eval-suite.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/collaboration-eval-suite.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2360,8 +2367,8 @@ else
   fail "eval harness runs collaboration multi-actor suite"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-foundation.json" > "$RUNTIME_TEST_ROOT/qq-bench-foundation.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/qq-bench-foundation.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-foundation.json" > "$RUNTIME_TEST_ROOT/qq-bench-foundation.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/qq-bench-foundation.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2380,8 +2387,8 @@ else
   fail "QQ-Bench foundation suite runs"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-v0.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-v0.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/qq-bench-core-v0.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-v0.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-v0.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/qq-bench-core-v0.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2400,8 +2407,8 @@ else
   fail "QQ-Bench core v0 suite runs"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-v1.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-v1.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/qq-bench-core-v1.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-v1.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-v1.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/qq-bench-core-v1.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2420,8 +2427,8 @@ else
   fail "QQ-Bench core v1 suite runs"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-solver-v0.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-solver-v0.json" && \
-   python3 - "$RUNTIME_TEST_ROOT/qq-bench-core-solver-v0.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/eval/run-benchmarks.py" --suite "$SCRIPT_DIR/docs/evals/qq-bench-core-solver-v0.json" > "$RUNTIME_TEST_ROOT/qq-bench-core-solver-v0.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT/qq-bench-core-solver-v0.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2441,13 +2448,13 @@ else
 fi
 
 for idx in 1 2 3; do
-  RUN_JSON=$(python3 "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$RUNTIME_TEST_ROOT" --stage test --command "prune-$idx" --backend test --transport local --summary "prune start $idx")
-  RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-  python3 "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$RUNTIME_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "prune finish $idx" >/dev/null
+  RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$RUNTIME_TEST_ROOT" --stage test --command "prune-$idx" --backend test --transport local --summary "prune start $idx")
+  RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+  $QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$RUNTIME_TEST_ROOT" --run-id "$RUN_ID" --status passed --summary "prune finish $idx" >/dev/null
 done
 
-if python3 "$SCRIPT_DIR/scripts/qq-run-record.py" prune --project "$RUNTIME_TEST_ROOT" --max-runs 2 --max-age-days 365 --max-telemetry-bytes 1 --max-telemetry-files 1 > "$RUNTIME_TEST_ROOT/prune-result.json" && \
-   python3 - "$RUNTIME_TEST_ROOT" "$RUNTIME_TEST_ROOT/prune-result.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" prune --project "$RUNTIME_TEST_ROOT" --max-runs 2 --max-age-days 365 --max-telemetry-bytes 1 --max-telemetry-files 1 > "$RUNTIME_TEST_ROOT/prune-result.json" && \
+   $QQ_PY - "$RUNTIME_TEST_ROOT" "$RUNTIME_TEST_ROOT/prune-result.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2502,7 +2509,7 @@ cat > "$GODOT_RUNTIME_ROOT/.qq/state/qq-godot-editor-bridge.json" <<EOF
 {
   "ok": true,
   "running": true,
-  "lastHeartbeatUnix": $(python3 -c 'import time; print(time.time())')
+  "lastHeartbeatUnix": $($QQ_PY -c 'import time; print(time.time())')
 }
 EOF
 for path in \
@@ -2527,7 +2534,7 @@ extends EditorPlugin
 EOF
 
 if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$GODOT_RUNTIME_ROOT" --write-state > "$GODOT_RUNTIME_ROOT/doctor.json" && \
-   python3 - "$GODOT_RUNTIME_ROOT/doctor.json" "$GODOT_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
+   $QQ_PY - "$GODOT_RUNTIME_ROOT/doctor.json" "$GODOT_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2559,7 +2566,7 @@ else
 fi
 
 mkdir -p "$GODOT_RUNTIME_ROOT/.qq/state/qq-godot-editor/requests" "$GODOT_RUNTIME_ROOT/.qq/state/qq-godot-editor/responses"
-python3 - "$GODOT_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$GODOT_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -2587,9 +2594,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_GODOT_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/godot_bridge.py" --project "$GODOT_RUNTIME_ROOT" --tool godot_query --arguments '{"action":"status"}' > "$GODOT_RUNTIME_ROOT/godot-bridge-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/godot_bridge.py" --project "$GODOT_RUNTIME_ROOT" --tool godot_query --arguments '{"action":"status"}' > "$GODOT_RUNTIME_ROOT/godot-bridge-call.json" && \
    wait "$FAKE_GODOT_BRIDGE_PID" && \
-   python3 - "$GODOT_RUNTIME_ROOT/godot-bridge-call.json" <<'PY'
+   $QQ_PY - "$GODOT_RUNTIME_ROOT/godot-bridge-call.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2607,7 +2614,7 @@ else
   kill "$FAKE_GODOT_BRIDGE_PID" >/dev/null 2>&1 || true
 fi
 
-python3 - "$GODOT_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$GODOT_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -2640,9 +2647,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_GODOT_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/godot_bridge.py" --project "$GODOT_RUNTIME_ROOT" --profile full --tool godot_batch --arguments '{"operations":[{"tool":"godot_input","arguments":{"action":"inject_action","input_action":"jump","strength":1.0}},{"tool":"godot_ui","arguments":{"action":"create_control","parent":".","node_type":"Button","name":"QQButton","text":"Parity"}},{"tool":"godot_animation","arguments":{"action":"create_animation","player_path":"AnimationPlayer","animation":"qq_spin","length":0.5}},{"tool":"godot_screenshot","arguments":{"path":".qq/state/screenshots/test.png","width":640,"height":360}}]}' > "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/godot_bridge.py" --project "$GODOT_RUNTIME_ROOT" --profile full --tool godot_batch --arguments '{"operations":[{"tool":"godot_input","arguments":{"action":"inject_action","input_action":"jump","strength":1.0}},{"tool":"godot_ui","arguments":{"action":"create_control","parent":".","node_type":"Button","name":"QQButton","text":"Parity"}},{"tool":"godot_animation","arguments":{"action":"create_animation","player_path":"AnimationPlayer","animation":"qq_spin","length":0.5}},{"tool":"godot_screenshot","arguments":{"path":".qq/state/screenshots/test.png","width":640,"height":360}}]}' > "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" && \
    wait "$FAKE_GODOT_BRIDGE_PID" && \
-   python3 - "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" <<'PY'
+   $QQ_PY - "$GODOT_RUNTIME_ROOT/godot-full-batch-call.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2665,7 +2672,7 @@ else
   fail "godot full-profile bridge maps input, UI, animation, and screenshot tools onto the editor command surface"
 fi
 
-if python3 - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+if $QQ_PY - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2686,7 +2693,7 @@ else
   fail "qq_mcp composes generic and Godot rich tools for Godot projects"
 fi
 
-if python3 - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+if $QQ_PY - "$GODOT_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2745,7 +2752,7 @@ fi
 printf '{"ok":true,"finding_count":0}\n'
 exit 0
 EOF
-python3 - "$FAKE_GODOT_BIN_DIR/godot4" "$FAKE_GODOT_LOG" <<'PY'
+$QQ_PY - "$FAKE_GODOT_BIN_DIR/godot4" "$FAKE_GODOT_LOG" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2798,7 +2805,7 @@ fi
 printf '{"ok":true,"finding_count":0}\n'
 exit 0
 EOF
-python3 - "$FAKE_GODOT_COMPILE_BIN_DIR/godot4" "$FAKE_GODOT_COMPILE_LOG" <<'PY'
+$QQ_PY - "$FAKE_GODOT_COMPILE_BIN_DIR/godot4" "$FAKE_GODOT_COMPILE_LOG" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2810,7 +2817,7 @@ chmod +x "$FAKE_GODOT_COMPILE_BIN_DIR/godot4"
 mkdir -p "$GODOT_SCRIPT_TEST_ROOT/scripts"
 cp "$SCRIPT_DIR/scripts/godot-compile-check.gd" "$GODOT_SCRIPT_TEST_ROOT/scripts/godot-compile-check.gd"
 if env PATH="$FAKE_GODOT_COMPILE_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/godot-compile.sh" --project "$GODOT_SCRIPT_TEST_ROOT" > "$GODOT_SCRIPT_TEST_ROOT/godot-compile.log" && \
-   python3 - "$FAKE_GODOT_COMPILE_LOG" <<'PY'
+   $QQ_PY - "$FAKE_GODOT_COMPILE_LOG" <<'PY'
 import sys
 from pathlib import Path
 
@@ -2922,7 +2929,7 @@ cat > "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor-bridge.json" <<EOF
 {
   "ok": true,
   "running": true,
-  "lastHeartbeatUnix": $(python3 -c 'import time; print(time.time())')
+  "lastHeartbeatUnix": $($QQ_PY -c 'import time; print(time.time())')
 }
 EOF
 for path in \
@@ -2941,7 +2948,7 @@ done
 : > "$UNREAL_RUNTIME_ROOT/Content/Python/qq_unreal_bridge.py"
 
 if "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$UNREAL_RUNTIME_ROOT" --write-state > "$UNREAL_RUNTIME_ROOT/doctor.json" && \
-   python3 - "$UNREAL_RUNTIME_ROOT/doctor.json" "$UNREAL_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
+   $QQ_PY - "$UNREAL_RUNTIME_ROOT/doctor.json" "$UNREAL_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -2977,7 +2984,7 @@ else
   fail "qq-doctor discovers Unreal rich bridge providers and resolves editor capabilities"
 fi
 
-python3 - "$UNREAL_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$UNREAL_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -3010,9 +3017,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_UNREAL_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_query --arguments '{"action":"status"}' > "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_query --arguments '{"action":"status"}' > "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" && \
    wait "$FAKE_UNREAL_BRIDGE_PID" && \
-   python3 - "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor-console.jsonl" <<'PY'
+   $QQ_PY - "$UNREAL_RUNTIME_ROOT/unreal-bridge-call.json" "$UNREAL_RUNTIME_ROOT/.qq/state/qq-unreal-editor-console.jsonl" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3033,7 +3040,7 @@ else
   fail "unreal bridge queue transport can complete a typed query round trip"
 fi
 
-python3 - "$UNREAL_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$UNREAL_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -3066,9 +3073,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_UNREAL_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_batch --arguments '{"operations":[{"tool":"unreal_object","arguments":{"action":"create","class_path":"/Script/Engine.EmptyActor","label":"QQActor","select":true}},{"tool":"unreal_assets","arguments":{"action":"create_material","path":"/Game/QQ/M_Test"}}]}' > "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/unreal_bridge.py" --project "$UNREAL_RUNTIME_ROOT" --tool unreal_batch --arguments '{"operations":[{"tool":"unreal_object","arguments":{"action":"create","class_path":"/Script/Engine.EmptyActor","label":"QQActor","select":true}},{"tool":"unreal_assets","arguments":{"action":"create_material","path":"/Game/QQ/M_Test"}}]}' > "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" && \
    wait "$FAKE_UNREAL_BRIDGE_PID" && \
-   python3 - "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" <<'PY'
+   $QQ_PY - "$UNREAL_RUNTIME_ROOT/unreal-batch-call.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3089,7 +3096,7 @@ else
   fail "unreal batch bridge maps object and asset actions onto the rich command surface"
 fi
 
-if python3 - "$UNREAL_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+if $QQ_PY - "$UNREAL_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
 import sys
 from pathlib import Path
 
@@ -3148,7 +3155,7 @@ if [[ "$*" == *"Automation RunTests"* ]]; then
 fi
 exit 0
 EOF
-python3 - "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd" "$FAKE_UNREAL_LOG" <<'PY'
+$QQ_PY - "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd" "$FAKE_UNREAL_LOG" <<'PY'
 import sys
 from pathlib import Path
 
@@ -3159,7 +3166,7 @@ PY
 chmod +x "$FAKE_UNREAL_BIN_DIR/UnrealEditor-Cmd"
 
 if env PATH="$FAKE_UNREAL_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-compile.sh" --project "$UNREAL_SCRIPT_TEST_ROOT" > "$UNREAL_SCRIPT_TEST_ROOT/unreal-compile.log" && \
-   python3 - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-compile.log" "$UNREAL_SCRIPT_TEST_ROOT" <<'PY'
+   $QQ_PY - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-compile.log" "$UNREAL_SCRIPT_TEST_ROOT" <<'PY'
 import sys
 from pathlib import Path
 
@@ -3177,7 +3184,7 @@ else
 fi
 
 if env PATH="$FAKE_UNREAL_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-test.sh" editmode --project "$UNREAL_SCRIPT_TEST_ROOT" > "$UNREAL_SCRIPT_TEST_ROOT/unreal-test.log" && \
-   python3 - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-test.log" <<'PY'
+   $QQ_PY - "$FAKE_UNREAL_LOG" "$UNREAL_SCRIPT_TEST_ROOT/unreal-test.log" <<'PY'
 import sys
 from pathlib import Path
 
@@ -3259,7 +3266,7 @@ cat > "$SBOX_RUNTIME_ROOT/.mcp.json" <<'EOF'
   }
 }
 EOF
-python3 - "$SBOX_RUNTIME_ROOT/.mcp.json" "$SBOX_RUNTIME_ROOT" <<'PY'
+$QQ_PY - "$SBOX_RUNTIME_ROOT/.mcp.json" "$SBOX_RUNTIME_ROOT" <<'PY'
 from pathlib import Path
 import sys
 
@@ -3281,7 +3288,7 @@ cat > "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-bridge.json" <<EOF
 {
   "ok": true,
   "running": true,
-  "lastHeartbeatUnix": $(python3 -c 'import time; print(time.time())')
+  "lastHeartbeatUnix": $($QQ_PY -c 'import time; print(time.time())')
 }
 EOF
 cat > "$SBOX_RUNTIME_ROOT/Assets/Scenes/Main.scene" <<'EOF'
@@ -3313,7 +3320,7 @@ exit 0
 EOF
 chmod +x "$FAKE_SBOX_DOCTOR_BIN_DIR/dotnet"
 if env PATH="$FAKE_SBOX_DOCTOR_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-doctor.sh" --project "$SBOX_RUNTIME_ROOT" --write-state > "$SBOX_RUNTIME_ROOT/doctor.json" && \
-   python3 - "$SBOX_RUNTIME_ROOT/doctor.json" "$SBOX_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/doctor.json" "$SBOX_RUNTIME_ROOT/.qq/state/provider-resolution.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3348,8 +3355,8 @@ else
   fail "qq-doctor detects the S&box direct runtime, live bridge, and rich capability resolution"
 fi
 
-if python3 "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$SBOX_RUNTIME_ROOT" --no-write > "$SBOX_RUNTIME_ROOT/project-state.json" && \
-   python3 - "$SBOX_RUNTIME_ROOT/project-state.json" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$SBOX_RUNTIME_ROOT" --no-write > "$SBOX_RUNTIME_ROOT/project-state.json" && \
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/project-state.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3369,7 +3376,7 @@ else
 fi
 
 if "$SCRIPT_DIR/scripts/qq-policy-check.sh" --project "$SBOX_RUNTIME_ROOT" --json Code/Player.cs > "$SBOX_RUNTIME_ROOT/sbox-policy.json" && \
-   python3 - "$SBOX_RUNTIME_ROOT/sbox-policy.json" <<'PY'
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/sbox-policy.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3386,7 +3393,7 @@ else
   fail "qq-policy-check reports deterministic S&box whitelist violations"
 fi
 
-python3 - "$SBOX_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$SBOX_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -3419,9 +3426,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_SBOX_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"status"}' > "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"status"}' > "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" && \
    wait "$FAKE_SBOX_BRIDGE_PID" && \
-   python3 - "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-console.jsonl" <<'PY'
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/sbox-bridge-call.json" "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-console.jsonl" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3440,7 +3447,7 @@ else
   fail "sbox bridge queue transport can complete a typed S&box query round trip"
 fi
 
-python3 - "$SBOX_RUNTIME_ROOT" <<'PY' &
+$QQ_PY - "$SBOX_RUNTIME_ROOT" <<'PY' &
 import json
 import sys
 import time
@@ -3473,9 +3480,9 @@ while time.time() < deadline:
 raise SystemExit(1)
 PY
 FAKE_SBOX_BRIDGE_PID=$!
-if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_batch --arguments '{"operations":[{"tool":"sbox_editor","arguments":{"action":"open_scene","path":"Assets/Scenes/Main.scene"}},{"tool":"sbox_object","arguments":{"action":"select","path":"Player"}}]}' > "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" && \
+if $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_batch --arguments '{"operations":[{"tool":"sbox_editor","arguments":{"action":"open_scene","path":"Assets/Scenes/Main.scene"}},{"tool":"sbox_object","arguments":{"action":"select","path":"Player"}}]}' > "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" && \
    wait "$FAKE_SBOX_BRIDGE_PID" && \
-   python3 - "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" <<'PY'
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/sbox-batch-call.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3492,7 +3499,7 @@ else
   fail "sbox bridge batch transport can compose editor and object operations"
 fi
 
-if python3 - "$SBOX_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
+if $QQ_PY - "$SBOX_RUNTIME_ROOT" "$SCRIPT_DIR/scripts" <<'PY'
 import sys
 from pathlib import Path
 
@@ -3522,11 +3529,11 @@ cat > "$SBOX_RUNTIME_ROOT/.qq/state/qq-sbox-editor-bridge.json" <<'EOF'
   "lastHeartbeatUnix": 0
 }
 EOF
-if python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_scenes","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" && \
-   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_assets","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" && \
-   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_scene --arguments '{"action":"duplicate_scene","source":"Assets/Scenes/Main.scene","target":"Assets/Scenes/Main_LocalCopy.scene"}' > "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" && \
-   python3 "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_assets --arguments '{"action":"create_directory","path":"Assets/Generated"}' > "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" && \
-   python3 - "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" "$SBOX_RUNTIME_ROOT" <<'PY'
+if $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_scenes","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_query --arguments '{"action":"list_assets","count":10}' > "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_scene --arguments '{"action":"duplicate_scene","source":"Assets/Scenes/Main.scene","target":"Assets/Scenes/Main_LocalCopy.scene"}' > "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/sbox_bridge.py" --project "$SBOX_RUNTIME_ROOT" --tool sbox_assets --arguments '{"action":"create_directory","path":"Assets/Generated"}' > "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" && \
+   $QQ_PY - "$SBOX_RUNTIME_ROOT/sbox-local-scenes.json" "$SBOX_RUNTIME_ROOT/sbox-local-query-assets.json" "$SBOX_RUNTIME_ROOT/sbox-local-duplicate.json" "$SBOX_RUNTIME_ROOT/sbox-local-assets.json" "$SBOX_RUNTIME_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3571,7 +3578,7 @@ cat > "$FAKE_SBOX_BIN_DIR/dotnet" <<'EOF'
 printf '%s\n' "$*" >> "__FAKE_DOTNET_LOG__"
 exit 0
 EOF
-python3 - "$FAKE_SBOX_BIN_DIR/dotnet" "$FAKE_SBOX_LOG" <<'PY'
+$QQ_PY - "$FAKE_SBOX_BIN_DIR/dotnet" "$FAKE_SBOX_LOG" <<'PY'
 from pathlib import Path
 import sys
 
@@ -3583,7 +3590,7 @@ PY
 chmod +x "$FAKE_SBOX_BIN_DIR/dotnet"
 if env PATH="$FAKE_SBOX_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-compile.sh" --project "$SBOX_SCRIPT_TEST_ROOT" > "$SBOX_SCRIPT_TEST_ROOT/sbox-compile.log" && \
    env PATH="$FAKE_SBOX_BIN_DIR:$PATH" "$SCRIPT_DIR/scripts/qq-test.sh" all --project "$SBOX_SCRIPT_TEST_ROOT" > "$SBOX_SCRIPT_TEST_ROOT/sbox-test.log" && \
-   python3 - "$FAKE_SBOX_LOG" "$SBOX_SCRIPT_TEST_ROOT" <<'PY'
+   $QQ_PY - "$FAKE_SBOX_LOG" "$SBOX_SCRIPT_TEST_ROOT" <<'PY'
 from pathlib import Path
 import sys
 
@@ -3840,7 +3847,7 @@ fi
 
 ONBOARD_PREVIEW_ROOT="$(mktemp -d)"
 : > "$ONBOARD_PREVIEW_ROOT/.sbproj"
-if LANG=zh_CN.UTF-8 python3 "$SCRIPT_DIR/scripts/qq-onboard.py" preview --project "$ONBOARD_PREVIEW_ROOT" --preset quickstart --host-surface claude --json | python3 -c '
+if LANG=zh_CN.UTF-8 $QQ_PY "$SCRIPT_DIR/scripts/qq-onboard.py" preview --project "$ONBOARD_PREVIEW_ROOT" --preset quickstart --host-surface claude --json | $QQ_PY -c '
 import json, sys
 payload = json.load(sys.stdin)
 assert payload["language"] == "zh-CN"
@@ -3869,7 +3876,7 @@ cat > "$INSTALL_UPDATE_ROOT/Packages/manifest.json" <<'EOF'
 }
 EOF
 "$SCRIPT_DIR/install.sh" "$INSTALL_UPDATE_ROOT" >/dev/null
-if python3 - "$INSTALL_UPDATE_ROOT/Packages/manifest.json" <<'PY'
+if $QQ_PY - "$INSTALL_UPDATE_ROOT/Packages/manifest.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3887,7 +3894,7 @@ rm -rf "$INSTALL_UPDATE_ROOT"
 ONBOARD_INSTALL_ROOT="$(mktemp -d)"
 : > "$ONBOARD_INSTALL_ROOT/.sbproj"
 LANG=ja_JP.UTF-8 "$SCRIPT_DIR/install.sh" --preset quickstart --language ja "$ONBOARD_INSTALL_ROOT" >/dev/null
-if python3 - "$ONBOARD_INSTALL_ROOT" <<'PY'
+if $QQ_PY - "$ONBOARD_INSTALL_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3920,7 +3927,7 @@ config/name="qq godot install fixture"
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 EOF
 "$SCRIPT_DIR/install.sh" "$GODOT_INSTALL_ROOT" >/dev/null
-if python3 - "$GODOT_INSTALL_ROOT" <<'PY'
+if $QQ_PY - "$GODOT_INSTALL_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3960,7 +3967,7 @@ cat > "$UNREAL_INSTALL_ROOT/FPSGame.uproject" <<'EOF'
 }
 EOF
 "$SCRIPT_DIR/install.sh" "$UNREAL_INSTALL_ROOT" >/dev/null
-if python3 - "$UNREAL_INSTALL_ROOT" <<'PY'
+if $QQ_PY - "$UNREAL_INSTALL_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -3993,7 +4000,7 @@ rm -rf "$UNREAL_INSTALL_ROOT"
 SBOX_INSTALL_ROOT="$(mktemp -d)"
 : > "$SBOX_INSTALL_ROOT/.sbproj"
 "$SCRIPT_DIR/install.sh" "$SBOX_INSTALL_ROOT" >/dev/null
-if python3 - "$SBOX_INSTALL_ROOT" <<'PY'
+if $QQ_PY - "$SBOX_INSTALL_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -4024,7 +4031,7 @@ rm -rf "$SBOX_INSTALL_ROOT"
 MODULAR_INSTALL_ROOT="$(mktemp -d)"
 : > "$MODULAR_INSTALL_ROOT/.sbproj"
 "$SCRIPT_DIR/install.sh" "$MODULAR_INSTALL_ROOT" >/dev/null
-python3 - "$MODULAR_INSTALL_ROOT/qq.yaml" <<'PY'
+$QQ_PY - "$MODULAR_INSTALL_ROOT/qq.yaml" <<'PY'
 from pathlib import Path
 
 path = Path(__import__("sys").argv[1])
@@ -4047,7 +4054,7 @@ updated = text[:start] + replacement + "\n" + text[end:]
 path.write_text(updated, encoding="utf-8")
 PY
 "$SCRIPT_DIR/install.sh" "$MODULAR_INSTALL_ROOT" >/dev/null
-if python3 - "$MODULAR_INSTALL_ROOT" <<'PY'
+if $QQ_PY - "$MODULAR_INSTALL_ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -4170,7 +4177,7 @@ done
 # ── MCP review tools ──
 echo -e "${CYAN}[mcp] review tools${NC}"
 
-if python3 -c "
+if $QQ_PY -c "
 import ast, sys
 src = open('scripts/qq_mcp.py').read()
 tree = ast.parse(src)
@@ -4186,7 +4193,7 @@ else
   fail "qq_code_review not found in qq_mcp.py"
 fi
 
-if python3 -c "
+if $QQ_PY -c "
 import ast, sys
 src = open('scripts/qq_mcp.py').read()
 tree = ast.parse(src)

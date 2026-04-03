@@ -154,7 +154,7 @@ run_batch_mode() {
 }
 
 RUN_JSON=$(qq_run_record_start "compile" "unity-compile-smart" "$QQ_COMPILE_BACKEND" "$QQ_COMPILE_TRANSPORT" "smart compile started")
-RUN_ID=$(printf '%s' "$RUN_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+RUN_ID=$(printf '%s' "$RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
 EXIT_CODE=0
 
 case "$FORCE_MODE" in

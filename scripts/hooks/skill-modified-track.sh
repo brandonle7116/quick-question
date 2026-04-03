@@ -12,8 +12,8 @@ jq -r '.tool_input.file_path' | {
   [[ $f == */.claude/commands/*.md || $f == */skills/*/SKILL.md ]] && {
     echo "$f" >> "$QQ_TEMP_DIR/claude-skill-modified-marker-$PPID"
     run_json=$(qq_run_record_start "skill_gate" "skill-modified-track" "local" "hook" "Skill file modification tracked")
-    run_id=$(printf '%s' "$run_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
-    escaped_file=$(printf '%s' "$f" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))')
+    run_id=$(printf '%s' "$run_json" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+    escaped_file=$(printf '%s' "$f" | $QQ_PY -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))')
     qq_run_record_finish "$run_id" "warning" "skill_modified" "Skill modification recorded" "{\"file\":${escaped_file}}" >/dev/null
     echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"[skill-modified] Skill file change recorded. Will check for /qq:self-review before ending."}}'
   } || true

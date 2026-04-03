@@ -15,7 +15,7 @@ Review the current conversation context and identify all **file changes actually
 After producing the summary, if `./scripts/qq-run-record.py` exists, persist a `changes` run record so controller state can advance:
 
 ```bash
-python3 ./scripts/qq-run-record.py record \
+"${QQ_PY:-python3}" ./scripts/qq-run-record.py record \
   --project . \
   --stage changes \
   --command qq:changes \

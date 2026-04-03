@@ -57,7 +57,7 @@ case "$MODE" in
         ;;
 esac
 
-RUN_ID="$(qq_run_record_start "test" "sbox-test" "dotnet-test" "dotnet-cli" "S&box test run started" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')"
+RUN_ID="$(qq_run_record_start "test" "sbox-test" "dotnet-test" "dotnet-cli" "S&box test run started" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')"
 TMP_OUTPUT="$(mktemp)"
 trap 'rm -f "$TMP_OUTPUT"' EXIT
 

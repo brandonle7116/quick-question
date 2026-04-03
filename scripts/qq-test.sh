@@ -2,6 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Python compatibility
+: "${QQ_PY:=python3}"
+command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 ARGS=("$@")
@@ -12,7 +16,7 @@ for ((i=0; i<${#ARGS[@]}; i++)); do
     fi
 done
 
-ENGINE="$(python3 "$SCRIPT_DIR/qq_engine.py" detect --project "$PROJECT_DIR" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
+ENGINE="$($QQ_PY "$SCRIPT_DIR/qq_engine.py" detect --project "$PROJECT_DIR" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
 
 if [[ "$ENGINE" == "godot" && ${#ARGS[@]} -gt 0 ]]; then
     case "${ARGS[0]}" in

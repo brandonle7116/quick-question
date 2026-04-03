@@ -9,7 +9,27 @@ qq_find_unity_binary() {
         echo "$UNITY_PATH"; return
     fi
 
-    # 2. Unity Hub (standard path)
+    # 2. Unity Hub editors-v2.json (most reliable on Windows)
+    local editors_json="$APPDATA/UnityHub/editors-v2.json"
+    if [ -f "$editors_json" ]; then
+        local win_path
+        win_path=$(python -c "
+import json
+data = json.load(open(r'$(cygpath -w "$editors_json")'))['data']
+for e in data:
+    if 'location' in e:
+        print(e['location'][0]); break
+" 2>/dev/null)
+        if [ -n "$win_path" ]; then
+            local unix_path
+            unix_path=$(cygpath -u "$win_path" 2>/dev/null || echo "$win_path")
+            if [ -f "$unix_path" ]; then
+                echo "$unix_path"; return
+            fi
+        fi
+    fi
+
+    # 3. Unity Hub (standard path)
     local hub_base="/c/Program Files/Unity/Hub/Editor"
     if [ -d "$hub_base" ]; then
         local project_version=""
@@ -27,7 +47,7 @@ qq_find_unity_binary() {
         fi
     fi
 
-    # 3. Check PATH
+    # 4. Check PATH
     if command -v Unity.exe >/dev/null 2>&1; then
         command -v Unity.exe; return
     fi

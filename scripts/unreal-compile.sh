@@ -41,7 +41,7 @@ if [[ -z "$EDITOR_CMD" ]]; then
     exit 1
 fi
 
-RUN_ID="$(qq_run_record_start "compile" "unreal-compile" "unreal-cli" "unreal-editor-cmd" "Unreal compile/check started" | python3 -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')"
+RUN_ID="$(qq_run_record_start "compile" "unreal-compile" "unreal-cli" "unreal-editor-cmd" "Unreal compile/check started" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')"
 TMP_OUTPUT="$(mktemp)"
 TMP_RESULT="$(mktemp)"
 trap 'rm -f "$TMP_OUTPUT" "$TMP_RESULT"' EXIT
@@ -87,7 +87,7 @@ if [[ ! -s "$TMP_RESULT" ]]; then
     exit 1
 fi
 
-if ! python3 - "$TMP_RESULT" <<'PY'
+if ! $QQ_PY - "$TMP_RESULT" <<'PY'
 import json
 import sys
 from pathlib import Path

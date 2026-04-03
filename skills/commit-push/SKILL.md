@@ -10,7 +10,7 @@ Batch commit all uncommitted changes and push to the remote repository.
 
 1. If `./scripts/qq-project-state.py` exists, run it first:
    ```bash
-   python3 ./scripts/qq-project-state.py --pretty
+   "${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
    ```
    Interpret it like this:
    - `recommended_next == "/qq:commit-push"` → normal ship path, continue
@@ -29,7 +29,7 @@ Batch commit all uncommitted changes and push to the remote repository.
 5. After all commits are done, run `git push`
 6. If `./scripts/qq-worktree.py` exists, inspect worktree context:
    ```bash
-   python3 ./scripts/qq-worktree.py status --pretty
+   "${QQ_PY:-python3}" ./scripts/qq-worktree.py status --pretty
    ```
    Interpret it like this:
    - `isManagedWorktree=false` → normal path, stop after push
@@ -37,11 +37,11 @@ Batch commit all uncommitted changes and push to the remote repository.
 7. For a qq-managed worktree, after push:
    - prefer one-step closeout:
      ```bash
-     python3 ./scripts/qq-worktree.py closeout --auto-yes --delete-branch --pretty
+     "${QQ_PY:-python3}" ./scripts/qq-worktree.py closeout --auto-yes --delete-branch --pretty
      ```
    - if `closeout` refuses to continue, inspect:
      ```bash
-     python3 ./scripts/qq-worktree.py status --pretty
+     "${QQ_PY:-python3}" ./scripts/qq-worktree.py status --pretty
      ```
    - only fall back to separate `merge-back` / `cleanup` if you are debugging a closeout failure
    - explain that closeout removes the current linked worktree directory, so it should be the final action in this session

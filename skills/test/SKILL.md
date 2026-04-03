@@ -22,6 +22,12 @@ Examples:
 - `/qq:test editmode --filter "Health"` → Filter by name
 - `/qq:test --assembly "Game.PlayerSystem.Tests"` → Filter by assembly
 
+## Platform Notes
+
+- **Python command**: Use `python3` on macOS/Linux. On Windows (Git Bash), use `python` instead (`python3` is not available).
+- **Process inspection**: `ps -p PID -o args=` is macOS/Linux only. On Windows, use `wmic process where "ProcessId=$PID" get CommandLine` or `tasklist`.
+- **Editor.log path**: Use `source ./scripts/platform/detect.sh && qq_get_editor_log_path` to get the correct path for the current OS.
+
 ## Steps
 
 ### 0. Read qq project state first when available
@@ -29,7 +35,7 @@ Examples:
 If `./scripts/qq-project-state.py` exists, read it before choosing test scope:
 
 ```bash
-python3 ./scripts/qq-project-state.py --pretty
+"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
 ```
 
 Interpret the result like this:
@@ -60,8 +66,8 @@ if [ ! -f "$TYKIT_JSON" ]; then
   echo "tykit.json not found — skipping health check, scripts will use batch mode"
   # SKIP to Step 2 — batch mode does not need tykit
 fi
-PORT=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['port'])")
-TYKIT_PID=$(python3 -c "import json; print(json.load(open('$TYKIT_JSON'))['pid'])")
+PORT=$("${QQ_PY:-python3}" -c "import json; print(json.load(open('$TYKIT_JSON'))['port'])")
+TYKIT_PID=$("${QQ_PY:-python3}" -c "import json; print(json.load(open('$TYKIT_JSON'))['pid'])")
 ```
 
 #### 1b. Verify PID is the main Unity Editor (not a Worker)

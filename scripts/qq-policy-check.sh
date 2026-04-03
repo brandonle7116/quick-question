@@ -2,6 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Python compatibility
+: "${QQ_PY:=python3}"
+command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
 PROJECT_DIR=""
 JSON_MODE=0
 FILES=()
@@ -29,14 +33,14 @@ EOF
   esac
 done
 
-ENGINE="$(python3 "$SCRIPT_DIR/qq_engine.py" detect --project "$PROJECT_DIR" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
+ENGINE="$($QQ_PY "$SCRIPT_DIR/qq_engine.py" detect --project "$PROJECT_DIR" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
 if [[ -z "$ENGINE" ]]; then
   echo "Error: no supported engine detected for project: $PROJECT_DIR" >&2
   exit 1
 fi
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
-  mapfile -t FILES < <(python3 - "$PROJECT_DIR" "$ENGINE" "$SCRIPT_DIR/qq_engine.py" <<'PY'
+  mapfile -t FILES < <($QQ_PY - "$PROJECT_DIR" "$ENGINE" "$SCRIPT_DIR/qq_engine.py" <<'PY'
 from __future__ import annotations
 
 import json
@@ -93,7 +97,7 @@ if [[ ${#FILES[@]} -eq 0 ]]; then
   exit 0
 fi
 
-python3 - "$PROJECT_DIR" "$ENGINE" "$JSON_MODE" "$SCRIPT_DIR/qq-config.py" "${FILES[@]}" <<'PY'
+$QQ_PY - "$PROJECT_DIR" "$ENGINE" "$JSON_MODE" "$SCRIPT_DIR/qq-config.py" "${FILES[@]}" <<'PY'
 from __future__ import annotations
 
 import json

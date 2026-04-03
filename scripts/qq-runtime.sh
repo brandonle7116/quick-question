@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # qq-runtime.sh — runtime data helpers shared by qq shell scripts
 
+# Python compatibility
+: "${QQ_PY:=python3}"
+command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
+
 qq_project_dir() {
     if [[ -n "${PROJECT_DIR:-}" ]]; then
         printf '%s\n' "$PROJECT_DIR"
@@ -30,7 +34,7 @@ qq_run_record_start() {
     local extra_json="${6:-}"
 
     qq_runtime_ensure
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" start \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" start \
         --project "$(qq_project_dir)" \
         --stage "$stage" \
         --command "$command" \
@@ -48,7 +52,7 @@ qq_run_record_finish() {
     local extra_json="${5:-}"
 
     qq_runtime_ensure
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" finish \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" finish \
         --project "$(qq_project_dir)" \
         --run-id "$run_id" \
         --status "$status" \
@@ -65,50 +69,50 @@ qq_run_record_finish() {
 
 qq_latest_run_json() {
     local stage="${1:-}"
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" latest \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" latest \
         --project "$(qq_project_dir)" \
         ${stage:+--stage "$stage"} 2>/dev/null || true
 }
 
 qq_runtime_prune() {
     qq_runtime_ensure
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" prune \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-run-record.py" prune \
         --project "$(qq_project_dir)" >/dev/null 2>&1 || true
 }
 
 qq_context_capsule_build() {
     local trigger="${1:-manual}"
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" build \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" build \
         --project "$(qq_project_dir)" \
         --trigger "$trigger"
 }
 
 qq_context_capsule_maybe_build() {
     local trigger="$1"
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" maybe-build \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" maybe-build \
         --project "$(qq_project_dir)" \
         --trigger "$trigger" 2>/dev/null || true
 }
 
 qq_context_capsule_status() {
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" status \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" status \
         --project "$(qq_project_dir)"
 }
 
 qq_context_capsule_prompt() {
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" prompt \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-context-capsule.py" prompt \
         --project "$(qq_project_dir)" \
         "$@"
 }
 
 qq_project_state_json() {
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-project-state.py" \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-project-state.py" \
         --project "$(qq_project_dir)" \
         --no-write 2>/dev/null || printf '{}\n'
 }
 
 qq_config_json() {
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" resolve \
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" resolve \
         --project "$(qq_project_dir)" 2>/dev/null || printf '{}\n'
 }
 
@@ -116,7 +120,7 @@ qq_config_field() {
     local field="$1"
     local payload
     payload="$(qq_config_json)"
-    QQ_CONFIG_PAYLOAD="$payload" python3 - "$field" <<'PY'
+    QQ_CONFIG_PAYLOAD="$payload" $QQ_PY - "$field" <<'PY'
 import json
 import os
 import sys
@@ -144,14 +148,14 @@ qq_engine() {
         printf '%s\n' "$engine"
         return
     fi
-    python3 "$(dirname "${BASH_SOURCE[0]}")/qq_engine.py" detect --project "$(qq_project_dir)" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || printf '\n'
+    $QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq_engine.py" detect --project "$(qq_project_dir)" 2>/dev/null | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || printf '\n'
 }
 
 qq_project_state_field() {
     local field="$1"
     local payload
     payload="$(qq_project_state_json)"
-    QQ_PROJECT_STATE_PAYLOAD="$payload" python3 - "$field" <<'PY'
+    QQ_PROJECT_STATE_PAYLOAD="$payload" $QQ_PY - "$field" <<'PY'
 import json
 import os
 import sys
@@ -241,7 +245,7 @@ qq_active_profile() {
 qq_hook_enabled() {
     local hook_name="$1"
     local value
-    value="$(python3 "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" hook-enabled "$hook_name" --project "$(qq_project_dir)" 2>/dev/null || printf 'false\n')"
+    value="$($QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" hook-enabled "$hook_name" --project "$(qq_project_dir)" 2>/dev/null || printf 'false\n')"
     case "$value" in
         true) printf 'true\n' ;;
         *) printf 'false\n' ;;
@@ -251,7 +255,7 @@ qq_hook_enabled() {
 qq_skill_enabled() {
     local skill_name="$1"
     local value
-    value="$(python3 "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" skill-enabled "$skill_name" --project "$(qq_project_dir)" 2>/dev/null || printf 'false\n')"
+    value="$($QQ_PY "$(dirname "${BASH_SOURCE[0]}")/qq-config.py" skill-enabled "$skill_name" --project "$(qq_project_dir)" 2>/dev/null || printf 'false\n')"
     case "$value" in
         true) printf 'true\n' ;;
         *) printf 'false\n' ;;
