@@ -111,22 +111,6 @@ POLICY_PROFILES: dict[str, dict[str, Any]] = {
 DEFAULT_ENABLED_RULES: list[str] = []
 
 
-VALID_CONTEXT_CAPSULE_TRIGGERS = {
-    "manual",
-    "resume",
-    "pre_clear",
-    "worktree_handoff",
-    "after_blocker",
-}
-DEFAULT_CONTEXT_CAPSULE_TRIGGERS = ["resume", "pre_clear", "worktree_handoff", "after_blocker"]
-DEFAULT_CONTEXT_CAPSULE = {
-    "enabled": True,
-    "mode": "auto",
-    "triggers": list(DEFAULT_CONTEXT_CAPSULE_TRIGGERS),
-    "max_chars": 3000,
-}
-
-
 DEFAULT_INSTALL = {
     "hosts": ["claude", "codex", "mcp"],
     "add_modules": [],
@@ -431,37 +415,6 @@ def normalized_toggle(value: Any) -> dict[str, list[str]]:
     }
 
 
-def normalize_context_capsule_payload(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        return {}
-
-    enabled = value.get("enabled")
-    if not isinstance(enabled, bool):
-        enabled = DEFAULT_CONTEXT_CAPSULE["enabled"]
-
-    mode = str(value.get("mode") or "").strip().lower()
-    if mode not in {"off", "manual", "auto"}:
-        mode = DEFAULT_CONTEXT_CAPSULE["mode"]
-
-    triggers = normalize_name_list(value.get("triggers"))
-    triggers = [trigger for trigger in triggers if trigger in VALID_CONTEXT_CAPSULE_TRIGGERS]
-    if not triggers:
-        triggers = list(DEFAULT_CONTEXT_CAPSULE_TRIGGERS)
-
-    max_chars_raw = value.get("max_chars")
-    try:
-        max_chars = max(400, int(max_chars_raw))
-    except (TypeError, ValueError):
-        max_chars = int(DEFAULT_CONTEXT_CAPSULE["max_chars"])
-
-    return {
-        "enabled": enabled,
-        "mode": mode,
-        "triggers": dedupe(triggers),
-        "max_chars": max_chars,
-    }
-
-
 def normalize_install_payload(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
@@ -497,27 +450,6 @@ def merge_install_payload(base: dict[str, Any], override: dict[str, Any]) -> dic
     return merged
 
 
-def merge_context_capsule_payload(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(DEFAULT_CONTEXT_CAPSULE)
-    merged.update(base)
-    if not override:
-        return merged
-    merged.update(override)
-    merged["triggers"] = dedupe(
-        [
-            trigger
-            for trigger in list(merged.get("triggers") or [])
-            if trigger in VALID_CONTEXT_CAPSULE_TRIGGERS
-        ]
-        or list(DEFAULT_CONTEXT_CAPSULE_TRIGGERS)
-    )
-    if merged.get("mode") == "off":
-        merged["enabled"] = False
-    elif not merged.get("enabled"):
-        merged["mode"] = "off"
-    return merged
-
-
 def normalize_profile_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "description": str(payload.get("description") or ""),
@@ -533,7 +465,6 @@ def normalize_profile_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "remove_rules": normalize_name_list(payload.get("remove_rules")),
         "skills": normalized_toggle(payload.get("skills")),
         "hooks": normalized_toggle(payload.get("hooks")),
-        "context_capsule": normalize_context_capsule_payload(payload.get("context_capsule")),
     }
 
 
@@ -561,10 +492,6 @@ def merge_profile_payload(base: dict[str, Any], override: dict[str, Any]) -> dic
         "enable": merge_unique(list((merged.get("hooks") or {}).get("enable") or []), list((override.get("hooks") or {}).get("enable") or [])),
         "disable": merge_unique(list((merged.get("hooks") or {}).get("disable") or []), list((override.get("hooks") or {}).get("disable") or [])),
     }
-    merged["context_capsule"] = merge_context_capsule_payload(
-        dict(merged.get("context_capsule") or DEFAULT_CONTEXT_CAPSULE),
-        dict(override.get("context_capsule") or {}),
-    )
     return merged
 
 
@@ -596,7 +523,6 @@ def resolve_profile(name: str, custom_profiles: dict[str, dict[str, Any]], stack
             "enabled_rules": list(DEFAULT_ENABLED_RULES),
             "skills": {"enable": [], "disable": []},
             "hooks": {"enable": [], "disable": []},
-            "context_capsule": dict(DEFAULT_CONTEXT_CAPSULE),
         }
 
     stack.remove(profile_name)
@@ -706,16 +632,6 @@ def resolve_project_config(project_dir: Path) -> dict[str, Any]:
     packs = merge_unique(packs, policy_floor_packs(policy_profile))
     packs = [pack for pack in packs if pack in PACKS]
 
-    shared_context_capsule = normalize_context_capsule_payload(shared.get("context_capsule"))
-    local_context_capsule = normalize_context_capsule_payload(local.get("context_capsule"))
-    context_capsule = merge_context_capsule_payload(
-        merge_context_capsule_payload(
-            dict(resolved_profile.get("context_capsule") or DEFAULT_CONTEXT_CAPSULE),
-            shared_context_capsule,
-        ),
-        local_context_capsule,
-    )
-
     engine_rules = engine_default_enabled_rules(engine) if engine else list(DEFAULT_ENABLED_RULES)
     profile_rules = list(resolved_profile.get("enabled_rules") or engine_rules)
     if not profile_rules:
@@ -774,7 +690,6 @@ def resolve_project_config(project_dir: Path) -> dict[str, Any]:
         "enabled_hooks": enabled_hooks,
         "enabled_rules": enabled_rules,
         "task_focus": task_focus,
-        "context_capsule": context_capsule,
         "install_preferences": install_preferences,
         "available_install_hosts": sorted(VALID_INSTALL_HOSTS),
         "shared_config_exists": shared_yaml_path.is_file(),
