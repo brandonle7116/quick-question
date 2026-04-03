@@ -53,47 +53,6 @@ def load_worktree_status(project_dir: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def load_context_capsule_consume(
-    project_dir: Path,
-    *,
-    force: bool = False,
-    refresh: bool = False,
-    note: str = "",
-    no_resume: bool = False,
-) -> dict[str, Any]:
-    helper = SCRIPT_DIR / "qq-context-capsule.py"
-    if not helper.is_file():
-        return {
-            "resumeApplied": False,
-            "resumeMode": "off",
-            "resumeReason": "helper_missing",
-            "resumeRefresh": refresh,
-            "resumePrompt": "",
-            "resumePromptChars": 0,
-        }
-
-    command = ["python3", str(helper), "consume", "--project", str(project_dir), "--agent", "codex"]
-    if force:
-        command.append("--force")
-    if refresh:
-        command.append("--refresh")
-    if note:
-        command.extend(["--note", note])
-    if no_resume:
-        command.append("--no-resume")
-
-    result = subprocess.run(command, check=False, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "Failed to resolve Context Capsule consumption")
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("qq-context-capsule.py consume returned invalid JSON") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("qq-context-capsule.py consume returned a non-object payload")
-    return payload if isinstance(payload, dict) else {}
-
-
 def run_codex(arguments: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["codex", *arguments],
@@ -219,17 +178,6 @@ def has_add_dir(arguments: list[str], candidate: Path) -> bool:
     return False
 
 
-def merge_resume_prompt(arguments: list[str], resume_prompt: str) -> list[str]:
-    merged = list(arguments)
-    if not resume_prompt.strip():
-        return merged
-    if merged and not merged[-1].startswith("-"):
-        merged[-1] = f"{resume_prompt.rstrip()}\n\nUser request:\n{merged[-1]}"
-        return merged
-    merged.append(resume_prompt)
-    return merged
-
-
 def looks_like_closeout_request(arguments: list[str]) -> bool:
     if not arguments:
         return False
@@ -252,10 +200,6 @@ def build_exec_command(
     project_dir: Path,
     passthrough: list[str],
     *,
-    resume: bool = False,
-    resume_refresh: bool = False,
-    resume_note: str = "",
-    no_resume: bool = False,
     allow_source_worktree: bool = False,
 ) -> dict[str, Any]:
     config = resolve_project_config(project_dir)
@@ -312,16 +256,7 @@ def build_exec_command(
         else:
             added_source_dir_reason = "trust_level:explicit_required"
 
-    resume_payload = load_context_capsule_consume(
-        project_dir,
-        force=resume,
-        refresh=resume_refresh,
-        note=resume_note,
-        no_resume=no_resume,
-    )
-    resume_prompt = str(resume_payload.get("resumePrompt") or "")
-
-    command.extend(merge_resume_prompt(passthrough, resume_prompt))
+    command.extend(passthrough)
     payload = {
         "projectDir": str(project_dir),
         "trustLevel": trust_level,
@@ -333,12 +268,6 @@ def build_exec_command(
         "defaultCdApplied": default_cd_applied,
         "addedSourceDir": added_source_dir,
         "addedSourceDirReason": added_source_dir_reason,
-        "resumeApplied": bool(resume_payload.get("resumeApplied")),
-        "resumeMode": str(resume_payload.get("resumeMode") or "off"),
-        "resumeReason": str(resume_payload.get("resumeReason") or "disabled"),
-        "resumePromptChars": len(resume_prompt),
-        "resumeRefresh": bool(resume_payload.get("resumeRefresh")),
-        "resumeNote": resume_note,
         "command": command,
     }
     with isolate_project_mcp_server(project_dir, dry_run=True) as isolation:
@@ -354,10 +283,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project", default=".", help="Project root used for qq context inspection")
     parser.add_argument("--dry-run", action="store_true", help="Print the resolved exec command instead of running Codex")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output for --dry-run")
-    parser.add_argument("--resume", action="store_true", help="Append a standardized resume prompt built from the latest qq Context Capsule")
-    parser.add_argument("--resume-refresh", action="store_true", help="Rebuild the capsule with the resume trigger before appending the resume prompt")
-    parser.add_argument("--resume-note", default="", help="Optional extra instruction appended to the generated resume prompt")
-    parser.add_argument("--no-resume", action="store_true", help="Disable automatic Context Capsule consumption for this exec")
     parser.add_argument("--allow-source-worktree", action="store_true", help="Explicitly widen Codex write scope to the source worktree when running from a managed worktree")
     return parser
 
@@ -372,10 +297,6 @@ def main() -> int:
     payload = build_exec_command(
         project_dir,
         passthrough,
-        resume=args.resume,
-        resume_refresh=args.resume_refresh,
-        resume_note=args.resume_note,
-        no_resume=args.no_resume,
         allow_source_worktree=args.allow_source_worktree,
     )
 
