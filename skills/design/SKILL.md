@@ -47,11 +47,12 @@ Which approach was chosen and why. One sentence on trade-offs if relevant.
 ## 6. Open Questions
 ```
 
-## Running rule: explore freely, resolve uncertainty
+## Running rules
 
-- **At any point** in the process, read the codebase, existing design docs, and data configs to inform your design. Don't limit exploration to one step.
-- **When the user says "不清楚", "没想好", "不确定", or anything indicating they haven't figured something out:** STOP the current flow. Help them think it through — propose options, cite reference games, show trade-offs. Only continue when the question is resolved. Do NOT park it in Open Questions and move on.
-- **Open Questions** is reserved for genuinely low-impact unknowns that won't affect the design direction (e.g., exact number tuning, visual polish details).
+- **Explore freely:** at any point, read the codebase, existing design docs, and data configs to inform your design. Don't limit exploration to one step.
+- **Resolve uncertainty:** when the user says "不清楚", "没想好", "不确定", or anything indicating they haven't figured something out — STOP. Help them think it through with options, reference games, and trade-offs. Only continue when resolved. Do NOT park it in Open Questions and move on.
+- **Challenge with evidence:** when presenting a section for confirmation, flag design choices that conflict with what reference games have learned, contradict the existing codebase, or create internal inconsistency within the document. Bring the evidence ("Raft tried X and removed it because..."), not just doubt. Do NOT challenge personal taste, aesthetic preferences, or things that are already built and working. Max 1-2 challenges per design doc — if everything looks solid, say so and move on.
+- **Open Questions** is reserved for genuinely low-impact unknowns (e.g., exact number tuning, visual polish).
 
 ## Process
 
