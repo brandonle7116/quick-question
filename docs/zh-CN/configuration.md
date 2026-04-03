@@ -32,15 +32,6 @@
 | `remove_modules` | list | `[]` | 排除的模块 |
 | `sync` | bool | `false` | 安装时清理过期的托管文件 |
 
-### context_capsule
-
-| 字段 | 类型 | 默认值 | 描述 |
-|---|---|---|---|
-| `enabled` | bool | `true` | 总开关 |
-| `mode` | string | `auto` | `auto` / `manual` / `off` |
-| `triggers` | list | `[resume, pre_clear, worktree_handoff, after_blocker]` | 触发 capsule 的事件（另有：`manual`） |
-| `max_chars` | int | `3000` | 每个 capsule 的字符预算（下限 400） |
-
 ### profiles
 
 在 `profiles:` 下定义自定义 profile，通过 `extends` 继承内置 profile。每个 profile 可设置 `work_mode`、`policy_profile`、`packs`（替换）或 `add_packs`/`remove_packs`（增量）、`enabled_rules`（替换）或 `add_rules`/`remove_rules`（增量），以及 `skills`/`hooks` 开关（`{enable: [], disable: []}`）。

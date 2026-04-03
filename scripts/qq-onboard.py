@@ -323,7 +323,7 @@ def replace_install_block(text: str, install_payload: dict[str, Any]) -> str:
     else:
         insert_at = len(lines)
         for index, line in enumerate(lines):
-            if line.startswith("context_capsule:") or line.startswith("profiles:"):
+            if line.startswith("profiles:"):
                 insert_at = index
                 break
     block = render_install_block(install_payload).splitlines()

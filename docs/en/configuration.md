@@ -32,15 +32,6 @@ Settings flow: built-in defaults -> profile inheritance -> `qq.yaml` -> `.qq/loc
 | `remove_modules` | list | `[]` | Modules to exclude |
 | `sync` | bool | `false` | Prune stale managed files on install |
 
-### context_capsule
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | bool | `true` | Master switch |
-| `mode` | string | `auto` | `auto` / `manual` / `off` |
-| `triggers` | list | `[resume, pre_clear, worktree_handoff, after_blocker]` | Events that fire a capsule (also: `manual`) |
-| `max_chars` | int | `3000` | Character budget per capsule (floor: 400) |
-
 ### profiles
 
 Custom profiles defined under `profiles:` inherit from built-in ones via `extends`. Each profile can set `work_mode`, `policy_profile`, `packs` (replace) or `add_packs`/`remove_packs` (delta), `enabled_rules` (replace) or `add_rules`/`remove_rules` (delta), and `skills`/`hooks` toggles (`{enable: [], disable: []}`).

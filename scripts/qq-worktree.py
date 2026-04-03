@@ -394,48 +394,6 @@ def project_local_mcp_server(project_dir: Path) -> dict[str, Any]:
     }
 
 
-def maybe_build_context_capsule(project_dir: Path, trigger: str) -> dict[str, Any]:
-    helper = Path(__file__).resolve().parent / "qq-context-capsule.py"
-    if not helper.is_file():
-        return {
-            "available": False,
-            "built": False,
-            "trigger": trigger,
-            "error": "qq-context-capsule.py not found",
-        }
-
-    result = subprocess.run(
-        ["python3", str(helper), "maybe-build", "--project", str(project_dir), "--trigger", trigger],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return {
-            "available": True,
-            "built": False,
-            "trigger": trigger,
-            "error": result.stderr.strip() or result.stdout.strip() or "qq-context-capsule maybe-build failed",
-        }
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return {
-            "available": True,
-            "built": False,
-            "trigger": trigger,
-            "error": "qq-context-capsule maybe-build returned invalid JSON",
-        }
-    if not isinstance(payload, dict):
-        return {
-            "available": True,
-            "built": False,
-            "trigger": trigger,
-            "error": "qq-context-capsule maybe-build returned a non-object payload",
-        }
-    payload["available"] = True
-    return payload
-
 
 def is_project_bridge_server(name: str, server: dict[str, Any]) -> bool:
     known_names = {bridge_server_name(engine) for engine in known_engines() if bridge_server_name(engine)}
@@ -526,14 +484,6 @@ def copy_baseline_run_records(source_dir: Path, target_dir: Path) -> list[str]:
         record_path = str(payload.get("recordPath") or payload.get("record_path") or "").strip()
         if record_path:
             record_paths.add(record_path)
-
-    capsule_payload = load_json_object(source_dir / ".qq" / "state" / "context-capsule.json")
-    source_records = capsule_payload.get("sourceRecords") or {}
-    if isinstance(source_records, dict):
-        for value in source_records.values():
-            record_path = str(value or "").strip()
-            if record_path:
-                record_paths.add(record_path)
 
     for relative in sorted(record_paths):
         src = source_dir / relative
@@ -873,7 +823,6 @@ def command_create(args: argparse.Namespace) -> dict[str, Any]:
         },
     }
     metadata_file = write_metadata(target_path, metadata)
-    context_capsule = maybe_build_context_capsule(target_path, "worktree_handoff")
     recommended_execution = build_recommended_execution(target_path)
     next_steps = build_create_next_steps(target_path, recommended_execution)
     return {
@@ -888,7 +837,6 @@ def command_create(args: argparse.Namespace) -> dict[str, Any]:
         "copiedLocalRuntimeFiles": copied_files,
         "copiedBaselineStateFiles": copied_state_files,
         "copiedBaselineRunRecords": copied_run_records,
-        "contextCapsule": context_capsule,
         "runtimeCacheSeed": {
             "ok": runtime_cache_seed.ok,
             "action": runtime_cache_seed.action,
@@ -1096,8 +1044,6 @@ def command_closeout(args: argparse.Namespace) -> dict[str, Any]:
             "Worktree is not ready for cleanup after merge-back; inspect qq-worktree status and publish the source branch if needed"
         )
 
-    source_context_capsule = maybe_build_context_capsule(Path(str(status_after_merge["sourceWorktreePath"])), "worktree_handoff")
-
     cleanup_args = argparse.Namespace(
         project=str(project_dir),
         delete_branch=args.delete_branch,
@@ -1109,7 +1055,6 @@ def command_closeout(args: argparse.Namespace) -> dict[str, Any]:
         "ok": True,
         "action": "closeout",
         "mergeBack": merge_payload,
-        "sourceContextCapsule": source_context_capsule,
         "cleanup": cleanup_payload,
     }
 

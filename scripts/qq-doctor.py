@@ -647,53 +647,6 @@ def build_controller_state(project_dir: Path) -> dict[str, Any]:
     }
 
 
-def build_context_capsule_state(project_dir: Path) -> dict[str, Any]:
-    path = project_dir / ".qq" / "state" / "context-capsule.json"
-    config: dict[str, Any] = {}
-    helper = SCRIPT_DIR / "qq-context-capsule.py"
-    if helper.is_file():
-        result = subprocess.run(
-            ["python3", str(helper), "config", "--project", str(project_dir)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            try:
-                payload_config = json.loads(result.stdout)
-            except json.JSONDecodeError:
-                payload_config = {}
-            if isinstance(payload_config, dict):
-                config = payload_config
-    payload = load_optional_json(path)
-    if not payload:
-        return {
-            "path": str(path),
-            "exists": False,
-            "generatedAt": "",
-            "trigger": "",
-            "recommendedNext": "",
-            "blockerCount": 0,
-            "resumePromptChars": 0,
-            "config": config,
-        }
-
-    blockers = payload.get("blockers") or []
-    prompt = str(payload.get("resumePromptMd") or "")
-    return {
-        "path": str(path),
-        "exists": True,
-        "generatedAt": str(payload.get("generatedAt") or ""),
-        "trigger": str(payload.get("trigger") or ""),
-        "recommendedNext": str(payload.get("recommendedNext") or ""),
-        "blockerCount": len(blockers) if isinstance(blockers, list) else 0,
-        "resumePromptChars": len(prompt),
-        "workMode": str(payload.get("workMode") or ""),
-        "policyProfile": str(payload.get("policyProfile") or ""),
-        "config": config,
-    }
-
-
 def build_installation_state(project_dir: Path) -> dict[str, Any]:
     state = load_install_state(project_dir)
     expected = resolve_install_plan(project_dir, project_dir)
@@ -1342,7 +1295,6 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
         "hosts": {
             "codex": codex_host,
         },
-        "contextCapsule": build_context_capsule_state(project_dir),
         "providers": provider_items,
         "resolution": resolve_capabilities(registry, engine, provider_status),
     }

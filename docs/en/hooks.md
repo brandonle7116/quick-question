@@ -85,7 +85,7 @@ At session end, the Stop hook `check-skill-review.sh` checks whether the marker 
 **Trigger:** Stop
 **Timeout:** 2 seconds
 
-Removes all temp files for the current session: gate files, skill modification markers, and any other session-scoped state. Also triggers a context capsule build (`pre_clear`) and prunes stale runtime data.
+Removes all temp files for the current session: gate files, skill modification markers, and any other session-scoped state. Also prunes stale runtime data.
 
 ## Session Isolation
 
