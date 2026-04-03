@@ -122,14 +122,14 @@ Save to `Docs/qq/<branch-name>/<feature-name>_implementation.md`.
 
 ## 5. Handoff
 
-Plan review is mandatory before execution. Recommend in this order:
+Plan review is mandatory before execution. Do NOT offer `/qq:execute` directly.
 
-1. **Cross-model review first** → `/qq:codex-plan-review` (preferred — independent model catches blind spots)
-2. **Same-model review as fallback** → `/qq:claude-plan-review` (if Codex is unavailable)
+First, check if Codex CLI is available by running `which codex 2>/dev/null || where codex 2>/dev/null`.
 
-Do NOT offer `/qq:execute` directly. The plan must go through review first.
+- **Codex available** → recommend `/qq:codex-plan-review` (cross-model review catches blind spots that same-model review misses)
+- **Codex not available** → recommend `/qq:claude-plan-review`
 
-**`--auto` mode:** run `/qq:codex-plan-review --auto`, fall back to `/qq:claude-plan-review --auto` if Codex is unavailable.
+**`--auto` mode:** run the check, then invoke the appropriate review skill with `--auto`.
 
 ## Notes
 
