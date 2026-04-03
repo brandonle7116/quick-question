@@ -62,7 +62,7 @@ Which approach was chosen and why. One sentence on trade-offs if relevant.
 4. **Ask questions (max 5):** prefer multiple choice, one per message, most impactful gaps first
 5. **Write:** present each section for confirmation (unless `--auto`). Keep total doc to 1-3 pages
 6. **Save** to `Docs/qq/<branch-name>/<feature-name>_design.md`
-7. **Design review (mandatory):** spawn a subagent using the Agent tool to review the saved document from an implementer's perspective. The subagent should read [design-reviewer-prompt.md](design-reviewer-prompt.md) for its review instructions, then read the saved design doc. If the verdict is HAS GAPS or NEEDS REWORK, present the findings to the user and revise the document before proceeding. Loop until SOLID or the user explicitly accepts the gaps.
+7. **Post-design review (mandatory):** invoke `/qq:post-design-review` using the Skill tool, passing the saved document path. If the verdict is HAS GAPS or NEEDS REWORK, revise the document before proceeding. Loop until SOLID or the user explicitly accepts the gaps.
 8. **Handoff:** recommend `/qq:plan` (or note open questions to resolve first)
 
 ## Notes
