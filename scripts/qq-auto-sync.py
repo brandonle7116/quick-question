@@ -94,7 +94,9 @@ def main() -> int:
     install_state_path = project_dir / ".qq" / "install-state.json"
     state = load_json(install_state_path)
     if not state:
-        return 0
+        if not (project_dir / ".qq").is_dir():
+            return 0
+        state = {"pluginVersion": "", "managedFiles": []}
 
     plugin_json = load_json(plugin_root / ".claude-plugin" / "plugin.json")
     plugin_version = str(plugin_json.get("version") or "")
