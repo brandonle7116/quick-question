@@ -15,6 +15,7 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PYTHON = shutil.which(PYTHON) or shutil.which("python") or PYTHON
 
 
 class BenchmarkError(Exception):
@@ -186,7 +187,7 @@ def apply_runtime_config(project_dir: Path, shared_config: dict[str, Any] | None
 
 
 def run_project_state(project_dir: Path) -> dict[str, Any]:
-    result = run_command(["python3", str(REPO_ROOT / "scripts" / "qq-project-state.py"), "--project", str(project_dir)])
+    result = run_command([PYTHON, str(REPO_ROOT / "scripts" / "qq-project-state.py"), "--project", str(project_dir)])
     if result.returncode != 0:
         raise BenchmarkError(result.stderr.strip() or result.stdout.strip() or f"qq-project-state failed for {project_dir}")
     payload = json.loads(result.stdout)
@@ -198,7 +199,7 @@ def run_project_state(project_dir: Path) -> dict[str, Any]:
 def record_stage_result(project_dir: Path, stage: str, command_name: str, summary: str, status: str) -> None:
     start = run_command(
         [
-            "python3",
+            PYTHON,
             str(REPO_ROOT / "scripts" / "qq-run-record.py"),
             "start",
             "--project",
@@ -220,7 +221,7 @@ def record_stage_result(project_dir: Path, stage: str, command_name: str, summar
     run_id = json.loads(start.stdout)["run_id"]
     finish = run_command(
         [
-            "python3",
+            PYTHON,
             str(REPO_ROOT / "scripts" / "qq-run-record.py"),
             "finish",
             "--project",
@@ -516,7 +517,7 @@ def run_record_smoke(task: dict[str, Any], project_dir: Path | None) -> dict[str
     try:
         start = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-run-record.py"),
                 "start",
                 "--project",
@@ -539,7 +540,7 @@ def run_record_smoke(task: dict[str, Any], project_dir: Path | None) -> dict[str
         run_id = json.loads(start.stdout)["run_id"]
         finish = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-run-record.py"),
                 "finish",
                 "--project",
@@ -585,7 +586,7 @@ def project_state_smoke(task: dict[str, Any], project_dir: Path | None) -> dict[
 
         start = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-run-record.py"),
                 "start",
                 "--project",
@@ -607,7 +608,7 @@ def project_state_smoke(task: dict[str, Any], project_dir: Path | None) -> dict[
         run_id = json.loads(start.stdout)["run_id"]
         finish = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-run-record.py"),
                 "finish",
                 "--project",
@@ -623,7 +624,7 @@ def project_state_smoke(task: dict[str, Any], project_dir: Path | None) -> dict[
         if finish.returncode != 0:
             raise BenchmarkError(finish.stderr.strip() or "project state smoke finish failed")
 
-        state_run = run_command(["python3", str(REPO_ROOT / "scripts" / "qq-project-state.py"), "--project", str(root)])
+        state_run = run_command([PYTHON, str(REPO_ROOT / "scripts" / "qq-project-state.py"), "--project", str(root)])
         if state_run.returncode != 0:
             raise BenchmarkError(state_run.stderr.strip() or state_run.stdout.strip() or "project state failed")
         state = json.loads(state_run.stdout)
@@ -814,7 +815,7 @@ def worktree_lifecycle_case(task: dict[str, Any], project_dir: Path | None) -> d
 
         create = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-worktree.py"),
                 "create",
                 "--project",
@@ -834,7 +835,7 @@ def worktree_lifecycle_case(task: dict[str, Any], project_dir: Path | None) -> d
         commit_all(worktree_path, "worktree benchmark change")
 
         status_before = run_command(
-            ["python3", str(REPO_ROOT / "scripts" / "qq-worktree.py"), "status", "--project", str(worktree_path), "--pretty"]
+            [PYTHON, str(REPO_ROOT / "scripts" / "qq-worktree.py"), "status", "--project", str(worktree_path), "--pretty"]
         )
         if status_before.returncode != 0:
             raise BenchmarkError(status_before.stderr.strip() or status_before.stdout.strip() or "worktree status failed")
@@ -848,7 +849,7 @@ def worktree_lifecycle_case(task: dict[str, Any], project_dir: Path | None) -> d
 
         closeout = run_command(
             [
-                "python3",
+                PYTHON,
                 str(REPO_ROOT / "scripts" / "qq-worktree.py"),
                 "closeout",
                 "--project",
