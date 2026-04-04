@@ -34,22 +34,30 @@ If it returns progress with `status: "running"` or `"paused"`, resume from the f
 
 If empty, fall back to scanning the plan for checked boxes (`- [x]`) for backward compatibility.
 
-## 3. Analyze
+## 3. Analyze & Start
 
-Read the plan. Read CLAUDE.md and AGENTS.md (if it exists) before writing any code. Classify:
+Read the plan. Read CLAUDE.md and AGENTS.md (if it exists).
+
+**Do NOT write a new plan, enter plan mode, or save files to `.claude/plans/`.** The plan already exists — your job is to execute it, not rewrite it.
+
+Classify the plan:
 - **Small** (≤8 steps touching ≤12 files): main agent executes directly, using subagents only for independent parallel files.
 - **Large** (>8 steps or >12 files across >3 modules): main agent becomes a **coordinator only** — dispatch each phase/group as a subagent. Do NOT write implementation code in the main session.
 
-Use judgment for borderline cases — a 9-step plan with trivial single-file changes may not need coordinator mode.
+Use judgment for borderline cases.
 
-**Initialize checkpoint** before executing the first step:
+Output a brief summary to the user (plain text, not a file):
+```
+Executing: <plan name> (coordinator mode, N phases)
+Phase 0: ... → Phase 1: ... → ...
+```
+
+Then initialize checkpoint and begin immediately:
 ```bash
 qq-execute-checkpoint.py save \
   --project . --plan "<PLAN_PATH>" --step 0 --total <M> \
   --mode <coordinator|direct> --phase "<FIRST_PHASE>" --status running
 ```
-
-Present a one-line-per-step breakdown, then immediately begin execution. No "Proceed?" prompt.
 
 ## 4. Execute
 
