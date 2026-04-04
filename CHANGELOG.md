@@ -2,6 +2,13 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.0] — 2026-04-04
+
+### Fixed
+- benchmark runner 用 `sys.executable` 替代 `shutil.which("python3")`（Windows 兼容）
+- review gate 只在有运行时代码变更时触发（doc-only 不拦截）
+- 更新所有 eval benchmark 断言适配 add-tests gate + review gate 新逻辑
+
 ## [1.15.9] — 2026-04-04
 
 ### Fixed

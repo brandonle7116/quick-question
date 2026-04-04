@@ -130,7 +130,7 @@
             }
           ],
           "expect": {
-            "recommended_next": "/qq:claude-code-review"
+            "recommended_next": "/qq:add-tests"
           }
         }
       ]
@@ -173,7 +173,7 @@
             }
           ],
           "expect": {
-            "recommended_next": "/qq:claude-code-review"
+            "recommended_next": "/qq:add-tests"
           }
         },
         {
@@ -186,7 +186,7 @@
           ],
           "expect": {
             "review_gate_status": "verified",
-            "recommended_next": "/qq:doc-drift"
+            "recommended_next": "/qq:add-tests"
           }
         }
       ]
@@ -249,7 +249,7 @@
           ],
           "expect": {
             "policy_profile": "hardening",
-            "recommended_next": "/qq:claude-code-review"
+            "recommended_next": "/qq:add-tests"
           }
         }
       ]
@@ -361,7 +361,7 @@
             }
           ],
           "expect": {
-            "recommended_next": "/qq:commit-push"
+            "recommended_next": "/qq:claude-code-review"
           }
         }
       ]
