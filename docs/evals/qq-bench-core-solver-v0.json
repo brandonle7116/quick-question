@@ -77,7 +77,7 @@
           "work_mode": "fix",
           "last_compile_status": "passed",
           "last_test_status": "passed",
-          "recommended_next": "/qq:commit-push"
+          "recommended_next": "/qq:claude-code-review"
         }
       }
     },

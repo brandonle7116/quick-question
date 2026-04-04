@@ -545,7 +545,7 @@ state = json.loads((root / ".qq" / "state" / "project-state.json").read_text(enc
 assert state["changes_summary_fresh"] is True
 assert state["last_changes_status"] == "checked"
 assert state["mode_recommended_next"] == "/qq:commit-push"
-assert state["recommended_next"] == "/qq:commit-push"
+assert state["recommended_next"] == "/qq:add-tests"
 PY
 then
   pass "prototype changes summary advances the controller to commit-push"

@@ -286,8 +286,6 @@ def should_recommend_add_tests(state: dict[str, Any]) -> bool:
         return False
     if state["has_uncommitted_test_changes"]:
         return False
-    # No test files changed alongside runtime changes → recommend adding tests
-    # Covers both "tests not run yet" and "tests passed but new code not covered"
     return True
 
 
@@ -470,7 +468,7 @@ def recommend_next(state: dict[str, Any]) -> str:
     if state["last_test_status"] in {"failed", "blocked"}:
         return "/qq:test"
     candidate = apply_policy_profile(state, recommend_mode_next(state))
-    if candidate == "/qq:commit-push" and state["review_gate_status"] != "verified" and skill_enabled(state, "claude-code-review"):
+    if candidate == "/qq:commit-push" and state["has_uncommitted_runtime_changes"] and state["review_gate_status"] != "verified" and skill_enabled(state, "claude-code-review"):
         return "/qq:claude-code-review"
     if candidate == "/qq:commit-push" and should_recommend_add_tests(state):
         return "/qq:add-tests"

@@ -2,6 +2,13 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.15.9] — 2026-04-04
+
+### Fixed
+- `should_recommend_add_tests` 简化：有运行时变更 + 编译通过 + 无测试文件变更 → 推荐 add-tests（所有模式）
+- review gate 只在有运行时代码变更时触发（doc-only 改动不拦截）
+- 更新 eval benchmark 断言适配新的 recommend_next 逻辑
+
 ## [1.15.8] — 2026-04-04
 
 ### Fixed
