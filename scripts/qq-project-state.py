@@ -278,13 +278,19 @@ def skill_enabled(state: dict[str, Any], name: str) -> bool:
 
 
 def should_recommend_add_tests(state: dict[str, Any]) -> bool:
-    return (
-        state["has_uncommitted_runtime_changes"]
-        and state["last_compile_status"] == "passed"
-        and state["last_test_status"] not in {"passed", "warning"}
-        and not state["has_uncommitted_test_changes"]
-        and skill_enabled(state, "add-tests")
-    )
+    if not state["has_uncommitted_runtime_changes"]:
+        return False
+    if state["last_compile_status"] != "passed":
+        return False
+    if not skill_enabled(state, "add-tests"):
+        return False
+    # No test changes alongside runtime changes → new code likely lacks coverage
+    if not state["has_uncommitted_test_changes"]:
+        return True
+    # Tests exist but haven't been run yet
+    if state["last_test_status"] not in {"passed", "warning"}:
+        return True
+    return False
 
 
 def changes_summary_fresh(state: dict[str, Any]) -> bool:
@@ -465,7 +471,12 @@ def recommend_next(state: dict[str, Any]) -> str:
         return "fix_compile"
     if state["last_test_status"] in {"failed", "blocked"}:
         return "/qq:test"
-    return apply_policy_profile(state, recommend_mode_next(state))
+    candidate = apply_policy_profile(state, recommend_mode_next(state))
+    if candidate == "/qq:commit-push" and state["review_gate_status"] != "verified" and skill_enabled(state, "claude-code-review"):
+        return "/qq:claude-code-review"
+    if candidate == "/qq:commit-push" and should_recommend_add_tests(state):
+        return "/qq:add-tests"
+    return candidate
 
 
 def build_state(project_dir: Path) -> dict[str, Any]:

@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.15.8] — 2026-04-04
+
+### Fixed
+- `should_recommend_add_tests` 改为检测"有运行时代码但无测试文件变更"，而非"测试没跑"。修复新功能代码通过旧测试后直接跳到 commit-push、不补测试的问题
+- `recommend_next` 在 commit-push 前增加 add-tests 检查门（review → add-tests → commit-push）
+
 ## [1.15.7] — 2026-04-04
 
 ### Fixed
