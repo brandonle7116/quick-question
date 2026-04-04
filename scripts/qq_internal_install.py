@@ -23,6 +23,7 @@ MODULES: dict[str, dict[str, Any]] = {
             "scripts/qq-compile.sh",
             "scripts/qq-config.py",
             "scripts/qq-doctor.py",
+            "scripts/qq-execute-checkpoint.py",
             "scripts/qq-doctor.sh",
             "scripts/qq-policy-check.sh",
             "scripts/qq-project-state.py",
