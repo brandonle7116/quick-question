@@ -3307,6 +3307,110 @@ else
 fi
 rm -rf "$SBOX_SCRIPT_TEST_ROOT" "$FAKE_SBOX_BIN_DIR"
 
+# ── execute checkpoint ──
+echo -e "${CYAN}[checkpoint] execute checkpoint lifecycle${NC}"
+
+CKPT_ROOT="$(mktemp -d)"
+mkdir -p "$CKPT_ROOT/Docs/qq"
+cat > "$CKPT_ROOT/Docs/qq/test_plan.md" <<'EOF'
+# Test Plan
+- [ ] **Step 1: Create interface**
+- [ ] **Step 2: Implement service**
+- [ ] **Step 3: Add tests**
+EOF
+
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" save \
+     --project "$CKPT_ROOT" --plan "Docs/qq/test_plan.md" --step 0 --total 3 --mode direct --status running >/dev/null && \
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" save \
+     --project "$CKPT_ROOT" --plan "Docs/qq/test_plan.md" --step 1 --total 3 --mode direct --step-title "Create interface" >/dev/null && \
+   $QQ_PY - "$CKPT_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+progress = json.loads((root / ".qq" / "state" / "execute-progress.json").read_text(encoding="utf-8"))
+plan_text = (root / "Docs" / "qq" / "test_plan.md").read_text(encoding="utf-8")
+
+assert progress["status"] == "running"
+assert progress["completed_step"] == 1
+assert progress["completed_steps"] == [1]
+assert progress["total_steps"] == 3
+assert "- [x] **Step 1: Create interface**" in plan_text
+assert "- [ ] **Step 2: Implement service**" in plan_text
+PY
+then
+  pass "checkpoint save updates progress JSON and plan checkbox by step title"
+else
+  fail "checkpoint save updates progress JSON and plan checkbox by step title"
+fi
+
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" resume --project "$CKPT_ROOT" --format hint | grep -q "1/3 steps completed" && \
+   $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" resume --project "$CKPT_ROOT" | $QQ_PY -c 'import json,sys; d=json.load(sys.stdin); assert d["status"]=="running"; assert d["completed_step"]==1'
+then
+  pass "checkpoint resume returns progress in hint and json formats"
+else
+  fail "checkpoint resume returns progress in hint and json formats"
+fi
+
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" clear --project "$CKPT_ROOT" >/dev/null && \
+   RESUME=$($QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" resume --project "$CKPT_ROOT") && \
+   [ "$RESUME" = "{}" ]
+then
+  pass "checkpoint clear marks execution complete and resume returns empty"
+else
+  fail "checkpoint clear marks execution complete and resume returns empty"
+fi
+
+# positional fallback when step title not found
+cat > "$CKPT_ROOT/Docs/qq/test_plan.md" <<'EOF'
+# Test Plan
+- [ ] **Step 1: Create interface**
+- [ ] **Step 2: Implement service**
+- [ ] **Step 3: Add tests**
+EOF
+rm -f "$CKPT_ROOT/.qq/state/execute-progress.json"
+
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" save \
+     --project "$CKPT_ROOT" --plan "Docs/qq/test_plan.md" --step 2 --total 3 --mode direct --step-title "NONEXISTENT TITLE" >/dev/null && \
+   grep -q '\[x\].*Step 2' "$CKPT_ROOT/Docs/qq/test_plan.md"
+then
+  pass "checkpoint falls back to positional matching when step title not found"
+else
+  fail "checkpoint falls back to positional matching when step title not found"
+fi
+
+# project-state detects active execution
+rm -f "$CKPT_ROOT/.qq/state/execute-progress.json"
+$QQ_PY "$SCRIPT_DIR/scripts/qq-execute-checkpoint.py" save \
+  --project "$CKPT_ROOT" --plan "Docs/qq/test_plan.md" --step 1 --total 3 --mode coordinator --status running >/dev/null
+
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-project-state.py" --project "$CKPT_ROOT" --no-write | \
+   $QQ_PY -c 'import json,sys; d=json.load(sys.stdin); assert d["execute_in_progress"]==True; assert d["recommended_next"]=="\/qq:execute Docs/qq/test_plan.md"'
+then
+  pass "project-state detects active execution and overrides recommended_next"
+else
+  fail "project-state detects active execution and overrides recommended_next"
+fi
+
+# hooks.json has SessionStart[compact] entry
+if $QQ_PY - <<'PY'
+import json
+hooks = json.load(open("hooks/hooks.json", encoding="utf-8"))["hooks"]
+assert "SessionStart" in hooks
+entries = hooks["SessionStart"]
+assert any(e["matcher"] == "compact" for e in entries)
+compact_hooks = [e for e in entries if e["matcher"] == "compact"][0]["hooks"]
+assert any("execute-resume-hint" in h["command"] for h in compact_hooks)
+PY
+then
+  pass "hooks.json registers SessionStart[compact] with execute-resume-hint"
+else
+  fail "hooks.json registers SessionStart[compact] with execute-resume-hint"
+fi
+
+rm -rf "$CKPT_ROOT"
+
 # ── 9. Review gate E2E ──
 echo -e "${CYAN}[9/10] Review gate E2E${NC}"
 
