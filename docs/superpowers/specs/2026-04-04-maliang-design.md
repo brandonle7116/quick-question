@@ -173,7 +173,8 @@ class StepExecutor:
                 continue
 
             external_unmet = self.dep_mgr.get_unmet_for_step(substep)
-            if external_unmet and not all(d.has_placeholder for d in external_unmet):
+            # A dep is non-blocking if it has a placeholder path (can proceed with placeholder)
+            if external_unmet and not all(d.placeholder for d in external_unmet):
                 state.mark_blocked(i, external_unmet)
                 state.save()
                 self.bus.emit("substep.blocked", substep_id=i, reason="external_deps")
@@ -191,27 +192,33 @@ class StepExecutor:
             )
 
             # 3. call agent (creative)
+            #   Snapshot file state BEFORE agent call for accurate delta detection.
+            before_changed = await self.engine.get_changed_files()
+            before_created = await self.engine.get_untracked_files()
+
             self.bus.emit("substep.agent_calling", substep_id=i, instruction=task.instruction)
             result = await self.agent.execute(task)
 
             # 3.5 file scope check (deterministic — verify agent stayed in bounds)
-            #   Uses git diff (tracked) + git ls-files --others (untracked)
-            #   to catch both modified AND newly created out-of-scope files.
-            actual_changed = await self.engine.get_changed_files()      # git diff --name-only
-            actual_created = await self.engine.get_untracked_files()    # git ls-files --others --exclude-standard
-            all_touched = actual_changed | actual_created
+            #   Compare before/after snapshots to isolate THIS substep's delta.
+            #   Pre-existing dirty files are excluded from the check.
+            after_changed = await self.engine.get_changed_files()
+            after_created = await self.engine.get_untracked_files()
+            agent_modified = after_changed - before_changed   # files agent changed
+            agent_created = after_created - before_created     # files agent created
+            all_touched = agent_modified | agent_created
             allowed = set(task.files_to_edit)
             out_of_scope = all_touched - allowed
             if out_of_scope:
-                await self.engine.revert_files(actual_changed & out_of_scope)  # git checkout -- for tracked
-                await self.engine.delete_files(actual_created & out_of_scope)  # os.remove for untracked
+                await self.engine.revert_files(agent_modified & out_of_scope)  # git checkout -- for tracked
+                await self.engine.delete_files(agent_created & out_of_scope)   # os.remove for untracked
                 state.mark_failed(i, f"Agent touched out-of-scope files: {out_of_scope}")
                 state.save()  # persist failure before potential exit
                 self.bus.emit("substep.scope_violation", substep_id=i, files=out_of_scope)
                 if state.pause_policy != PausePolicy.AUTO:
                     return StepOutcome.BLOCKED
                 continue
-            if len(actual_created) > task.max_new_files:
+            if len(agent_created) > task.max_new_files:
                 state.mark_failed(i, f"Agent created {len(actual_created)} files, max is {task.max_new_files}")
                 state.save()
                 self.bus.emit("substep.scope_violation", substep_id=i, reason="too_many_files")
@@ -490,16 +497,32 @@ Handles bidirectional communication with art pipeline (and any other external sy
 
 ```python
 class ExternalDepManager:
-    """Track, send, receive, block, unblock external dependencies."""
+    """Track, send, receive, block, unblock external dependencies.
+    
+    All dep state is authoritative here but synced to PipelineState.external_deps
+    on every mutation, so pipeline.json remains the single source of truth for
+    crash recovery. On init, deps are hydrated from PipelineState.
+    """
 
-    def __init__(self, bus: EventBus, inbox: Path, outbox: Path):
-        self.inbox = inbox    # .maliang/inbox/  — incoming deliveries
-        self.outbox = outbox  # .maliang/outbox/ — outgoing requests
-        self.deps: dict[str, ExternalDep] = {}
+    def __init__(self, bus: EventBus, inbox: Path, outbox: Path,
+                 state: PipelineState):
+        self.inbox = inbox
+        self.outbox = outbox
+        self.state = state
+        # Hydrate from persisted state on startup
+        self.deps: dict[str, ExternalDep] = {
+            d.id: d for d in state.external_deps
+        }
+
+    def _sync_to_state(self):
+        """Write dep state back to PipelineState and persist."""
+        self.state.external_deps = list(self.deps.values())
+        self.state.save()
 
     async def request(self, dep: ExternalDep):
         """Send a spec to downstream pipeline."""
         self.deps[dep.id] = dep
+        self._sync_to_state()
         spec_file = self.outbox / f"{dep.id}.json"
         spec_file.write_text(json.dumps({
             "id": dep.id,
@@ -511,6 +534,7 @@ class ExternalDepManager:
 
     async def check_inbox(self):
         """Poll inbox for deliveries, questions, rejections."""
+        mutated = False
         for f in self.inbox.glob("*.json"):
             msg = json.loads(f.read_text())
             match msg["type"]:
@@ -518,6 +542,7 @@ class ExternalDepManager:
                     self.deps[msg["dep_id"]].status = "delivered"
                     self.deps[msg["dep_id"]].artifact = msg["artifact_path"]
                     self.bus.emit("external.delivered", dep_id=msg["dep_id"])
+                    mutated = True
                 case "question":
                     self.bus.emit("external.question",
                                  dep_id=msg["dep_id"], question=msg["question"])
@@ -525,7 +550,10 @@ class ExternalDepManager:
                     self.deps[msg["dep_id"]].status = "rejected"
                     self.bus.emit("external.rejected",
                                  dep_id=msg["dep_id"], reason=msg["reason"])
+                    mutated = True
             f.rename(self.inbox / "processed" / f.name)
+        if mutated:
+            self._sync_to_state()
 
     async def answer_question(self, dep_id: str, answer: str):
         """User answered a question from downstream."""
@@ -538,22 +566,29 @@ class ExternalDepManager:
         self.bus.emit("external.answer_sent", dep_id=dep_id, answer=answer)
 
     def receive(self, dep_id: str, artifact: Path):
-        """Programmatic delivery (called by PipelineRunner.on_external_delivery).
-        Equivalent to an inbox delivery but without file-based transport."""
+        """Programmatic delivery (called by PipelineRunner.on_external_delivery)."""
         dep = self.deps.get(dep_id)
         if not dep:
             raise ValueError(f"Unknown dependency: {dep_id}")
         dep.status = "delivered"
         dep.artifact = artifact
+        self._sync_to_state()
         self.bus.emit("external.delivered", dep_id=dep_id, artifact_path=str(artifact))
 
     def get_unmet_for_step(self, step) -> list[ExternalDep]:
-        """Which deps does this step need that haven't been delivered?"""
-        return [
-            self.deps[d.id]
-            for d in step.art_dependencies
-            if self.deps.get(d.id, {}).status != "delivered"
-        ]
+        """Which deps does this step need that haven't been delivered?
+        Deps not yet registered (not yet request()-ed) are treated as unmet."""
+        unmet = []
+        for d in step.art_dependencies:
+            dep = self.deps.get(d.id)
+            if dep is None or dep.status != "delivered":
+                # Return the plan's dep spec (with placeholder info) if not registered,
+                # or the tracked ExternalDep if registered but not yet delivered.
+                unmet.append(dep if dep else ExternalDep(
+                    id=d.id, kind="art_asset", spec=d.spec,
+                    status="pending", placeholder=d.placeholder,
+                ))
+        return unmet
 
     def get_assets_for_step(self, step) -> dict[str, str]:
         """Return asset paths for a step: delivered assets take priority,
@@ -726,14 +761,17 @@ class PipelineRunner:
                 case PhaseOutcome.RETRY(goto=target):
                     # review said "needs rework" — go back
                     self.state.rewind_to(target)
+                    self.state.save()
                     self.bus.emit("pipeline.phase.rewound", target=target)
                     return await self.run()  # restart from target
 
                 case PhaseOutcome.BLOCKED:
+                    self.state.save()
                     self.bus.emit("pipeline.blocked", phase=phase.name)
                     return RunOutcome.BLOCKED
 
                 case PhaseOutcome.FAILED(error=err):
+                    self.state.save()
                     self.bus.emit("pipeline.failed", phase=phase.name, error=err)
                     return RunOutcome.FAILED
 
@@ -783,14 +821,19 @@ class PipelineRunner:
 
     async def on_decision(self, choice: str):
         """User made a decision via UI."""
+        self.bus.emit("decision.received", choice=choice)
         match choice:
             case "proceed":
+                self.state.status = "running"
+                self.state.save()
                 await self.run()
             case "skip":
                 self.state.skip_phase(self.state.current_phase)
+                self.state.save()
                 await self.run()
             case "abort":
                 self.state.abort()
+                self.state.save()
 
     async def on_external_delivery(self, dep_id: str, artifact: Path):
         """Art pipeline delivered an asset."""
