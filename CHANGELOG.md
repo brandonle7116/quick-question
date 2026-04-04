@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.13.3] — 2026-04-04
+
+### Fixed
+- auto-sync 支持无 `install-state.json` 的项目（`.qq/` 存在但从未成功跑过 `install.sh`）
+- Windows `bin/` 脚本兼容 + 全面 Windows 路径修复
+
 ## [1.13.1] — 2026-04-04
 
 ### Fixed
