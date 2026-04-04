@@ -2,6 +2,8 @@
 description: "Summarize all changes Claude Code made during this conversation."
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Summarize all changes Claude Code made during this conversation.

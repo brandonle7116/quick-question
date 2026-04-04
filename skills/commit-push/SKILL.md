@@ -2,6 +2,8 @@
 description: "Batch commit all uncommitted changes and push to the remote repository."
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Batch commit all uncommitted changes and push to the remote repository.

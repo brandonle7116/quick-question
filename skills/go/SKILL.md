@@ -2,6 +2,8 @@
 description: "Entry point — detect where you are in the dev workflow and guide you to the right next step."
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Entry point for the qq development workflow. Detects your current state and guides you to the right skill.

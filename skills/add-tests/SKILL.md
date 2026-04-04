@@ -2,6 +2,8 @@
 description: "Author Unity EditMode, PlayMode, or regression tests for the current change without conflating that with test execution."
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Add or update Unity tests for the current change. This skill is for **writing tests**, not for running them. After authoring coverage, hand off to `/qq:test`.

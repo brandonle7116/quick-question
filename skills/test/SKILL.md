@@ -24,7 +24,8 @@ Examples:
 
 ## Platform Notes
 
-- **Python command**: Use `python3` on macOS/Linux. On Windows (Git Bash), use `python` instead (`python3` is not available).
+- **Script invocation**: All qq scripts are available as bare commands (e.g. `unity-test.sh`) via the plugin `bin/` directory on PATH. If a bare command fails with "command not found", fall back to `${CLAUDE_PLUGIN_ROOT}/bin/<command>`.
+- **Python command**: Use `python3` on macOS/Linux. On Windows (Git Bash), use `python` instead (`python3` is not available). The `bin/` wrappers handle this automatically.
 - **Process inspection**: `ps -p PID -o args=` is macOS/Linux only. On Windows, use `wmic process where "ProcessId=$PID" get CommandLine` or `tasklist`.
 - **Editor.log path**: Use `source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh" && qq_get_editor_log_path` to get the correct path for the current OS.
 

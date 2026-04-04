@@ -2,6 +2,8 @@
 description: Send a design document to a Claude subagent for review, then revise the document based on findings. Automatically loops until no critical issues remain or 5 rounds are complete.
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Arguments: $ARGUMENTS

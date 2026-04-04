@@ -2,6 +2,8 @@
 description: "Quick Unity best-practice check — run after editing C# files to catch anti-patterns, performance issues, and runtime safety problems."
 ---
 
+> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Quick best-practice check for Unity C# code. Run this right after editing code — it scans for anti-patterns, performance traps, and runtime safety issues against 18 rules.
