@@ -74,21 +74,32 @@ For each step, decide:
 
 ### Large task execution (coordinator mode)
 
-**The main agent writes zero implementation code.** Execute phases in the order the plan specifies (which may not be numeric — e.g. Phase 9.1 before Phase 2 if the plan says so).
+**The main agent writes zero implementation code.** Execute phases in the order the plan specifies (which may not be numeric — e.g. Phase 9.1 before Phase 2).
 
-Each phase follows this exact sequence — no parallelizing across phases:
+**Dependency rule:** Read the plan to identify which phases are sequential (have dependencies) vs. parallel (independent). The plan typically indicates this explicitly (e.g. "Phase 3 + Phase 4 parallel").
 
+**Sequential phases** (downstream depends on upstream interfaces):
 ```
-For each phase, in plan order:
+For each phase:
   1. Dispatch  → implementation subagent
   2. Compile   → verify passes. If fails: dispatch fix subagent (max 3 rounds, then --status paused)
   3. Review    → dispatch review subagent
   4. Fix       → if Critical: dispatch fix subagent → re-review (max 2 rounds)
   5. Checkpoint → qq-execute-checkpoint.py save
-  6. THEN next phase — not before step 5 completes
+  6. THEN next dependent phase — not before step 5 completes
 ```
 
-**Do NOT start the next phase while review is pending.** Earlier phases define interfaces that later phases consume — parallel work on later phases will be wasted if interfaces change.
+**Parallel phases** (independent, no shared interfaces):
+```
+  1. Dispatch all parallel implementation subagents simultaneously
+  2. Wait for all to complete → compile
+  3. Dispatch review subagents for each (can also be parallel)
+  4. Fix Criticals if any
+  5. Checkpoint all completed phases
+  6. THEN next group
+```
+
+**Key constraint:** Do NOT parallelize phases that have interface dependencies. If Phase B uses interfaces defined in Phase A, Phase A must complete review before Phase B starts — otherwise interface changes invalidate Phase B's work.
 
 For truly large module-crossing refactors (10+ files, 3+ independent modules), consider dispatching subagents with `isolation: "worktree"` to avoid file conflicts.
 
