@@ -59,12 +59,15 @@ qq-execute-checkpoint.py save \
 
 ## 3.5. Pre-flight: Engine Project Readiness
 
-Before writing any engine source code (`.cs`, `.gd`, `.cpp`, etc.), verify the project can actually compile.
+Before writing any engine source code, verify the project can actually compile.
 
-**Unity projects — check for `Library/` folder:**
+**Step 1 — Resolve the project root.** The `qq-project-state.py` output from §3 contains a `project_dir` field — use that as `$PROJECT`. Do **not** assume CWD is the project root; always pass `--project "$PROJECT"` to every qq script.
 
+**Step 2 — Engine-specific readiness check:**
+
+Unity projects — check for `Library/` folder:
 ```bash
-if [ ! -d "Library" ]; then
+if [ ! -d "$PROJECT/Library" ]; then
   echo "VIRGIN PROJECT — Library/ does not exist"
 fi
 ```
@@ -75,15 +78,15 @@ fi
     > 1. Open this project in Unity Hub
     > 2. Wait for the initial import to complete (watch the progress bar)
     > 3. Then tell me to continue"
-  - Save checkpoint: `qq-execute-checkpoint.py save --project . --plan "<PLAN>" --step 0 --total <M> --mode <MODE> --phase "pre-flight" --status paused`
+  - Save checkpoint: `qq-execute-checkpoint.py save --project "$PROJECT" --plan "<PLAN>" --step 0 --total <M> --mode <MODE> --phase "pre-flight" --status paused`
   - **Do NOT write any source files or continue execution** until the user confirms Unity is ready.
 - If `Library/` exists → do a **test compile** to verify the pipeline works:
   ```bash
-  qq-compile.sh --project .
+  qq-compile.sh --project "$PROJECT"
   ```
   If this fails, diagnose (is Editor open? is batch mode finding the right Unity version?) and resolve before proceeding.
 
-**Other engines:** Apply the equivalent check (e.g., Godot needs `.godot/` import data, Unreal needs `Intermediate/`).
+Other engines: Apply the equivalent check (e.g., Godot needs `.godot/` import data, Unreal needs `Intermediate/`).
 
 **Why this matters:** The auto-compile hook (`auto-compile.sh`) uses `|| true` — it never blocks, even on failure. This means compilation failures are silent to the agent. You cannot rely on "the hook didn't error" as proof of successful compilation. You must actively verify.
 
@@ -112,7 +115,7 @@ For each step, decide:
 
 For each phase:
 1. **Dispatch** → implementation subagent
-2. **Compile** → **actively verify** compilation succeeded. The auto-compile hook uses `|| true` and never blocks, so you cannot rely on "no hook error" as evidence. Run `qq-compile.sh --project .` explicitly and check exit code 0. If fails: dispatch fix subagent (max 3 rounds, then `--status paused`)
+2. **Compile** → **actively verify** compilation succeeded. The auto-compile hook uses `|| true` and never blocks, so you cannot rely on "no hook error" as evidence. Run `qq-compile.sh --project "$PROJECT"` explicitly and check exit code 0. If fails: dispatch fix subagent (max 3 rounds, then `--status paused`)
 3. **Review** → dispatch review subagent to check behavior correctness (compilation only catches type errors, not logic bugs like "triggers on every hit instead of only on kill")
 4. **Fix** → if Critical/Moderate: dispatch fix subagent, re-compile
 5. **Checkpoint** → `qq-execute-checkpoint.py save`
@@ -120,7 +123,7 @@ For each phase:
 
 **Parallel phases** (independent, no shared interfaces):
 1. Dispatch all parallel implementation subagents simultaneously
-2. Wait for all to complete → **actively verify** compilation: run `qq-compile.sh --project .` and check exit code 0
+2. Wait for all to complete → **actively verify** compilation: run `qq-compile.sh --project "$PROJECT"` and check exit code 0
 3. Dispatch review subagents for each (can be parallel)
 4. Fix issues if any
 5. Checkpoint all completed phases
@@ -158,7 +161,7 @@ This atomically updates `.qq/state/execute-progress.json` AND the plan file chec
 ### Small task checkpoint
 
 After each step completes:
-1. **Compile** — **actively verify** compilation: run `qq-compile.sh --project .` and check exit code 0. Do not rely on the auto-compile hook (it uses `|| true` and never blocks). Fix before proceeding. If unfixable after 3 attempts, save `--status paused` and stop.
+1. **Compile** — **actively verify** compilation: run `qq-compile.sh --project "$PROJECT"` and check exit code 0. Do not rely on the auto-compile hook (it uses `|| true` and never blocks). Fix before proceeding. If unfixable after 3 attempts, save `--status paused` and stop.
 2. **Checkpoint** — same command as above.
 
 ## 5. Completion
