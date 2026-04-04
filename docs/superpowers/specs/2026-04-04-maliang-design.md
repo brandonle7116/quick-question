@@ -168,12 +168,14 @@ class StepExecutor:
             ]
             if internal_unmet:
                 state.mark_blocked(i, f"waiting on steps: {internal_unmet}")
+                state.save()
                 self.bus.emit("substep.blocked", substep_id=i, reason="internal_deps")
                 continue
 
             external_unmet = self.dep_mgr.get_unmet_for_step(substep)
             if external_unmet and not all(d.has_placeholder for d in external_unmet):
                 state.mark_blocked(i, external_unmet)
+                state.save()
                 self.bus.emit("substep.blocked", substep_id=i, reason="external_deps")
                 continue
 
@@ -193,19 +195,25 @@ class StepExecutor:
             result = await self.agent.execute(task)
 
             # 3.5 file scope check (deterministic — verify agent stayed in bounds)
-            actual_changed = await self.engine.get_changed_files()  # git diff --name-only
+            #   Uses git diff (tracked) + git ls-files --others (untracked)
+            #   to catch both modified AND newly created out-of-scope files.
+            actual_changed = await self.engine.get_changed_files()      # git diff --name-only
+            actual_created = await self.engine.get_untracked_files()    # git ls-files --others --exclude-standard
+            all_touched = actual_changed | actual_created
             allowed = set(task.files_to_edit)
-            out_of_scope = actual_changed - allowed
+            out_of_scope = all_touched - allowed
             if out_of_scope:
-                # revert out-of-scope changes, mark failed
-                await self.engine.revert_files(out_of_scope)
-                state.mark_failed(i, f"Agent edited out-of-scope files: {out_of_scope}")
+                await self.engine.revert_files(actual_changed & out_of_scope)  # git checkout -- for tracked
+                await self.engine.delete_files(actual_created & out_of_scope)  # os.remove for untracked
+                state.mark_failed(i, f"Agent touched out-of-scope files: {out_of_scope}")
+                state.save()  # persist failure before potential exit
                 self.bus.emit("substep.scope_violation", substep_id=i, files=out_of_scope)
                 if state.pause_policy != PausePolicy.AUTO:
                     return StepOutcome.BLOCKED
                 continue
-            if len(result.files_created) > task.max_new_files:
-                state.mark_failed(i, f"Agent created {len(result.files_created)} files, max is {task.max_new_files}")
+            if len(actual_created) > task.max_new_files:
+                state.mark_failed(i, f"Agent created {len(actual_created)} files, max is {task.max_new_files}")
+                state.save()
                 self.bus.emit("substep.scope_violation", substep_id=i, reason="too_many_files")
                 if state.pause_policy != PausePolicy.AUTO:
                     return StepOutcome.BLOCKED
@@ -217,6 +225,7 @@ class StepExecutor:
                 result = await self.try_fix_compile(task, compile_result, max_retries=2)
                 if not result:
                     state.mark_failed(i, compile_result.errors)
+                    state.save()
                     self.bus.emit("substep.compile_failed", substep_id=i)
                     if state.pause_policy != PausePolicy.AUTO:
                         return StepOutcome.BLOCKED
@@ -226,6 +235,7 @@ class StepExecutor:
             checks = await self.run_acceptance(substep.acceptance_criteria)
             if not checks.all_passed:
                 state.record_partial(i, checks)
+                state.save()
                 self.bus.emit("substep.acceptance_failed", substep_id=i, checks=checks)
                 if state.pause_policy != PausePolicy.AUTO:
                     return StepOutcome.BLOCKED
@@ -381,11 +391,19 @@ class UnityAdapter(EngineAdapter):
         ...
 
     async def get_changed_files(self) -> set[str]:
-        """git diff --name-only (unstaged) for file scope verification."""
+        """git diff --name-only (unstaged) — tracked file modifications only."""
+        ...
+
+    async def get_untracked_files(self) -> set[str]:
+        """git ls-files --others --exclude-standard — newly created files."""
         ...
 
     async def revert_files(self, files: set[str]) -> None:
-        """git checkout -- <files> to revert out-of-scope changes."""
+        """git checkout -- <files> to revert tracked file changes."""
+        ...
+
+    async def delete_files(self, files: set[str]) -> None:
+        """os.remove() for unauthorized untracked files."""
         ...
 ```
 
@@ -684,10 +702,13 @@ class PipelineRunner:
                 continue  # resume support
 
             self.state.current_phase = phase.name
+            self.state.save()  # persist phase transition before any potential exit
             self.bus.emit("pipeline.phase.entering", phase=phase.name)
 
             # pause check
             if self.should_pause(phase):
+                self.state.status = "awaiting_decision"
+                self.state.save()  # persist pause state for crash recovery
                 self.bus.emit("decision.awaiting",
                               prompt=f"About to start '{phase.name}'. Proceed?",
                               options=["proceed", "skip", "abort"])
