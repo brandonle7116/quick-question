@@ -296,7 +296,7 @@ def _resolve_entries(repo_root: Path, selected_modules: list[str]) -> list[dict[
                 )
                 for match in matches:
                     try:
-                        source_rel = str(match.relative_to(repo_root))
+                        source_rel = match.relative_to(repo_root).as_posix()
                     except ValueError:
                         continue
                     target_rel = source_rel

@@ -206,7 +206,7 @@ def detect_sbox_project_facts(project_dir: Path) -> dict[str, Any]:
     server_files = sorted(project_dir.glob("**/*.Server.cs"))
     return {
         "sbox_project_detected": project_file is not None,
-        "sbox_project_file": str(project_file.relative_to(project_dir)) if project_file else "",
+        "sbox_project_file": project_file.relative_to(project_dir).as_posix() if project_file else "",
         "sbox_unit_tests_present": (project_dir / "UnitTests").is_dir(),
         "sbox_library_count": len(library_dirs),
         "sbox_editor_project_present": (project_dir / "Editor").is_dir(),
@@ -246,7 +246,7 @@ def select_active_artifacts(
 
     active: list[Path] = []
     for path in candidates:
-        relative = str(path.relative_to(project_dir))
+        relative = path.relative_to(project_dir).as_posix()
         normalized_relative = re.sub(r"[^a-z0-9]+", " ", relative.lower()).strip()
         if relative in modified_files:
             active.append(path)

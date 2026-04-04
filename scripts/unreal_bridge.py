@@ -676,7 +676,7 @@ class UnrealBridge:
             project_dir / "scripts" / "qq-compile.sh",
             project_dir / "scripts" / "qq-test.sh",
         ]
-        missing_scripts = [str(path.relative_to(project_dir)) for path in scripts if not path.is_file()]
+        missing_scripts = [path.relative_to(project_dir).as_posix() for path in scripts if not path.is_file()]
         if project_file is None:
             warnings.append("No .uproject file found in the project root")
         if missing_scripts:

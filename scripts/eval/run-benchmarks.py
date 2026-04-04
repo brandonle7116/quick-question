@@ -335,7 +335,7 @@ def run_solver_command(project_dir: Path, task: dict[str, Any], prompt: str) -> 
         "expected_exit_code": expected_exit_code,
         "returncode": result.returncode,
         "timeout_sec": timeout_sec,
-        "prompt_file": str(prompt_path.relative_to(project_dir)),
+        "prompt_file": prompt_path.relative_to(project_dir).as_posix(),
         "stdout": trim_output(result.stdout),
         "stderr": trim_output(result.stderr),
     }
@@ -881,7 +881,7 @@ def worktree_lifecycle_case(task: dict[str, Any], project_dir: Path | None) -> d
                 "source_branch": "feature/bench-source",
                 "managed_branch": create_payload.get("branch", ""),
                 "copied_local_runtime_files": copied_files,
-                "merged_file": str(merged_file.relative_to(root)),
+                "merged_file": merged_file.relative_to(root).as_posix(),
             },
         )
     except Exception as exc:

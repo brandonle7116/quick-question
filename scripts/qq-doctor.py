@@ -687,10 +687,10 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
                 project_dir / "scripts" / "sbox-test.sh",
             ]
         )
-        missing = sorted({str(path.relative_to(project_dir)) for path in required if not path.is_file()})
+        missing = sorted({path.relative_to(project_dir).as_posix() for path in required if not path.is_file()})
         project_file = find_sbox_project_file(project_dir)
-        solution_files = [str(path.relative_to(project_dir)) for path in list_sbox_solution_files(project_dir)]
-        csproj_files = [str(path.relative_to(project_dir)) for path in list_sbox_csproj_files(project_dir)]
+        solution_files = [path.relative_to(project_dir).as_posix() for path in list_sbox_solution_files(project_dir)]
+        csproj_files = [path.relative_to(project_dir).as_posix() for path in list_sbox_csproj_files(project_dir)]
         test_projects = [item for item in csproj_files if is_sbox_test_project(Path(item))]
         dotnet_path = shutil.which("dotnet") or ""
         editor_cmd = find_sbox_editor_cmd()
@@ -727,7 +727,7 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             "reasons": reasons,
             "evidence": {
                 "missing": missing,
-                "projectFile": str(project_file.relative_to(project_dir)) if project_file else "",
+                "projectFile": project_file.relative_to(project_dir).as_posix() if project_file else "",
                 "dotnetPath": dotnet_path,
                 "solutionFiles": solution_files,
                 "csprojFiles": csproj_files,
@@ -753,8 +753,8 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             scripts_dir / "qq-compile.sh",
             scripts_dir / "qq-test.sh",
         ]
-        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
-        support_missing = [str(path.relative_to(project_dir)) for path in support_files if not path.is_file()]
+        missing = [path.relative_to(project_dir).as_posix() for path in required if not path.is_file()]
+        support_missing = [path.relative_to(project_dir).as_posix() for path in support_files if not path.is_file()]
         project_file = find_sbox_project_file(project_dir)
         config = inspect_project_local_bridge_config(project_dir, "sbox")
         host_state = bridge_mcp_host_state(project_dir, "sbox")
@@ -803,7 +803,7 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             "evidence": {
                 "missing": missing,
                 "supportMissing": support_missing,
-                "projectFile": str(project_file.relative_to(project_dir)) if project_file else "",
+                "projectFile": project_file.relative_to(project_dir).as_posix() if project_file else "",
                 "editorCommand": editor_cmd,
                 "localFileOpsAvailable": True,
                 "typedTools": [
@@ -842,7 +842,7 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             for entry in entries or []:
                 if isinstance(entry, str) and entry.startswith("scripts/"):
                     required.append(project_dir / entry)
-        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
+        missing = [path.relative_to(project_dir).as_posix() for path in required if not path.is_file()]
         return {
             "id": provider_id,
             "status": "available" if not missing else "unavailable",
@@ -859,7 +859,7 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             scripts_dir / "qq-capabilities.json",
             scripts_dir / "tykit_capabilities.json",
         ]
-        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
+        missing = [path.relative_to(project_dir).as_posix() for path in required if not path.is_file()]
         config = inspect_project_local_bridge_config(project_dir, "unity")
         host_state = bridge_mcp_host_state(project_dir, "unity")
         reasons: list[str] = []
@@ -908,8 +908,8 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             scripts_dir / "qq-compile.sh",
             scripts_dir / "qq-test.sh",
         ]
-        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
-        addon_missing = [str(path.relative_to(project_dir)) for path in addon_files if not path.is_file()]
+        missing = [path.relative_to(project_dir).as_posix() for path in required if not path.is_file()]
+        addon_missing = [path.relative_to(project_dir).as_posix() for path in addon_files if not path.is_file()]
         enabled_plugins = enabled_godot_plugins(project_dir)
         plugin_enabled = plugin_path in enabled_plugins
         config = inspect_project_local_bridge_config(project_dir, "godot")
@@ -975,7 +975,7 @@ def detect_provider(project_dir: Path, provider_id: str, definition: dict[str, A
             scripts_dir / "qq-compile.sh",
             scripts_dir / "qq-test.sh",
         ]
-        missing = [str(path.relative_to(project_dir)) for path in required if not path.is_file()]
+        missing = [path.relative_to(project_dir).as_posix() for path in required if not path.is_file()]
         project_file = find_unreal_project_file(project_dir)
         enabled_plugins = enabled_unreal_plugins(project_dir)
         required_plugins = [str(item) for item in unreal_meta.get("requiredProjectPlugins") or [] if str(item)]
@@ -1259,7 +1259,7 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
         "engineProjectDetected": bool(engine),
         "unityProjectDetected": is_unity_project(project_dir) if engine == "unity" else None,
         "sboxProjectDetected": sbox_project_file is not None if engine == "sbox" else None,
-        "sboxProjectFile": str(sbox_project_file.relative_to(project_dir)) if sbox_project_file else "",
+        "sboxProjectFile": sbox_project_file.relative_to(project_dir).as_posix() if sbox_project_file else "",
         "sboxUnitTestsPresent": (project_dir / "UnitTests").is_dir() if engine == "sbox" else None,
         "sboxLibraryCount": len([path for path in (project_dir / "Libraries").iterdir() if path.is_dir()]) if engine == "sbox" and (project_dir / "Libraries").is_dir() else (0 if engine == "sbox" else None),
         "sboxEditorProjectPresent": (project_dir / "Editor").is_dir() if engine == "sbox" else None,

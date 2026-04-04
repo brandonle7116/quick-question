@@ -285,7 +285,7 @@ def command_start(args: argparse.Namespace) -> int:
 
     timestamp = started.strftime("%Y%m%dT%H%M%SZ")
     path = dirs["runs"] / f"{timestamp}-{args.stage}-{run_id}.json"
-    record["record_path"] = str(path.relative_to(project_dir))
+    record["record_path"] = path.relative_to(project_dir).as_posix()
     save_json(path, record)
     write_latest_state(dirs, record)
     write_telemetry_event(dirs, "start", record)
@@ -364,7 +364,7 @@ def command_record(args: argparse.Namespace) -> int:
 
     timestamp = now.strftime("%Y%m%dT%H%M%SZ")
     path = dirs["runs"] / f"{timestamp}-{args.stage}-{run_id}.json"
-    record["record_path"] = str(path.relative_to(project_dir))
+    record["record_path"] = path.relative_to(project_dir).as_posix()
     save_json(path, record)
     write_latest_state(dirs, record)
     write_telemetry_event(dirs, "record", record)

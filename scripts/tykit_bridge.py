@@ -1629,7 +1629,7 @@ class TykitBridge:
             "summary": summary,
             "artifacts": {},
             "details": {},
-            "record_path": str(path.relative_to(ctx.project_dir)),
+            "record_path": path.relative_to(ctx.project_dir).as_posix(),
         }
         if extra:
             record.update(extra)
