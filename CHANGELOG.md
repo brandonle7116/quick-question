@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.13.0] — 2026-04-04
+
+### Added
+- **Plugin Auto-Sync**：`SessionStart[startup]` hook 自动检测 plugin 升级，将新增/更新的 scripts 同步到项目目录。用户只需 `/plugins → upgrade`，下次开 session 自动部署脚本，不再需要手动跑 `install.sh`
+- `qq-auto-sync.py`：轻量同步脚本，读写 `install-state.json` 作为唯一 state 源，不需要 jq
+
 ## [1.12.1] — 2026-04-04
 
 ### Fixed
