@@ -1,31 +1,25 @@
 ---
-description: Dispatch a Claude subagent to deeply review code changes, then fix the code based on review findings. Automatically loops until no critical issues remain or 5 rounds are complete.
+description: "Deep code review via Claude subagent — reviews uncommitted changes by default, loops until no critical issues remain. Use after /qq:test passes, before /qq:commit-push."
 ---
-
-> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
 
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Arguments: $ARGUMENTS
-- No arguments: **intelligently select the review scope based on context** (see rules below)
-- `--base <branch>`: specify a base branch for a full diff
-- `--commits`: review only the most recent commit's changes
-- `--files "a.cs b.cs"`: specify a list of files
+- No arguments: review uncommitted changes (default)
+- `--base <branch>`: full branch diff against a base
+- `--commits`: review only the most recent commit
+- `--files "a.cs b.cs"`: explicit file list
 
 ## Review Scope Selection (no arguments)
 
-**Do not default to diffing the entire branch against the main branch.** Use conversation context to intelligently determine scope:
+**Default: uncommitted changes.** Run `git diff --name-only HEAD -- '*.cs'` to get the list of changed files. This is the most common case — code has been written but not yet committed.
 
-1. **If the user specified a scope** (e.g. "review Phase 8", "review recent changes") → follow the user's intent
-2. **If code was just modified in this conversation** → use `--files` to review only the files that were just changed
-3. **If the user explicitly says "review the whole branch" or there is no inferable context** → then use the default `main...HEAD` diff
+Override order:
+1. **User specified a scope** (e.g. "review Phase 8") → follow user intent
+2. **No uncommitted changes but branch has commits** → `git diff --name-only develop...HEAD -- '*.cs'`
+3. **User says "review the whole branch"** → `--base develop`
 
-**How to infer scope:**
-- Check which `.cs` files were edited/written in this conversation
-- Or use `git diff --name-only HEAD` to see uncommitted changes
-- Or use `git diff --name-only HEAD~N..HEAD` to see the last N commits
-
-**Confirm with the user:** Once the scope is determined, tell the user "I will review the following scope: XXX" and proceed unless they object.
+Pass the file list to the review script as `--files`.
 
 ## Execution Flow
 

@@ -1,33 +1,25 @@
 ---
-description: "Send code changes to Codex CLI for review, then fix the code based on the findings. Automatically loops until no critical issues remain or 5 rounds are completed."
+description: "Cross-model code review via Codex CLI — reviews uncommitted changes by default, loops until no critical issues remain. Use after /qq:test passes, before /qq:commit-push."
 ---
-
-> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
 
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
-Send code changes to Codex CLI for review, then fix the code based on the findings. Automatically loops until no critical issues remain or 5 rounds are completed.
-
 Arguments: $ARGUMENTS
-- No arguments: **intelligently select review scope based on context** (see rules below)
-- `--base <branch>`: specify comparison base branch (full diff)
-- `--commits`: only look at the most recent commit's changes
-- `--files "a.cs b.cs"`: specify a list of files
+- No arguments: review uncommitted changes (default)
+- `--base <branch>`: full branch diff against a base
+- `--commits`: review only the most recent commit
+- `--files "a.cs b.cs"`: explicit file list
 
 ## Review Scope Selection (no arguments)
 
-**Do not default to reviewing the entire branch vs develop.** Intelligently determine scope based on conversation context:
+**Default: uncommitted changes.** Run `git diff --name-only HEAD -- '*.cs'` to get the list of changed files. This is the most common case — code has been written but not yet committed.
 
-1. **If the user specified a scope** (e.g., "review Phase 8", "review recent changes") → follow user intent
-2. **If code was just modified in this conversation** → use `--files` to review only the recently changed files
-3. **If the user explicitly says "review the entire branch" or there is no context to infer from** → use the default `main...HEAD`
+Override order:
+1. **User specified a scope** (e.g. "review Phase 8") → follow user intent
+2. **No uncommitted changes but branch has commits** → `git diff --name-only develop...HEAD -- '*.cs'`
+3. **User says "review the whole branch"** → `--base develop`
 
-**Inference method**:
-- Check the list of .cs files edited/written in this conversation
-- Or use `git diff --name-only HEAD` to see uncommitted changes
-- Or use `git diff --name-only HEAD~N..HEAD` to see the last N commits
-
-**Confirm with the user**: Once scope is selected, inform the user "I will review the following scope: XXX" and proceed unless they object.
+Pass the file list to the review script as `--files`.
 
 ## Execution Flow
 

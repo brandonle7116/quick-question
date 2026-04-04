@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.15.3] — 2026-04-04
+
+### Changed
+- **code review 默认审查未提交代码**：`claude-code-review` 和 `codex-code-review` 的默认 scope 从 `develop...HEAD`（branch diff）改为 `git diff HEAD`（uncommitted changes）。修复"代码没 commit 导致 review 找不到 diff"的问题。
+- review skill description 精简，明确使用时机："Use after /qq:test passes, before /qq:commit-push"
+
 ## [1.15.1] — 2026-04-04
 
 ### Changed
