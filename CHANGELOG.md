@@ -2,6 +2,11 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.13.1] — 2026-04-04
+
+### Fixed
+- auto-sync hook matcher 从 `startup` 改为空匹配，覆盖 resume/clear/compact 所有 session 事件
+
 ## [1.13.0] — 2026-04-04
 
 ### Added
