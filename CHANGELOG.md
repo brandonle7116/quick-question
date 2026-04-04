@@ -2,6 +2,18 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.12.0] — 2026-04-04
+
+### Added
+- **Execute Checkpoint/Resume 系统**：
+  - `qq-execute-checkpoint.py`：确定性 checkpoint 脚本（save/resume/clear），用 step 标题文本匹配 checkbox，JSON 为权威源
+  - `SessionStart[compact]` hook：上下文压缩后自动注入执行恢复提示
+  - `qq-project-state.py` 检测活跃执行，`recommend_next` 自动返回 `/qq:execute <plan>`
+- `/qq:execute` coordinator 模式 per-phase 轻量 review（dispatch subagent 检查实现与 plan 一致性）
+
+### Changed
+- `/qq:execute` checkpoint 从 Edit plan 文件改为调用 `qq-execute-checkpoint.py` Bash 命令（确定性，不依赖 agent 记忆）
+
 ## [1.11.0] — 2026-04-04
 
 ### Changed
