@@ -2,6 +2,16 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.11.0] — 2026-04-04
+
+### Changed
+- **`/qq:execute` 重写**：
+  - 执行永远自动，不再逐步问用户确认
+  - `--auto` 语义改为"完成后自动走下一步"（best-practice → code-review → add-tests → test → commit-push）
+  - 大任务（>8步 / >12文件 / >3模块）自动切 coordinator 模式，每 phase 派 subagent，主 agent 不写实现代码
+  - 每步完成后更新 plan checkbox（`- [x]`），支持断点恢复
+  - 从 154 行精简到 88 行
+
 ## [1.10.0] — 2026-04-04
 
 ### Removed
