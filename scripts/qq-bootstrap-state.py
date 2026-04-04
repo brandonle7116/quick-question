@@ -121,6 +121,8 @@ def cmd_fail_epic(args: argparse.Namespace) -> dict:
         state["updatedAt"] = utc_now()
         save_state(project, state)
         return {"ok": True, "action": "paused", "epicId": args.epic_id, "retries": epic["retries"], "reason": epic["pauseReason"]}
+    # Reset to pending so status() lists it as actionable for retry
+    epic["status"] = "pending"
     state["updatedAt"] = utc_now()
     save_state(project, state)
     return {"ok": True, "action": "retry", "epicId": args.epic_id, "retries": epic["retries"], "maxRetries": epic["maxRetries"]}
@@ -222,7 +224,7 @@ def main() -> None:
     deps.add_argument("--project", default=".")
     deps.add_argument("--epic-id", type=int, required=True)
     deps.add_argument("--depends-on", default=None, help="Comma-separated epic IDs")
-    deps.add_argument("--parallel", type=bool, default=None)
+    deps.add_argument("--parallel", action="store_true", default=None)
 
     clear = sub.add_parser("clear")
     clear.add_argument("--project", default=".")
