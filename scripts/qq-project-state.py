@@ -284,12 +284,11 @@ def should_recommend_add_tests(state: dict[str, Any]) -> bool:
         return False
     if not skill_enabled(state, "add-tests"):
         return False
-    if state.get("work_mode") not in {"feature", "hardening"}:
+    if state["has_uncommitted_test_changes"]:
         return False
-    # Tests ran and passed, but no test files were changed → new code lacks coverage
-    if state["last_test_status"] in {"passed", "warning"} and not state["has_uncommitted_test_changes"]:
-        return True
-    return False
+    # No test files changed alongside runtime changes → recommend adding tests
+    # Covers both "tests not run yet" and "tests passed but new code not covered"
+    return True
 
 
 def changes_summary_fresh(state: dict[str, Any]) -> bool:
