@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.1] — 2026-04-04
+
+### Fixed
+- **Windows 全量路径修复**：7 个文件共 23 处 `str(path.relative_to())` 改为 `.as_posix()`，所有路径输出统一 `/` 分隔符
+- benchmark runner Windows 上 `.sh` 文件自动加 `bash` 前缀
+
 ## [1.16.0] — 2026-04-04
 
 ### Fixed
