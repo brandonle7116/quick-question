@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from qq_engine import verification_patterns
+
+
+def posix_rel(path: Path, base: Path) -> str:
+    """Return a POSIX-style relative path string (forward slashes on all platforms)."""
+    return path.relative_to(base).as_posix()
 from qq_internal_changes import latest_change_mtime, meaningful_local_change_snapshot
 from qq_internal_config import POLICY_PROFILES, WORK_MODE_PROFILES, resolve_project_config
 from qq_internal_git import run_git
@@ -544,8 +549,8 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "repository_implementation_plan_count": len(all_implementation_plans),
         "has_design_doc": bool(design_docs),
         "has_implementation_plan": bool(implementation_plans),
-        "design_docs": [str(path.relative_to(project_dir)) for path in design_docs[:5]],
-        "implementation_plans": [str(path.relative_to(project_dir)) for path in implementation_plans[:5]],
+        "design_docs": [posix_rel(path, project_dir) for path in design_docs[:5]],
+        "implementation_plans": [posix_rel(path, project_dir) for path in implementation_plans[:5]],
         "has_uncommitted_runtime_changes": has_changes,
         "changed_runtime_files": changed_engine_files[:20],
         "has_uncommitted_test_changes": bool(changed_test_files),

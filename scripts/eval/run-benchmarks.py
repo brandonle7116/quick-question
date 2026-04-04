@@ -39,6 +39,9 @@ def run_command(
     timeout_sec: int | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    # Windows cannot execute .sh files directly — prefix with bash
+    if sys.platform == "win32" and command and command[0].endswith(".sh"):
+        command = ["bash"] + command
     return subprocess.run(
         command,
         cwd=str(cwd) if cwd else None,
