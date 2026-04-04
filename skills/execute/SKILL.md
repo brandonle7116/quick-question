@@ -2,8 +2,6 @@
 description: "Smart implementation — read a plan, execute step by step with auto-compilation, subagent dispatch for large tasks, and checkpoint-based resume."
 ---
 
-> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
-
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Read a plan, execute it fully. Execution is always automatic — never ask "proceed?" or "start?" during implementation. The user invoked execute; that IS the go-ahead.
@@ -76,26 +74,38 @@ For each step, decide:
 
 ### Large task execution (coordinator mode)
 
-**The main agent writes zero implementation code.** Each phase follows this exact sequence — no parallelizing across phases:
+**The main agent writes zero implementation code.** Execute phases in the order the plan specifies (which may not be numeric — e.g. Phase 9.1 before Phase 2 if the plan says so).
+
+Each phase follows this exact sequence — no parallelizing across phases:
 
 ```
-For each phase, in order:
-  1. Dispatch  → implementation subagent (inline context: phase steps, interfaces from prior phases, CLAUDE.md/AGENTS.md)
-  2. Compile   → verify compilation passes (fix if needed, max 3 attempts, then --status paused)
-  3. Review    → dispatch review subagent (see prompt below)
-  4. Fix       → if Critical: fix subagent → re-review (max 2 rounds)
-  5. Checkpoint → qq-execute-checkpoint.py save (see command below)
+For each phase, in plan order:
+  1. Dispatch  → implementation subagent
+  2. Compile   → verify passes. If fails: dispatch fix subagent (max 3 rounds, then --status paused)
+  3. Review    → dispatch review subagent
+  4. Fix       → if Critical: dispatch fix subagent → re-review (max 2 rounds)
+  5. Checkpoint → qq-execute-checkpoint.py save
   6. THEN next phase — not before step 5 completes
 ```
 
-**Do NOT start the next phase while review is pending.** Earlier phases define interfaces that later phases consume. If review finds a Critical issue requiring interface changes, any parallel work on later phases is wasted.
+**Do NOT start the next phase while review is pending.** Earlier phases define interfaces that later phases consume — parallel work on later phases will be wasted if interfaces change.
 
 For truly large module-crossing refactors (10+ files, 3+ independent modules), consider dispatching subagents with `isolation: "worktree"` to avoid file conflicts.
 
+**Implementation subagent context** — pass inline:
+- The phase steps from the plan (only this phase, not the full plan)
+- Interfaces/contracts created by completed phases (paste the actual code)
+- CLAUDE.md and AGENTS.md rules
+
+**Review subagent context** — pass inline:
+- The phase steps (what was supposed to be implemented)
+- Interfaces from prior phases (so the reviewer can check correct usage)
+- The review prompt below
+
 **Review prompt** (lightweight — not `/qq:claude-code-review`):
 > "Review the changes made in [PHASE_NAME]. Check:
-> 1. Do the new files follow project conventions (CLAUDE.md/AGENTS.md)?
-> 2. Are interfaces from previous phases used correctly?
+> 1. Do the new files follow project conventions?
+> 2. Are interfaces from previous phases used correctly? [interfaces pasted above]
 > 3. Any obvious bugs or missing error handling at system boundaries?
 > Report findings as [Critical] / [Moderate] / [Minor]. Be concise."
 
@@ -107,11 +117,12 @@ qq-execute-checkpoint.py save \
 ```
 This atomically updates `.qq/state/execute-progress.json` AND the plan file checkbox. Do NOT Edit the plan file separately.
 
-### Small task checkpoint
+### Small task verification
 
 After each step completes:
 1. **Verify compilation** — fix before proceeding. If unfixable after 3 attempts, save `--status paused` and stop.
-2. **Checkpoint** — same command as above.
+2. **Quick review** — for steps touching 3+ files, dispatch a lightweight review subagent (same prompt as coordinator mode). For 1-2 file changes, self-review is sufficient.
+3. **Checkpoint** — same command as above.
 
 ## 5. Completion
 
