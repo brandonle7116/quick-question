@@ -22,7 +22,14 @@ if ! command -v codex &>/dev/null; then
   exit 1
 fi
 
-BASE_BRANCH="main"
+# Auto-detect default base branch: develop > main > master
+BASE_BRANCH=""
+for candidate in develop main master; do
+  if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
+    BASE_BRANCH="$candidate"
+    break
+  fi
+done
 MODE="branch"
 EXT_FILTER=""
 CUSTOM_PROMPT=""
@@ -76,6 +83,29 @@ case "$MODE" in
     DIFF_DESC="files: ${FILES_LIST}"
     ;;
 esac
+
+# Fallback: if branch diff is empty, try uncommitted changes
+if [[ -z "$DIFF" && "$MODE" == "branch" ]]; then
+  echo ">>> No committed changes (${DIFF_DESC}). Trying uncommitted changes..." >&2
+  UNCOMMITTED_FILES=$(git diff --name-only HEAD 2>/dev/null || true)
+  UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+  ALL_FILES=$(printf '%s\n%s' "$UNCOMMITTED_FILES" "$UNTRACKED_FILES" | sort -u | grep -v '^$' || true)
+  if [[ -n "$ALL_FILES" ]]; then
+    MODE="files"
+    mapfile -t FILES_LIST <<< "$ALL_FILES"
+    for f in "${FILES_LIST[@]}"; do
+      if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+        file_diff=$(git diff HEAD -- "$f")
+        if [[ -n "$file_diff" ]]; then
+          DIFF="${DIFF}${file_diff}"$'\n'
+        fi
+      elif [[ -f "$f" ]]; then
+        DIFF="${DIFF}$(git diff --no-index /dev/null "$f" 2>/dev/null || true)"$'\n'
+      fi
+    done
+    DIFF_DESC="uncommitted changes (${#FILES_LIST[@]} files)"
+  fi
+fi
 
 if [[ -z "$DIFF" ]]; then
   echo "No code changes found (${DIFF_DESC})" >&2

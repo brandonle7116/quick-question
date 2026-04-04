@@ -2,6 +2,13 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.15.7] — 2026-04-04
+
+### Fixed
+- review 脚本自动检测主分支（develop → main → master），不再硬编码 `main`
+- branch diff 为空时自动 fallback 到 uncommitted changes（而非报 "no changes found" 退出）
+- 同时修复 `code-review.sh` 和 `claude-review.sh`
+
 ## [1.15.6] — 2026-04-04
 
 ### Fixed
