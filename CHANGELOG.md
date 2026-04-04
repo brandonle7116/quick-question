@@ -2,6 +2,11 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.15.4] — 2026-04-04
+
+### Fixed
+- execute 完成后推荐顺序改为 review → test → commit-push，不再直接推荐 commit
+
 ## [1.15.3] — 2026-04-04
 
 ### Changed

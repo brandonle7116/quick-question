@@ -141,13 +141,14 @@ qq-execute-checkpoint.py clear --project .
 Summarize: what was implemented, deviations from plan, issues resolved.
 
 **Without `--auto`:** recommend next step, wait for user:
-- Clean → `/qq:test`
-- Needs coverage → `/qq:add-tests` then `/qq:test`
-- Had issues → `/qq:best-practice`
-- Multi-module → `/qq:claude-code-review`
+- Always → `/qq:claude-code-review` (review first, then test)
+- If review already done → `/qq:test`
+- If test already done → `/qq:commit-push`
 
-**With `--auto`:** take the strictest path automatically:
-`/qq:best-practice` → `/qq:claude-code-review` → `/qq:add-tests` → `/qq:test` → `/qq:commit-push`
+**Do NOT recommend `/qq:commit-push` as the first next step.** The order is always: review → test → commit-push.
+
+**With `--auto`:** take the full path automatically:
+`/qq:claude-code-review` → `/qq:test` → `/qq:commit-push`
 
 ## Rules
 
