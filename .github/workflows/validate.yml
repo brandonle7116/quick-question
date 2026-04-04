@@ -27,7 +27,7 @@ jobs:
       - name: Version consistency
         run: |
           PLUGIN_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
-          CHANGELOG_VER=$(head -20 CHANGELOG.md | grep -oP '## \[\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          CHANGELOG_VER=$(head -20 CHANGELOG.md | python3 -c "import re,sys; m=re.search(r'## \[(\d+\.\d+\.\d+)\]', sys.stdin.read()); print(m.group(1) if m else '')")
           if [ "$PLUGIN_VER" != "$CHANGELOG_VER" ]; then
             echo "::error::Version mismatch: plugin.json=$PLUGIN_VER, CHANGELOG=$CHANGELOG_VER"
             exit 1
