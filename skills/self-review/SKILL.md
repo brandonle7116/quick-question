@@ -52,7 +52,7 @@ Dispatch a subagent (`subagent_type: "general-purpose"`, `model: "opus"`) with a
 
 Output a brief review conclusion, then clear the skill change marker:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 rm -f "$QQ_TEMP_DIR/claude-skill-modified-marker-$PPID"
 ```
 

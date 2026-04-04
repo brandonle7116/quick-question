@@ -30,7 +30,7 @@ Each round:
 #### 2a. Send to Codex for Review
 Run the following command using the Bash tool with `run_in_background: true`:
 ```bash
-./scripts/plan-review.sh <file_path>
+plan-review.sh <file_path>
 ```
 The script calls `codex exec --sandbox read-only`, outputting results to stdout and `<filename>_review.md`.
 The script automatically reads the project root's `CLAUDE.md` and includes the coding standards in the Codex prompt.
@@ -39,7 +39,7 @@ Inform the user that the background task has been submitted and will continue au
 
 **Round 2 onward:** If the previous round had findings marked as over-engineered, append a custom prompt with context:
 ```bash
-./scripts/plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
+plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
 ```
 This preserves the full review standards while preventing Codex from re-suggesting the same complex approaches.
 
@@ -60,7 +60,7 @@ For each critical and moderate finding, **dispatch a subagent to verify each one
 
 After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
 echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
@@ -85,7 +85,7 @@ Output `=== Round N/5 ===` at the start of each round.
 ### 7. Clean Up Gate
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
@@ -99,10 +99,10 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** skip asking → `/qq:execute <path> --auto`
 
 ## Notes
-- The review script is at `./scripts/plan-review.sh` and requires Codex CLI to be configured
+- The review script is at `plan-review.sh` and requires Codex CLI to be configured
 - The script automatically appends `CLAUDE.md` coding standards to the review prompt
 - **Never blindly trust Codex review results** — Codex may misread code, cite outdated information, or draw conclusions from assumptions. Every finding must be verified against the code
 - **Watch out for over-engineering** — Codex tends to suggest maximally "correct" solutions (extra abstraction layers, splitting files for purity, adding generics). Always ask: "Is the fix proportionate to the problem?" If not, choose the simpler path and tell Codex why in the next round
 - Do not change design intent on your own initiative — only fix issues identified by the review
 - When editing, preserve the document's overall structure; only change what needs to change
-- Custom prompt usage: `./scripts/plan-review.sh <file> "custom review prompt"`
+- Custom prompt usage: `plan-review.sh <file> "custom review prompt"`

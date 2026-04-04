@@ -10,7 +10,7 @@ This skill is a **controller**, not an implementation engine. It should read rea
 
 ## Hard Rules
 
-- If `./scripts/qq-project-state.py` exists, you **must** run it before inspecting git history, branch divergence, commit counts, or repo-wide document context.
+- If `qq-project-state.py` is available, you **must** run it before inspecting git history, branch divergence, commit counts, or repo-wide document context.
 - If `qq-project-state.py` returns valid JSON, treat it as the primary source of truth.
 - When project state is available, do **not** summarize branch size, recent commits, or unrelated repo-wide artifacts unless the user explicitly asked for that analysis.
 - Keep the answer short and action-oriented:
@@ -44,9 +44,9 @@ Before routing to any skill, ensure the session is in an isolated worktree. This
 4. If `EnterWorktree` is not available (non-Claude-Code host), fall back to `qq-worktree.py create --name <slug>`, then tell the user to reopen the session in the new worktree path and stop
 5. After entering, seed engine runtime cache (Unity Library, etc.):
    ```bash
-   "${QQ_PY:-python3}" "${CLAUDE_SKILL_DIR}/../../scripts/qq-worktree.py" seed-runtime-cache --project . --source "<SOURCE_PROJECT>"
+   qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"
    ```
-   `${CLAUDE_SKILL_DIR}` points to this skill's directory; `../../scripts/` reaches the plugin's scripts folder. The `--source` flag lets this work in non-qq-managed worktrees.
+   The `--source` flag lets this work in non-qq-managed worktrees.
 
 Then continue to State Detection and routing below.
 
@@ -68,10 +68,10 @@ Assess the current situation in this order:
 
 ### 2. Read project state
 
-If `./scripts/qq-project-state.py` exists, run it first:
+If `qq-project-state.py` is available, run it first:
 
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
+qq-project-state.py --pretty
 ```
 
 Use that structured state as the primary routing signal.

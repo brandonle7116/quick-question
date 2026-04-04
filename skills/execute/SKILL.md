@@ -26,7 +26,7 @@ Find the plan (user arg → conversation → `Docs/qq/` scan → ask).
 
 **Resume check:** Run:
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-execute-checkpoint.py resume --project .
+qq-execute-checkpoint.py resume --project .
 ```
 If it returns progress with `status: "running"` or `"paused"`, resume from the first uncompleted step. Report: "Resuming from step N (steps 1–M already complete)."
 
@@ -42,7 +42,7 @@ Use judgment for borderline cases — a 9-step plan with trivial single-file cha
 
 **Initialize checkpoint** before executing the first step:
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-execute-checkpoint.py save \
+qq-execute-checkpoint.py save \
   --project . --plan "<PLAN_PATH>" --step 0 --total <M> \
   --mode <coordinator|direct> --phase "<FIRST_PHASE>" --status running
 ```
@@ -93,7 +93,7 @@ After each step or phase completes (this is NOT optional — it is a fixed workf
 1. **Verify compilation** — auto-compile hook handles .cs files. If compilation cannot be fixed after 3 attempts, save with `--status paused` and stop.
 2. **Checkpoint** — run:
    ```bash
-   "${QQ_PY:-python3}" ./scripts/qq-execute-checkpoint.py save \
+   qq-execute-checkpoint.py save \
      --project . --plan "<PLAN_PATH>" --step <N> --total <M> \
      --mode <MODE> --phase "<PHASE_NAME>" --step-title "<STEP_TITLE_TEXT>"
    ```
@@ -103,7 +103,7 @@ After each step or phase completes (this is NOT optional — it is a fixed workf
 
 Clear the checkpoint:
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-execute-checkpoint.py clear --project .
+qq-execute-checkpoint.py clear --project .
 ```
 
 Summarize: what was implemented, deviations from plan, issues resolved.

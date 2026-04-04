@@ -23,10 +23,10 @@ Do NOT review the entire codebase by default. Focus on what just changed.
 
 ## Deterministic Policy Layer
 
-If `./scripts/qq-policy-check.sh` exists, run it first against the selected scope:
+If `qq-policy-check.sh` is available, run it first against the selected scope:
 
 ```bash
-./scripts/qq-policy-check.sh --json <files...>
+qq-policy-check.sh --json <files...>
 ```
 
 Treat those results as the first-pass findings. Do not ask the model to rediscover the same high-confidence issues from scratch. Use the model for:
@@ -152,7 +152,7 @@ Group output by severity:
 ## Execution
 
 1. Determine scope (see Scope Detection above)
-2. Run `./scripts/qq-policy-check.sh --json` if available
+2. Run `qq-policy-check.sh --json` if available
 3. Read all relevant .cs files
 4. Check each of the 18 rules above, but treat deterministic policy findings as already-established
 5. Also read AGENTS.md (if it exists) for project-specific architecture rules

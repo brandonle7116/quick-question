@@ -8,9 +8,9 @@ Batch commit all uncommitted changes and push to the remote repository.
 
 ## Steps
 
-1. If `./scripts/qq-project-state.py` exists, run it first:
+1. If `qq-project-state.py` is available, run it first:
    ```bash
-   "${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
+   qq-project-state.py --pretty
    ```
    Interpret it like this:
    - `recommended_next == "/qq:commit-push"` → normal ship path, continue
@@ -35,10 +35,10 @@ Batch commit all uncommitted changes and push to the remote repository.
    - Push source branch: `git push`
    - Call `ExitWorktree` tool with `action: "remove"` to clean up and return to original CWD
 
-   **Type B: qq-managed worktree** (`./scripts/qq-worktree.py` exists and `isManagedWorktree=true`):
+   **Type B: qq-managed worktree** (`qq-worktree.py` is available and `isManagedWorktree=true`):
    - Prefer one-step closeout:
      ```bash
-     "${QQ_PY:-python3}" ./scripts/qq-worktree.py closeout --auto-yes --delete-branch --pretty
+     qq-worktree.py closeout --auto-yes --delete-branch --pretty
      ```
    - If closeout refuses, inspect `qq-worktree.py status --pretty`
    - Only fall back to separate `merge-back` / `cleanup` when debugging

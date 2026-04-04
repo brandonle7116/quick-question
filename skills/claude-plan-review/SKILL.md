@@ -30,7 +30,7 @@ Each round:
 
 Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
-./scripts/claude-plan-review.sh <file_path>
+claude-plan-review.sh <file_path>
 ```
 The script calls `claude -p`, with results output to stdout and `<filename>_review.md`.
 The script automatically reads the project root's `CLAUDE.md` and includes the coding standards in the Claude prompt.
@@ -39,7 +39,7 @@ Notify the user that the background task has been submitted and will continue pr
 
 **From round 2 onward:** If the previous round had findings deemed over-engineered, append a custom prompt with context:
 ```bash
-./scripts/claude-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
+claude-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### 2b. Summarize Review Results
@@ -61,7 +61,7 @@ For each critical and moderate issue, **dispatch a subagent to verify it in dept
 
 After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
 echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
@@ -86,7 +86,7 @@ Print `=== Round N/5 ===` at the start of each round.
 ### 7. Clean Up Gate
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
@@ -100,7 +100,7 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** skip asking → `/qq:execute <path> --auto`
 
 ## Notes
-- The review script is at `./scripts/claude-plan-review.sh` and requires Claude CLI (`claude`) to be available
+- The review script is at `claude-plan-review.sh` and requires Claude CLI (`claude`) to be available
 - **Never blindly trust Claude review results** — subagents may misread code or reference stale information. Every finding must go through the verification step
 - **Watch for over-engineering** — always ask: "Is the proposed fix proportionate to the problem?"
 - Do not alter the design intent on your own initiative — only fix what the review found

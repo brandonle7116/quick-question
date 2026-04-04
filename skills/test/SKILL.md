@@ -26,16 +26,16 @@ Examples:
 
 - **Python command**: Use `python3` on macOS/Linux. On Windows (Git Bash), use `python` instead (`python3` is not available).
 - **Process inspection**: `ps -p PID -o args=` is macOS/Linux only. On Windows, use `wmic process where "ProcessId=$PID" get CommandLine` or `tasklist`.
-- **Editor.log path**: Use `source ./scripts/platform/detect.sh && qq_get_editor_log_path` to get the correct path for the current OS.
+- **Editor.log path**: Use `source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh" && qq_get_editor_log_path` to get the correct path for the current OS.
 
 ## Steps
 
 ### 0. Read qq project state first when available
 
-If `./scripts/qq-project-state.py` exists, read it before choosing test scope:
+If `qq-project-state.py` is available, read it before choosing test scope:
 
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
+qq-project-state.py --pretty
 ```
 
 Interpret the result like this:
@@ -141,7 +141,7 @@ fi
 ### 2. Clear Console + Mark Editor.log position
 
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 EDITOR_LOG="$(qq_get_editor_log_path)"
 BASELINE=$(wc -l < "$EDITOR_LOG")
 if [ -n "$PORT" ]; then
@@ -160,11 +160,11 @@ Select command based on arguments:
 
 | Argument | Command |
 |----------|---------|
-| (none) + `default_test_scope=all` | `./scripts/unity-unit-test.sh` |
-| (none) + `default_test_scope=editmode` | `./scripts/unity-test.sh editmode --timeout 180` |
-| `editmode` | `./scripts/unity-test.sh editmode --timeout 180` |
-| `playmode` | `./scripts/unity-test.sh playmode --timeout 180` |
-| with filter/assembly | `./scripts/unity-test.sh <mode> --filter "X" --assembly "Y" --timeout Z` |
+| (none) + `default_test_scope=all` | `unity-unit-test.sh` |
+| (none) + `default_test_scope=editmode` | `unity-test.sh editmode --timeout 180` |
+| `editmode` | `unity-test.sh editmode --timeout 180` |
+| `playmode` | `unity-test.sh playmode --timeout 180` |
+| with filter/assembly | `unity-test.sh <mode> --filter "X" --assembly "Y" --timeout Z` |
 
 - With no arguments, use `default_test_scope` from project state
 - With arguments, call `unity-test.sh` and pass all arguments through

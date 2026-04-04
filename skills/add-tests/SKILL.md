@@ -16,10 +16,10 @@ Arguments: $ARGUMENTS
 
 ## 0. Read qq project state first when available
 
-If `./scripts/qq-project-state.py` exists, read it before choosing scope:
+If `qq-project-state.py` is available, read it before choosing scope:
 
 ```bash
-"${QQ_PY:-python3}" ./scripts/qq-project-state.py --pretty
+qq-project-state.py --pretty
 ```
 
 Use it for:

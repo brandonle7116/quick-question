@@ -39,11 +39,11 @@ Arguments: $ARGUMENTS
 Each round:
 
 #### a. Send to Codex for Review
-Before sending the diff to Codex, if `./scripts/qq-policy-check.sh` exists, run it on the same changed `.cs` files first. Treat those deterministic findings as already-established local policy results. Codex should focus on bugs, behavior, architecture, and anything not trivially captured by deterministic checks.
+Before sending the diff to Codex, if `qq-policy-check.sh` is available, run it on the same changed `.cs` files first. Treat those deterministic findings as already-established local policy results. Codex should focus on bugs, behavior, architecture, and anything not trivially captured by deterministic checks.
 
 Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
-./scripts/code-review.sh $ARGUMENTS
+code-review.sh $ARGUMENTS
 ```
 The script calls `codex exec --sandbox read-only`, with results output to stdout and `Docs/qq/<branch-name>/codex-code-review_<timestamp>.md`.
 Codex review typically takes 5-10 minutes. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
@@ -51,7 +51,7 @@ Notify the user that the background task has been submitted and will continue pr
 
 **From round 2 onward:** If the previous round had findings deemed over-engineered, append `--prompt` to the original arguments, keeping `--base` and other flags from `$ARGUMENTS`:
 ```bash
-./scripts/code-review.sh $ARGUMENTS --prompt "Review these code changes using the same criteria as round 1 (bugs, architecture, performance, security, style). Additional context: the following suggestions from the previous round were deemed over-engineered and replaced with simpler solutions: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Classify by severity: [Critical] [Moderate] [Suggestion]."
+code-review.sh $ARGUMENTS --prompt "Review these code changes using the same criteria as round 1 (bugs, architecture, performance, security, style). Additional context: the following suggestions from the previous round were deemed over-engineered and replaced with simpler solutions: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Classify by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### b. Read and Summarize Review Results
@@ -71,7 +71,7 @@ For each critical and moderate issue, **dispatch a subagent to verify each findi
 
 After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 IFS=: read -r ts count _ < "$QQ_TEMP_DIR/review-gate-$PPID"
 echo "${ts}:${count}:N" > "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
@@ -102,7 +102,7 @@ Output `=== Round N/5 ===` at the start of each round.
 ### 6. Clean Up Gate
 After the review loop ends (for any reason), clean up the gate marker:
 ```bash
-source "$(git rev-parse --show-toplevel)/scripts/platform/detect.sh"
+source "${CLAUDE_PLUGIN_ROOT}/scripts/platform/detect.sh"
 rm -f "$QQ_TEMP_DIR/review-gate-$PPID"
 ```
 
@@ -117,7 +117,7 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** skip asking → `/qq:test --auto`
 
 ## Notes
-- The review script is at `./scripts/code-review.sh` and requires Codex CLI to be configured
+- The review script is at `code-review.sh` and requires Codex CLI to be configured
 - **Never blindly trust Codex review results** — Codex may misread code, reference wrong line numbers, or infer from assumptions. Every finding must be verified by reading the code
 - **Beware of over-engineering** — Codex tends to suggest maximally "pure" solutions (extra layers, file splitting, generics). Always ask: "Is the fix proportionate to the problem?" If not, choose the simpler path and tell Codex why in the next round
 - When fixing, only address the actual issues Codex identified — do not opportunistically refactor surrounding code
