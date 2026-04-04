@@ -2,6 +2,11 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.12.1] — 2026-04-04
+
+### Fixed
+- `qq-execute-checkpoint.py` 加入 `runtime-core` 安装列表，修复 install 后项目目录缺少 checkpoint 脚本的问题
+
 ## [1.12.0] — 2026-04-04
 
 ### Added
