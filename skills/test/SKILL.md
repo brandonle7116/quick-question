@@ -8,7 +8,9 @@ Run Unity unit/integration tests and check for runtime errors.
 
 > **This skill can ALWAYS run.** It supports three execution backends (tykit HTTP → Editor trigger → Unity batch mode). When Unity Editor is not open, the scripts automatically fall back to batch mode. Never skip this skill with the assumption that tests "cannot run from CLI" — they can.
 
-> **Unity Backend:** This skill supports multiple backends. If the built-in `tykit_mcp` tools are available (`unity_health`, `unity_console`, `unity_run_tests`), use them first. If only third-party MCP tools are available (`run_tests` from mcp-unity, or `tests-run` from Unity-MCP), use those instead of the tykit/script commands below. If no MCP tools are available, use tykit as documented here. To discover tykit commands: `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` where PORT comes from `Temp/tykit.json`.
+> **Unity Backend:** This skill supports multiple backends. If the built-in `tykit_mcp` tools are available (`unity_health`, `unity_console`, `unity_run_tests`, and — new in v0.5.0 — `unity_main_thread_health`, `unity_focus_window`, `unity_dismiss_dialog` for recovery), use them first. If only third-party MCP tools are available (`run_tests` from mcp-unity, or `tests-run` from Unity-MCP), use those instead of the tykit/script commands below. If no MCP tools are available, use tykit as documented here. To discover tykit commands: `curl -s -X POST http://localhost:$PORT/ -d '{"command":"commands"}' -H 'Content-Type: application/json'` or `'{"command":"describe-commands"}'` for full schemas. PORT comes from `Temp/tykit.json`.
+>
+> **For tykit command usage beyond tests** (scene editing, prefab workflow, runtime reflection, recovery from hangs), see [`shared/tykit-reference.md`](../../shared/tykit-reference.md).
 
 Arguments: $ARGUMENTS
 - (no arguments): Run both EditMode and PlayMode
@@ -128,7 +130,30 @@ fi
 | PID is AssetImportWorker | Worker subprocess stole the port on restart | Ask user to restart Unity manually |
 | PID is UnityPackageManager/UnityHelper | Other Unity subprocess inherited the port | Ask user to restart Unity manually |
 | `/ping` timeout | Unity hung or not listening | Ask user to check Unity window |
-| `/ping` OK but POST timeout | Modal dialog blocking main thread, or domain reload in progress | Re-verify PID (step 1b) → check for dialogs → wait 30s retry |
+| `/ping` OK but POST timeout | Modal dialog / stalled domain reload / package resolve blocking main thread | Call **`GET /health`** to confirm → run recovery flow below |
+
+#### 1e. Recovery when main thread is blocked (tykit v0.5.0+ only)
+
+When POST commands time out but `/ping` still works, the main thread is blocked. **These endpoints run on the HTTP listener thread and bypass the queue**, so they work even when POST commands don't:
+
+```bash
+# 1. Confirm main thread is blocked
+curl -s --connect-timeout 3 --max-time 5 "http://localhost:$PORT/health"
+# Look at mainThreadBlocked and hint fields
+
+# 2. Try bringing Unity to foreground (Windows only) — fixes 90% of stalls
+#    (Unity background-throttles domain reload / package resolve when unfocused)
+curl -s --connect-timeout 3 --max-time 5 "http://localhost:$PORT/focus-unity"
+
+# 3. If that fails, try dismissing a modal dialog (Windows only)
+curl -s --connect-timeout 3 --max-time 5 "http://localhost:$PORT/dismiss-dialog"
+
+# 4. After recovery, retry your POST command
+```
+
+**Built-in `tykit_mcp` equivalent:** `unity_main_thread_health`, `unity_focus_window`, `unity_dismiss_dialog` MCP tools.
+
+**Third-party MCP users (`mcp-unity` / `Unity-MCP`):** These recovery endpoints are tykit-specific and have no equivalent in third-party MCPs. If POST hangs, the only options are (a) manually clicking/closing the Unity window, (b) waiting for domain reload to finish, or (c) switching to tykit direct HTTP / built-in `tykit_mcp`.
 
 **Rules:**
 - **Never `kill` Unity** (including Workers) — risks Library corruption and cascade failures

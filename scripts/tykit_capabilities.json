@@ -18,7 +18,10 @@
       "unity_object",
       "unity_assets",
       "unity_batch",
-      "unity_raw_command"
+      "unity_raw_command",
+      "unity_main_thread_health",
+      "unity_focus_window",
+      "unity_dismiss_dialog"
     ],
     "full": [
       "unity_health",
@@ -36,7 +39,10 @@
       "unity_animation",
       "unity_screenshot",
       "unity_batch",
-      "unity_raw_command"
+      "unity_raw_command",
+      "unity_main_thread_health",
+      "unity_focus_window",
+      "unity_dismiss_dialog"
     ]
   },
   "preferredProviders": {
@@ -189,6 +195,27 @@
     },
     "unity_raw_command": {
       "title": "Unity Raw Command",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "unity_main_thread_health": {
+      "title": "Unity Main Thread Health",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "unity_focus_window": {
+      "title": "Unity Focus Main Window",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "unity_dismiss_dialog": {
+      "title": "Unity Dismiss Modal Dialog",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,

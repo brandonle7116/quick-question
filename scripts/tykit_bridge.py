@@ -568,6 +568,71 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
             "required": ["ok", "command", "message"]
         }
+    },
+    "unity_main_thread_health": {
+        "title": "Unity Main Thread Health",
+        "description": "Diagnostic for a stalled Unity main thread. Runs on the tykit HTTP listener thread and bypasses the command queue, so it returns even when POST commands time out. Use this FIRST when Unity commands hang to distinguish a blocked main thread (modal dialog / domain reload) from a dead server.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"}
+            }
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "status": {"type": "string"},
+                "port": {"type": "integer"},
+                "pid": {"type": "integer"},
+                "queueDepth": {"type": "integer"},
+                "oldestQueuedSec": {"type": "number"},
+                "mainThreadIdleSec": {"type": "number"},
+                "mainThreadBlocked": {"type": "boolean"},
+                "hint": {"type": "string"}
+            },
+            "required": ["ok", "status", "mainThreadBlocked"]
+        }
+    },
+    "unity_focus_window": {
+        "title": "Unity Focus Main Window",
+        "description": "Force Unity's main editor window to foreground (Windows only). Runs on the tykit HTTP listener thread and does NOT require the main thread. Use this when Unity stalls on domain reload / package resolve / async git download — Unity pauses background operations until it regains focus, and calling this unblocks those operations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"}
+            }
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "focused": {"type": "string"},
+                "candidateCount": {"type": "integer"},
+                "error": {"type": "string"}
+            },
+            "required": ["ok"]
+        }
+    },
+    "unity_dismiss_dialog": {
+        "title": "Unity Dismiss Modal Dialog",
+        "description": "Send WM_CLOSE to the foreground Unity window (Windows only). Runs on the tykit HTTP listener thread and does NOT require the main thread. Use this when a Unity modal dialog (Save Scene? / compile error / import prompt) is blocking the main thread and you cannot manually click it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"}
+            }
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "dismissed": {"type": "string"},
+                "hwnd": {"type": "string"},
+                "error": {"type": "string"}
+            },
+            "required": ["ok"]
+        }
     }
 }
 
@@ -743,7 +808,58 @@ class TykitBridge:
             return self.batch(args)
         if tool_name == "unity_raw_command":
             return self.raw_command(args)
+        if tool_name == "unity_main_thread_health":
+            return self.main_thread_health(args.get("project_dir"))
+        if tool_name == "unity_focus_window":
+            return self.focus_window(args.get("project_dir"))
+        if tool_name == "unity_dismiss_dialog":
+            return self.dismiss_dialog(args.get("project_dir"))
         raise BridgeError("UNKNOWN_TOOL", f"Unsupported tool handler: {tool_name}")
+
+    # ═══ Listener-thread recovery tools (bypass main thread queue) ═══
+    # These wrap the /health, /focus-unity, /dismiss-dialog HTTP endpoints
+    # which run directly in tykit's HTTP listener thread.
+
+    def main_thread_health(self, project_dir: str | None) -> dict[str, Any]:
+        ctx = self.resolve_project(project_dir)
+        info = self.require_tykit(ctx.project_dir)
+        try:
+            data = self.http_get_listener(info["port"], "/health")
+        except BridgeError as exc:
+            return {"ok": False, "status": "unreachable", "mainThreadBlocked": False, "error": exc.message}
+        data["ok"] = True
+        return data
+
+    def focus_window(self, project_dir: str | None) -> dict[str, Any]:
+        ctx = self.resolve_project(project_dir)
+        info = self.require_tykit(ctx.project_dir)
+        try:
+            data = self.http_get_listener(info["port"], "/focus-unity")
+        except BridgeError as exc:
+            return {"ok": False, "error": exc.message}
+        # Listener-thread endpoints wrap responses in their own envelope.
+        if isinstance(data, dict) and data.get("success") is False:
+            return {"ok": False, "error": data.get("error") or "focus-unity failed"}
+        payload = data.get("data") if isinstance(data, dict) else None
+        result = {"ok": True}
+        if isinstance(payload, dict):
+            result.update(payload)
+        return result
+
+    def dismiss_dialog(self, project_dir: str | None) -> dict[str, Any]:
+        ctx = self.resolve_project(project_dir)
+        info = self.require_tykit(ctx.project_dir)
+        try:
+            data = self.http_get_listener(info["port"], "/dismiss-dialog")
+        except BridgeError as exc:
+            return {"ok": False, "error": exc.message}
+        if isinstance(data, dict) and data.get("success") is False:
+            return {"ok": False, "error": data.get("error") or "dismiss-dialog failed"}
+        payload = data.get("data") if isinstance(data, dict) else None
+        result = {"ok": True}
+        if isinstance(payload, dict):
+            result.update(payload)
+        return result
 
     def health(self, project_dir: str | None = None) -> dict[str, Any]:
         try:
@@ -1473,6 +1589,24 @@ class TykitBridge:
                 return json.loads(resp.read().decode("utf-8"))
         except (OSError, urllib_error.URLError, urllib_error.HTTPError, json.JSONDecodeError) as exc:
             raise BridgeError("TYKIT_PING_FAILED", f"tykit /ping failed on port {port}", {"error": str(exc)})
+
+    def http_get_listener(self, port: int, path: str, timeout: int = 5) -> dict[str, Any]:
+        """GET a listener-thread endpoint (/health, /focus-unity, /dismiss-dialog).
+
+        These endpoints run directly on the HTTP listener thread in tykit and
+        bypass the main thread queue, so they work even when Unity's main
+        thread is blocked by a modal dialog or stalled domain reload.
+        """
+        try:
+            req = urllib_request.Request(f"http://localhost:{port}{path}", method="GET")
+            with urllib_request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (OSError, urllib_error.URLError, urllib_error.HTTPError, json.JSONDecodeError) as exc:
+            raise BridgeError(
+                "TYKIT_GET_FAILED",
+                f"tykit GET {path} failed on port {port}",
+                {"error": str(exc)},
+            )
 
     def http_post(self, port: int, command: str, args: dict[str, Any] | None = None, timeout: int = 15) -> dict[str, Any]:
         payload = json.dumps({"command": command, "args": args or {}}, ensure_ascii=False).encode("utf-8")
