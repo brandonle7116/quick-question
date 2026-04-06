@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.12] — 2026-04-07
+
+Big tykit doc refresh after the v0.5.0 surface expansion (~50 new commands across reflection, prefab, physics, asset, UI, prefs, batch, recovery). Rewrites docs/en/tykit-api.md, docs/zh-CN/tykit-api.md, and packages/com.tyk.tykit/README.md (en + zh + ja + ko sections) to cover the full ~60-command surface organized by category. Updates docs/en/tykit-mcp.md and docs/zh-CN/tykit-mcp.md: standard profile from 11 to 15 tools, new examples for unity_physics / unity_object reflection / unity_main_thread_health, dedicated 'Main Thread Recovery' section, Fast-Path Routing now mentions qq-compile.sh multi-engine dispatcher. Root README tykit section expanded with the v0.5.0 differentiator story (listener-thread GET endpoints surviving blocked main threads — every other Unity bridge dies in this scenario).
+
+
+
 ## [1.16.11] — 2026-04-06
 
 Add cross-doc link rot lint as test.sh section 5e and fix the 32 broken links it found across docs/. Also fixes a bug in qq-release.sh introduced in v1.16.10 (re.escape leaking into a text.replace call) — caught by the helper's own post-bump lint check on first dogfood.

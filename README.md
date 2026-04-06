@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/tykisgod/quick-question/actions/workflows/validate.yml"><img src="https://github.com/tykisgod/quick-question/actions/workflows/validate.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/version-v1.16.11-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-v1.16.12-blue" alt="Version">
   <a href="https://github.com/tykisgod/quick-question/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue" alt="Platform">
 </p>
@@ -226,13 +226,15 @@ Three files control qq's behavior in your project:
 
 ## tykit
 
-tykit is a lightweight HTTP server inside the Unity Editor process — zero setup, no external dependencies, millisecond response. It exposes compile, test, play / stop, console, and inspector commands over localhost. Port is derived from your project path hash and stored in `Temp/tykit.json`.
+tykit (currently **v0.5.0**) is a lightweight HTTP server inside the Unity Editor process — zero setup, no external dependencies, millisecond response. It exposes 60+ commands over localhost, organized into compile/test, console, scene/hierarchy, GameObject lifecycle, **reflection** (`call-method` / `get-field` / `set-field` — invoke arbitrary methods on components without scaffolding), prefab editing, **physics queries** (raycast, overlap-sphere), asset management, UI automation, and editor control. Port is derived from your project path hash and stored in `Temp/tykit.json`.
 
 ```bash
 PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 curl -s -X POST http://localhost:$PORT/ -d '{"command":"compile"}' -H 'Content-Type: application/json'
 curl -s -X POST http://localhost:$PORT/ -d '{"command":"run-tests","args":{"mode":"editmode"}}' -H 'Content-Type: application/json'
 ```
+
+**The differentiator** (v0.5.0): when Unity's main thread is blocked by a modal dialog or background-throttled domain reload, tykit's listener-thread `GET /health`, `GET /focus-unity`, and `GET /dismiss-dialog` endpoints can drag Unity back into a working state without depending on the stuck main thread. Every other Unity bridge dies in this scenario; tykit recovers. See [`docs/en/tykit-api.md#main-thread-recovery`](docs/en/tykit-api.md#main-thread-recovery).
 
 tykit also works standalone, without qq — add the [UPM package](packages/com.tyk.tykit/) to any Unity project. Any agent that can send HTTP can use it directly. The MCP bridge (`tykit_mcp.py`) wraps it for MCP-compatible hosts. See [`docs/en/tykit-api.md`](docs/en/tykit-api.md) and [`docs/en/tykit-mcp.md`](docs/en/tykit-mcp.md).
 
@@ -425,13 +427,15 @@ rm -rf /tmp/qq
 
 ## tykit
 
-tykit 是 Unity Editor 进程内的轻量级 HTTP 服务器——零配置、无外部依赖、毫秒级响应。它通过 localhost 暴露编译、测试、play / stop、控制台和 inspector 命令。端口由项目路径哈希生成，存储在 `Temp/tykit.json` 中。
+tykit（当前 **v0.5.0**）是 Unity Editor 进程内的轻量级 HTTP 服务器——零配置、无外部依赖、毫秒级响应。它通过 localhost 暴露 60+ 命令，分为 编译/测试、控制台、场景/层级、GameObject 生命周期、**反射**（`call-method` / `get-field` / `set-field` —— 不需要预埋脚手架就能调用任意组件方法）、预制体编辑、**物理查询**（raycast、overlap-sphere）、资源管理、UI 自动化、Editor 控制等类目。端口由项目路径哈希生成，存储在 `Temp/tykit.json` 中。
 
 ```bash
 PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
 curl -s -X POST http://localhost:$PORT/ -d '{"command":"compile"}' -H 'Content-Type: application/json'
 curl -s -X POST http://localhost:$PORT/ -d '{"command":"run-tests","args":{"mode":"editmode"}}' -H 'Content-Type: application/json'
 ```
+
+**关键差异**（v0.5.0）：当 Unity 主线程被 modal 对话框或后台节流的 domain reload 卡住时，tykit 的监听线程 `GET /health`、`GET /focus-unity`、`GET /dismiss-dialog` 端点可以在不依赖被卡住的主线程的情况下把 Unity 拉回工作状态。所有其他 Unity 桥接在这种场景下都会死，只有 tykit 能恢复。参见 [`docs/zh-CN/tykit-api.md#主线程恢复`](docs/zh-CN/tykit-api.md#主线程恢复)。
 
 tykit 也可以脱离 qq 独立使用——把 [UPM 包](packages/com.tyk.tykit/) 加到任何 Unity 项目即可。任何能发 HTTP 请求的 agent 都可以直接使用。MCP 桥接（`tykit_mcp.py`）为 MCP 兼容宿主提供封装。参见 [`docs/zh-CN/tykit-api.md`](docs/zh-CN/tykit-api.md) 和 [`docs/zh-CN/tykit-mcp.md`](docs/zh-CN/tykit-mcp.md)。
 
