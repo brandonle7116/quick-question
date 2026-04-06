@@ -21,16 +21,6 @@ install:
   remove_modules: []
   sync: false
 
-context_capsule:
-  enabled: true
-  mode: auto
-  triggers:
-    - resume
-    - pre_clear
-    - worktree_handoff
-    - after_blocker
-  max_chars: 3000
-
 profiles:
   lightweight:
     description: "Smallest usable qq footprint: runtime, compile/test, explicit test authoring, go, execute, and changes with almost no ceremony."

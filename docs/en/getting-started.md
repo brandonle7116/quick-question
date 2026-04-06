@@ -2,6 +2,8 @@
 
 qq is installed. Now what? Start with `/qq:go` — it reads your project state and recommends the next step. Or jump directly to any skill: `/qq:design`, `/qq:test`, `/qq:best-practice`. The controller adapts; you don't have to follow a fixed sequence.
 
+> **Engine support.** The scenarios below use Unity for concrete examples (`.cs`, `EditMode`/`PlayMode`, `GetComponent`, `[SerializeField]`), but the same flow works on Godot, Unreal, and S&box. The runtime auto-detects your engine; only the example file extensions and idioms differ.
+
 ---
 
 ## Scenario 1: Build a feature from scratch

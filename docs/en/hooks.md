@@ -6,12 +6,12 @@ Claude Code hooks are shell scripts that fire automatically in response to tool 
 
 | Trigger | Matcher | Script | Purpose |
 |---------|---------|--------|---------|
-| PreToolUse | `Edit\|Write` | `review-gate-check.sh` | Block edits while review verification is pending |
+| PreToolUse | `Edit\|Write` | `review-gate.sh check` | Block edits while review verification is pending |
 | PostToolUse | `Write\|Edit` | `auto-compile.sh` | Auto-compile engine source files after edits |
 | PostToolUse | `Write\|Edit` | `skill-modified-track.sh` | Record when skill files are modified |
-| PostToolUse | `Bash` | `review-gate-set.sh` | Activate the review gate after a code/plan review |
-| PostToolUse | `Agent` | `review-gate-count.sh` | Count verification subagent completions |
-| Stop | (all) | `review-gate-stop.sh` | Block session exit if verification is incomplete |
+| PostToolUse | `Bash` | `review-gate.sh set` | Activate the review gate after a code/plan review |
+| PostToolUse | `Agent` | `review-gate.sh count` | Count verification subagent completions |
+| Stop | (all) | `review-gate.sh stop` | Block session exit if verification is incomplete |
 | Stop | (all) | `check-skill-review.sh` | Block session end if skills were modified without review |
 | Stop | (all) | `session-cleanup.sh` | Remove temp files for the session |
 
@@ -43,14 +43,14 @@ Four scripts coordinate to enforce verification before edits resume after a code
 
 ### Activating the Gate
 
-**Script:** `scripts/hooks/review-gate-set.sh`
+**Script:** `scripts/hooks/review-gate.sh set`
 **Trigger:** PostToolUse for `Bash`
 
 After a Bash command completes, this hook checks whether the command invoked `code-review.sh`, `claude-review.sh`, `plan-review.sh`, or `claude-plan-review.sh`. If so, it creates a gate file at `$QQ_TEMP_DIR/review-gate-$PPID` with the three-field format `<unix_timestamp>:<completed>:<expected>` (timestamp, zero completed verifications, and expected verification count). It also injects context telling Claude to dispatch verification subagents for each finding.
 
 ### Checking the Gate
 
-**Script:** `scripts/hooks/review-gate-check.sh`
+**Script:** `scripts/hooks/review-gate.sh check`
 **Trigger:** PreToolUse for `Edit|Write`
 **Timeout:** 5 seconds
 
@@ -58,14 +58,14 @@ Before any edit or write, this hook checks whether a gate file exists for the cu
 
 ### Counting Verifications
 
-**Script:** `scripts/hooks/review-gate-count.sh`
+**Script:** `scripts/hooks/review-gate.sh count`
 **Trigger:** PostToolUse for `Agent`
 
 Each time a subagent completes, this hook increments the completed counter in the gate file. Once `completed >= expected`, the gate allows edits to proceed. The hook injects context confirming verification was recorded.
 
 ### Blocking Session Exit
 
-**Script:** `scripts/hooks/review-gate-stop.sh`
+**Script:** `scripts/hooks/review-gate.sh stop`
 **Trigger:** Stop
 
 When a session is about to end, this hook checks whether a review gate is active with incomplete verifications (`completed < expected`). If so, it blocks session termination to prevent exiting before all findings have been verified.

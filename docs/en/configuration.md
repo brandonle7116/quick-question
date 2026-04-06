@@ -7,6 +7,7 @@ Settings flow: built-in defaults -> profile inheritance -> `qq.yaml` -> `.qq/loc
 | `qq.yaml` | Yes | Project-wide: default profile, rules, install hosts |
 | `.qq/local.yaml` | No | Per-worktree overrides: work mode, profile, trust level |
 | `CLAUDE.md` / `AGENTS.md` | Yes | Coding standards, architecture rules |
+| `.qq/state/session-decisions.json` | No (auto) | Cross-skill decision journal — `/qq:go` reads this so later skills stay coherent with earlier ones within the same session |
 
 ## qq.yaml Reference
 

@@ -2,6 +2,19 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.8] — 2026-04-06
+
+### Changed
+- **README.md Chinese section rewritten** to mirror the new English half: control-plane pitch ("游戏开发 agent 的控制平面，闭环 — 编译、测试、审阅、交付"), tightened prose, lifecycle-aware narrative woven into "为什么是 qq", "工作原理" promoted next to the intro with a 4-layer breakdown, four `<details>` install collapsibles consolidated into a single connect-your-agent table. Banner added in v1.16.7 removed; English and Chinese halves are now in sync. Total README size 601 → 466 lines (-22.5%).
+- **Translated READMEs (`docs/zh-CN/README.md`, `docs/ja/README.md`, `docs/ko/README.md`)** — fixed stale "23 commands" → 26 in all three; dropped "Windows preview" labels (Windows 1.15.x / 1.16.x hardening is now reflected); Chinese FAQ Windows answer expanded with the recent Windows fixes (LF, path normalization, Python Store alias, jq fallback).
+- **`docs/en/hooks.md` and `docs/zh-CN/hooks.md`** — updated all 8 references each from the legacy split scripts (`review-gate-{check,set,count,stop}.sh`) to the unified `review-gate.sh <subcommand>` form.
+- **`docs/en/cross-model-review.md` and `docs/zh-CN/cross-model-review.md`** — same `review-gate-stop.sh` → `review-gate.sh stop` cleanup.
+- **`docs/dev/architecture/overview.md`** — opening paragraph rewritten to match the new pitch + multi-engine framing; "Smart Compilation Stack (Unity)" section replaced with "Smart Compile Dispatch" that documents the `qq-compile.sh` multi-engine entry point and per-engine common files.
+- **`docs/en/getting-started.md`** — added an opening note that the Unity examples in the scenarios apply equally to Godot, Unreal, and S&box; the runtime auto-detects the engine.
+- **`docs/en/configuration.md`** — added `.qq/state/session-decisions.json` (cross-skill decision journal) to the file table so readers know `/qq:go` consults it for cross-skill coherence.
+- **`templates/qq.yaml.example`** — removed the stale `context_capsule:` block; Context Capsule was deleted in v1.10.0, the template was a forgotten residue.
+- **GitHub repo metadata** — description updated to match the new control-plane pitch; topics swapped: dropped 3 vague internal-sounding ones (`cid`, `harness-engineering`, `context-engineering`), added 4 missing engine / interop topics (`godot`, `unreal`, `sbox`, `mcp`).
+
 ## [1.16.7] — 2026-04-06
 
 ### Changed

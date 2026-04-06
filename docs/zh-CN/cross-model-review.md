@@ -41,7 +41,7 @@ flowchart TD
 - **激活：** PostToolUse hook 在 `code-review.sh`、`claude-review.sh`、`plan-review.sh` 或 `claude-plan-review.sh` 运行后设置门
 - **效果：** PreToolUse hook 阻止所有对 `.cs` 和 `Docs/*.md` 文件的 Edit 和 Write 操作
 - **释放：** 所有验证子 agent 完成后门解锁（`completed >= expected`），由 PostToolUse Agent hook 追踪
-- **Stop hook：** `review-gate-stop.sh` 在验证未完成时阻止会话退出
+- **Stop hook：** `review-gate.sh stop` 在验证未完成时阻止会话退出
 - **隔离：** 每个会话用 `$PPID` 划定门文件范围，并发会话互不干扰
 
 审阅循环结束时门自动清理。

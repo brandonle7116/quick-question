@@ -1,6 +1,6 @@
 # Architecture Overview
 
-qq is a game development agent runtime for Claude Code. It supports Unity, Godot, Unreal, and S&box, providing artifact-driven control, auto-compilation hooks, test pipelines, executable policy checks, and cross-model code review.
+qq is the agent control plane for game-dev work — a Claude Code plugin **and** an engine-agnostic runtime. It supports Unity, Godot, Unreal, and S&box, providing artifact-driven control (`/qq:go`), auto-compile hooks, test pipelines, deterministic policy checks (`qq-policy-check.sh`), cross-skill decision journaling (`session-decisions.json`), and dual-mode (Codex + Claude) code review with a verification loop. Although Claude Code gets the deepest integration, the runtime core is agent-agnostic — Codex CLI, Cursor, Continue, and any MCP-compatible host can use the same scripts and bridges through HTTP and MCP.
 
 ## Four-Layer Architecture
 
@@ -98,17 +98,19 @@ flowchart LR
     B --> G["Inspect"]
 ```
 
-## Smart Compilation Stack (Unity)
+## Smart Compile Dispatch
 
-`unity-compile-smart.sh` orchestrates a three-tier fallback for Unity compilation:
+`scripts/qq-compile.sh` is the multi-engine entry point. It detects the active engine and delegates to the engine-specific compiler:
 
-1. **tykit mode** -- HTTP call to the in-process tykit server running inside Unity Editor. This is the fastest path: non-blocking, millisecond response times, and no process spawning.
+- **Unity** → `unity-compile-smart.sh`, which itself picks the best path:
+  1. **tykit mode** -- HTTP call to the in-process tykit server running inside Unity Editor. This is the fastest path: non-blocking, millisecond response times, no process spawning.
+  2. **Editor trigger** -- When tykit is unavailable, the script uses `osascript` on macOS or PowerShell on Windows to send a compile command to the running Unity Editor. Slower than tykit but avoids a full batch invocation.
+  3. **Batch mode** -- When the Editor is not open at all, the script falls back to `Unity -quit -batchmode`. This is the slowest path but works headlessly and is the only option for CI or closed-Editor scenarios.
+- **Godot** → `godot-compile.sh` (headless `--check-only` GDScript validation)
+- **Unreal** → `unreal-compile.sh` (UnrealBuildTool + editor commandlet)
+- **S&box** → `sbox-compile.sh` (`dotnet build`)
 
-2. **Editor trigger** -- When tykit is unavailable, the script uses `osascript` on macOS or PowerShell on Windows to send a compile command to the running Unity Editor. Slower than tykit but avoids a full batch invocation.
-
-3. **Batch mode** -- When the Editor is not open at all, the script falls back to `Unity -quit -batchmode`. This is the slowest path but works headlessly and is the only option for CI or closed-Editor scenarios.
-
-Shared utilities (Editor detection, Unity path lookup, tykit port discovery) live in `unity-common.sh`.
+Shared utilities live in per-engine common files: `unity-common.sh`, `godot-common.sh`, `unreal-common.sh`, `sbox-common.sh` (Editor detection, paths, port discovery).
 
 ## State-Driven Routing
 
