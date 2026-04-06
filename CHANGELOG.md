@@ -2,6 +2,11 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.5] — 2026-04-06
+
+### Fixed
+- **Windows hook execution** — `.gitattributes` now forces LF line endings for `.sh` and `.py` files. Previously, Windows `core.autocrlf=true` converted hook scripts to CRLF on checkout, causing Git Bash to fail with "No such file or directory" errors when executing hooks (bash interprets `\r` as part of the path).
+
 ## [1.16.4] — 2026-04-06
 
 ### Added
