@@ -6,6 +6,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Generate a technical implementation plan for Unity. This is NOT a game design document — it translates an existing design into an engineering plan that `/qq:execute` can consume.
 
+> **When the plan can use live Unity editing instead of code**: some implementation steps are simpler as direct tykit calls (scene tweaks, prefab overrides, UI adjustments, one-off data fixes) rather than writing C# utilities. If a step is a one-shot editor-state change, see [`shared/tykit-reference.md`](../../shared/tykit-reference.md) and mark the step as "execute via tykit command X" in the plan. Reserve code-writing for changes that need version control, compile-time validation, or repeatable behavior.
+
 Arguments: $ARGUMENTS
 - A file path to a game design document
 - A brief description (1-2 sentences) of what to build

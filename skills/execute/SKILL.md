@@ -6,6 +6,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Read a plan, execute it fully. Execution is always automatic — never ask "proceed?" or "start?" during implementation. The user invoked execute; that IS the go-ahead.
 
+> **Live Unity editing during execution**: if a plan step needs to poke the live Unity Editor (inspect a component, modify a scene object, invoke a runtime method) instead of writing new C# code, consult [`shared/tykit-reference.md`](../../shared/tykit-reference.md) for the command map. Use tykit commands directly via the MCP tools (`unity_query`, `unity_object`, `unity_assets`, `unity_physics`) or direct HTTP (`/ping`, `/health`, `/focus-unity` for recovery). Only fall back to code-writing for changes that need version control or compile-time validation.
+
 Arguments: $ARGUMENTS
 - A file path to a plan/design document
 - `--no-worktree`: skip worktree guard

@@ -8,6 +8,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Add or update Unity tests for the current change. This skill is for **writing tests**, not for running them. After authoring coverage, hand off to `/qq:test`.
 
+> **Querying live scene/component state while authoring tests**: if you need to inspect the current Unity scene to understand what to assert (component layouts, serialized values, runtime state), see [`shared/tykit-reference.md`](../../shared/tykit-reference.md). Tools like `unity_query`, `unity_object`, `get-field`, `call-method`, `get-array` let you probe the live editor instead of guessing from source code.
+
 Arguments: $ARGUMENTS
 - A file path, symbol, bug description, or plan step that needs coverage
 - `editmode` / `edit`: force EditMode coverage

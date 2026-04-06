@@ -17,6 +17,7 @@
       "unity_query",
       "unity_object",
       "unity_assets",
+      "unity_physics",
       "unity_batch",
       "unity_raw_command",
       "unity_main_thread_health",
@@ -33,6 +34,7 @@
       "unity_query",
       "unity_object",
       "unity_assets",
+      "unity_physics",
       "unity_input",
       "unity_visual",
       "unity_ui",
@@ -149,6 +151,13 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "unity_physics": {
+      "title": "Unity Physics Queries",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
       "openWorldHint": false
     },
     "unity_input": {

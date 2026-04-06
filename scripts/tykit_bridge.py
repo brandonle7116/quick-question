@@ -633,19 +633,54 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
             "required": ["ok"]
         }
+    },
+    "unity_physics": {
+        "title": "Unity Physics Queries",
+        "description": "Run physics queries (raycast, raycast-all, overlap-sphere) against the live scene. Use for visibility checks, pathfinding validation, trigger detection, and spatial queries.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_dir": {"type": "string"},
+                "action": {"type": "string", "enum": ["raycast", "raycast_all", "overlap_sphere"]},
+                "origin": {"type": "array", "items": {"type": "number"}, "description": "[x,y,z] ray origin (raycast/raycast_all)."},
+                "direction": {"type": "array", "items": {"type": "number"}, "description": "[x,y,z] ray direction (raycast/raycast_all)."},
+                "distance": {"type": "number", "description": "Max ray distance. Default 1000."},
+                "center": {"type": "array", "items": {"type": "number"}, "description": "[x,y,z] sphere center (overlap_sphere)."},
+                "radius": {"type": "number", "description": "Sphere radius (overlap_sphere)."},
+                "layer_mask": {"type": "integer", "description": "LayerMask bitfield. Default -1 (all layers)."}
+            },
+            "required": ["action"]
+        },
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "command": {"type": "string"},
+                "message": {"type": "string"},
+                "response": {}
+            },
+            "required": ["ok", "command", "message"]
+        }
     }
 }
 
 
 QUERY_ACTIONS = {
     "status": ("status", {}),
-    "hierarchy": ("hierarchy", {"depth": "depth"}),
-    "find": ("find", {"name": "name", "tag": "tag", "type": "type"}),
+    "hierarchy": ("hierarchy", {"id": "id", "path": "path", "name": "name", "depth": "depth"}),
+    "find": ("find", {
+        "name": "name", "tag": "tag", "type": "type",
+        "path": "path", "parent_id": "parentId", "include_inactive": "includeInactive"
+    }),
     "inspect": ("inspect", {"id": "id", "name": "name", "path": "path"}),
-    "get_properties": ("get-properties", {"id": "id", "name": "name", "path": "path", "component": "component"}),
+    "get_properties": ("get-properties", {"id": "id", "name": "name", "path": "path", "component": "component", "structured": "structured"}),
+    "get_array": ("get-array", {"id": "id", "name": "name", "path": "path", "component": "component", "property": "property"}),
+    "get_field": ("get-field", {"id": "id", "name": "name", "path": "path", "component": "component", "field": "field", "non_public": "nonPublic"}),
     "get_selection": ("get-selection", {}),
     "list_scenes": ("list-scenes", {}),
-    "list_assets": ("list-assets", {"filter": "filter", "path": "path"})
+    "list_assets": ("list-assets", {"filter": "filter", "path": "path"}),
+    "find_assets": ("find-assets", {"type": "type", "path": "path", "name": "name"}),
+    "prefab_source": ("prefab-source", {"id": "id", "name": "name", "path": "path"})
 }
 
 EDITOR_ACTIONS = {
@@ -653,11 +688,17 @@ EDITOR_ACTIONS = {
     "stop": ("stop", {}),
     "pause": ("pause", {}),
     "save_scene": ("save-scene", {}),
+    "save_scene_as": ("save-scene-as", {"path": "path"}),
+    "set_active_scene": ("set-active-scene", {"path": "path", "name": "name"}),
     "open_scene": ("open-scene", {"path": "path", "mode": "mode"}),
     "new_scene": ("new-scene", {"path": "path"}),
     "menu": ("menu", {"item": "item"}),
     "undo": ("undo", {}),
-    "redo": ("redo", {})
+    "redo": ("redo", {}),
+    "editor_prefs": ("editor-prefs", {"key": "key", "value": "value", "type": "type", "delete": "delete"}),
+    "player_prefs": ("player-prefs", {"key": "key", "value": "value", "type": "type", "delete": "delete"}),
+    "focus_unity": ("focus-unity", {}),
+    "dismiss_dialog": ("dismiss-dialog", {})
 }
 
 OBJECT_ACTIONS = {
@@ -670,11 +711,23 @@ OBJECT_ACTIONS = {
     "set_active": ("set-active", {"id": "id", "name": "name", "path": "path", "active": "active"}),
     "set_layer": ("set-layer", {"id": "id", "name": "name", "path": "path", "layer": "layer"}),
     "set_tag": ("set-tag", {"id": "id", "name": "name", "path": "path", "tag": "tag"}),
+    "set_name": ("set-name", {"id": "id", "name": "name", "path": "path", "new_name": "newName"}),
     "add_force": ("add-force", {"id": "id", "name": "name", "path": "path", "force": "force", "mode": "mode"}),
     "add_component": ("add-component", {"id": "id", "name": "name", "path": "path", "component": "component"}),
     "remove_component": ("remove-component", {"id": "id", "name": "name", "path": "path", "component": "component"}),
     "set_property": ("set-property", {"id": "id", "name": "name", "path": "path", "component": "component", "property": "property", "value": "value"}),
-    "select": ("select", {"id": "id", "name": "name", "path": "path"})
+    "set_field": ("set-field", {"id": "id", "name": "name", "path": "path", "component": "component", "field": "field", "value": "value", "non_public": "nonPublic"}),
+    "set_text": ("set-text", {"id": "id", "name": "name", "path": "path", "text": "text", "in_children": "inChildren"}),
+    "call_method": ("call-method", {"id": "id", "name": "name", "path": "path", "component": "component", "method": "method", "params": "params", "non_public": "nonPublic"}),
+    "button_click": ("button-click", {"id": "id", "name": "name", "path": "path"}),
+    "component_copy": ("component-copy", {"id": "id", "name": "name", "path": "path", "component": "component"}),
+    "component_paste": ("component-paste", {"id": "id", "name": "name", "path": "path", "component": "component", "as_new": "asNew"}),
+    "array_size": ("array-size", {"id": "id", "component": "component", "property": "property", "size": "size"}),
+    "array_insert": ("array-insert", {"id": "id", "component": "component", "property": "property", "index": "index", "value": "value"}),
+    "array_delete": ("array-delete", {"id": "id", "component": "component", "property": "property", "index": "index"}),
+    "array_move": ("array-move", {"id": "id", "component": "component", "property": "property", "from_index": "fromIndex", "to_index": "toIndex"}),
+    "select": ("select", {"id": "id", "ids": "ids", "name": "name", "path": "path", "ping": "ping"}),
+    "ping": ("ping", {"id": "id", "name": "name", "path": "path", "asset_path": "assetPath"})
 }
 
 ASSET_ACTIONS = {
@@ -682,7 +735,21 @@ ASSET_ACTIONS = {
     "create_prefab": ("create-prefab", {"source": "source", "path": "path"}),
     "create_material": ("create-material", {"path": "path", "shader": "shader"}),
     "create_physics_material_2d": ("create-physics-material-2d", {"path": "path", "friction": "friction", "bounciness": "bounciness"}),
-    "list_assets": ("list-assets", {"filter": "filter", "path": "path"})
+    "create_scriptable_object": ("create-scriptable-object", {"type": "type", "path": "path"}),
+    "load_asset": ("load-asset", {"path": "path"}),
+    "find_assets": ("find-assets", {"type": "type", "path": "path", "name": "name"}),
+    "list_assets": ("list-assets", {"filter": "filter", "path": "path"}),
+    "prefab_apply": ("prefab-apply", {"id": "id", "name": "name", "path": "path"}),
+    "prefab_revert": ("prefab-revert", {"id": "id", "name": "name", "path": "path"}),
+    "prefab_open": ("prefab-open", {"asset_path": "assetPath"}),
+    "prefab_close": ("prefab-close", {}),
+    "prefab_source": ("prefab-source", {"id": "id", "name": "name", "path": "path"})
+}
+
+PHYSICS_ACTIONS = {
+    "raycast": ("raycast", {"origin": "origin", "direction": "direction", "distance": "distance", "layer_mask": "layerMask"}),
+    "raycast_all": ("raycast-all", {"origin": "origin", "direction": "direction", "distance": "distance", "layer_mask": "layerMask"}),
+    "overlap_sphere": ("overlap-sphere", {"center": "center", "radius": "radius", "layer_mask": "layerMask"})
 }
 
 INPUT_ACTIONS = {
@@ -808,6 +875,8 @@ class TykitBridge:
             return self.batch(args)
         if tool_name == "unity_raw_command":
             return self.raw_command(args)
+        if tool_name == "unity_physics":
+            return self.action_tool(args, PHYSICS_ACTIONS, "action", "unity_physics")
         if tool_name == "unity_main_thread_health":
             return self.main_thread_health(args.get("project_dir"))
         if tool_name == "unity_focus_window":
@@ -1121,13 +1190,8 @@ class TykitBridge:
         }
 
     def object_tool(self, args: dict[str, Any]) -> dict[str, Any]:
-        if "value" in args and not isinstance(args.get("value"), str):
-            coerced = args["value"]
-            args = dict(args)
-            if isinstance(coerced, (dict, list)):
-                args["value"] = json.dumps(coerced, ensure_ascii=False)
-            else:
-                args["value"] = str(coerced)
+        # tykit v0.3.0+ SetPropertyValue accepts native JSON types (int/float/bool/array/object)
+        # for Vector/Color/Rect/Bounds/Quaternion properties. Do NOT stringify — pass through as-is.
         return self.action_tool(args, OBJECT_ACTIONS, "action", "unity_object")
 
     def batch(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -1654,6 +1718,8 @@ class TykitBridge:
             command_names = [item[0] for item in ANIMATION_ACTIONS.values()]
         elif tool_name == "unity_screenshot":
             command_names = [item[0] for item in SCREENSHOT_ACTIONS.values()]
+        elif tool_name == "unity_physics":
+            command_names = [item[0] for item in PHYSICS_ACTIONS.values()]
         elif tool_name == "unity_raw_command":
             return f"{description} Unity metadata reports {len(catalog)} registered command(s)."
 

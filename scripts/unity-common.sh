@@ -9,7 +9,27 @@
 source "$(dirname "${BASH_SOURCE[0]}")/platform/detect.sh"
 
 # ── 检测 Unity Editor 是否为当前项目打开 ──
+#
+# Preferred signal: tykit.json exists + /ping responds. Definitive proof that
+# Unity is up and tykit is listening. No dependency on wmic/tasklist which are
+# unreliable on Windows 11 (wmic deprecated) and Git Bash (PATH issues in hooks).
+#
+# Fallback: qq_is_unity_running (lockfile + process check + compile_status mtime).
 is_editor_open_for_project() {
+    local tykit_json="$PROJECT_DIR/Temp/tykit.json"
+    if [ -f "$tykit_json" ]; then
+        local port
+        local py_cmd="python3"
+        python3 --version >/dev/null 2>&1 || py_cmd="python"
+        port=$($py_cmd -c "import json; print(json.load(open('$tykit_json'))['port'])" 2>/dev/null)
+        if [ -n "$port" ]; then
+            # /ping responds on the listener thread, works even when main thread is blocked.
+            if curl -s --connect-timeout 2 --max-time 3 "http://localhost:$port/ping" >/dev/null 2>&1; then
+                return 0
+            fi
+        fi
+    fi
+    # Fallback to process-based detection
     qq_is_unity_running "$PROJECT_DIR"
 }
 
