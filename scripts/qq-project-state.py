@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,18 @@ from qq_engine import verification_patterns
 def posix_rel(path: Path, base: Path) -> str:
     """Return a POSIX-style relative path string (forward slashes on all platforms)."""
     return path.relative_to(base).as_posix()
+
+
+def posix_str(value: Any) -> str:
+    """Normalize a path-like value to a forward-slash string for cross-OS parity.
+
+    Empty / None inputs return "" so JSON output stays stable. The state snapshot
+    is consumed by tests, the controller, and tooling that grep for ``.qq/local.yaml``
+    style suffixes — backslashes from Windows path objects break those consumers.
+    """
+    if not value:
+        return ""
+    return str(value).replace("\\", "/")
 from qq_internal_changes import latest_change_mtime, meaningful_local_change_snapshot
 from qq_internal_config import POLICY_PROFILES, WORK_MODE_PROFILES, resolve_project_config
 from qq_internal_git import run_git
@@ -220,7 +233,7 @@ def detect_worktree_context(project_dir: Path) -> dict[str, Any]:
         return {}
 
     result = subprocess.run(
-        ["python3", str(helper), "status", "--project", str(project_dir)],
+        [sys.executable, str(helper), "status", "--project", str(project_dir)],
         check=False,
         capture_output=True,
         text=True,
@@ -517,10 +530,10 @@ def build_state(project_dir: Path) -> dict[str, Any]:
     }
 
     state: dict[str, Any] = {
-        "project_dir": str(project_dir),
+        "project_dir": posix_str(project_dir),
         "config_format": str(config.get("config_format") or ""),
-        "shared_config_path": str(config.get("shared_config_path") or ""),
-        "local_config_path": str(config.get("local_config_path") or ""),
+        "shared_config_path": posix_str(config.get("shared_config_path")),
+        "local_config_path": posix_str(config.get("local_config_path")),
         "shared_config_exists": bool(config.get("shared_config_exists")),
         "local_config_exists": bool(config.get("local_config_exists")),
         "profile": str(config.get("profile") or "feature"),
@@ -583,7 +596,7 @@ def build_state(project_dir: Path) -> dict[str, Any]:
         "worktree_name": str(worktree.get("worktreeName") or ""),
         "worktree_branch": str(worktree.get("currentBranch") or ""),
         "worktree_source_branch": str(worktree.get("sourceBranch") or ""),
-        "worktree_source_worktree_path": str(worktree.get("sourceWorktreePath") or ""),
+        "worktree_source_worktree_path": posix_str(worktree.get("sourceWorktreePath")),
         "worktree_source_branch_merged": bool(worktree.get("sourceBranchMerged")),
         "worktree_source_branch_upstream": str(worktree.get("sourceBranchUpstream") or ""),
         "worktree_source_branch_publish_state": str(worktree.get("sourceBranchPublishState") or ""),

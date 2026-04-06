@@ -135,10 +135,15 @@ case "$(uname -s)" in
 esac
 
 # ── Dependency check ──
+# Detect a working Python (Windows Store $QQ_PY alias is on PATH but broken;
+# use --version to detect a real interpreter, not command -v).
+QQ_PY="python3"
+"$QQ_PY" --version >/dev/null 2>&1 || QQ_PY="python"
+export QQ_PY
+
 MISSING=""
 command -v curl  &>/dev/null || MISSING="$MISSING curl"
-command -v python3 &>/dev/null || MISSING="$MISSING python3"
-command -v jq   &>/dev/null || MISSING="$MISSING jq"
+"$QQ_PY" --version >/dev/null 2>&1 || MISSING="$MISSING python3"
 if [ -n "$MISSING" ]; then
   echo "Error: missing required tools:$MISSING"
   if [[ "$QQ_PLATFORM" == "macos" ]]; then
@@ -150,12 +155,24 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
+# jq is no longer strictly required — hook scripts fall back to $QQ_PY when
+# jq is missing (v1.16.6). Warn so users can still install it for slightly
+# faster JSON parsing in hooks, but don't block the install.
+if ! command -v jq &>/dev/null; then
+  echo "Note: jq is not installed. Hook scripts will fall back to python3 for JSON parsing."
+  if [[ "$QQ_PLATFORM" == "macos" ]]; then
+    echo "      Install with: brew install jq (optional)"
+  else
+    echo "      Install with: winget install jqlang.jq (optional)"
+  fi
+fi
+
 # ── Find supported project ──
 if [ -z "$TARGET" ]; then
   TARGET=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 fi
 
-ENGINE="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" detect --project "$TARGET" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
+ENGINE="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" detect --project "$TARGET" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin).get("engine",""))' 2>/dev/null || true)"
 if [ -z "$ENGINE" ]; then
   echo "Error: $TARGET is not a supported engine project"
   echo "Usage: ./install.sh /path/to/<supported-engine-project>"
@@ -183,9 +200,9 @@ if [ "$RUN_WIZARD" -eq 1 ] || [ -n "$INSTALL_PRESET" ]; then
   if [ -n "$INSTALL_LANGUAGE" ]; then
     ONBOARD_ARGS+=(--language "$INSTALL_LANGUAGE")
   fi
-  python3 "$SCRIPT_DIR/scripts/qq-onboard.py" "${ONBOARD_ARGS[@]}"
+  $QQ_PY "$SCRIPT_DIR/scripts/qq-onboard.py" "${ONBOARD_ARGS[@]}"
 elif [ ! -f "$TARGET/qq.yaml" ]; then
-  python3 - "$SCRIPT_DIR/templates/qq.yaml.example" "$TARGET/qq.yaml" "$POLICY_PROFILE" << 'PYEOF'
+  $QQ_PY - "$SCRIPT_DIR/templates/qq.yaml.example" "$TARGET/qq.yaml" "$POLICY_PROFILE" << 'PYEOF'
 import sys
 from pathlib import Path
 
@@ -226,10 +243,10 @@ fi
 if [ -n "$WITHOUT_MODULES" ]; then
   INSTALL_PLAN_ARGS+=(--without "$WITHOUT_MODULES")
 fi
-python3 "$SCRIPT_DIR/scripts/qq_internal_install.py" "${INSTALL_PLAN_ARGS[@]}" > "$INSTALL_PLAN_FILE"
+$QQ_PY "$SCRIPT_DIR/scripts/qq_internal_install.py" "${INSTALL_PLAN_ARGS[@]}" > "$INSTALL_PLAN_FILE"
 
 mkdir -p "$TARGET"
-python3 - "$SCRIPT_DIR" "$TARGET" "$INSTALL_PLAN_FILE" << 'PYEOF'
+$QQ_PY - "$SCRIPT_DIR" "$TARGET" "$INSTALL_PLAN_FILE" << 'PYEOF'
 import json
 import os
 import shutil
@@ -250,13 +267,13 @@ for entry in plan.get("entries") or []:
         destination.chmod(destination.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 PYEOF
 
-SELECTED_MODULES="$(python3 - "$INSTALL_PLAN_FILE" << 'PYEOF'
+SELECTED_MODULES="$($QQ_PY - "$INSTALL_PLAN_FILE" << 'PYEOF'
 import json, sys
 payload = json.load(open(sys.argv[1]))
 print(",".join(payload.get("selectedModules") or []))
 PYEOF
 )"
-SCRIPT_COUNT="$(python3 - "$INSTALL_PLAN_FILE" << 'PYEOF'
+SCRIPT_COUNT="$($QQ_PY - "$INSTALL_PLAN_FILE" << 'PYEOF'
 import json, sys
 payload = json.load(open(sys.argv[1]))
 count = 0
@@ -267,7 +284,7 @@ for entry in payload.get("entries") or []:
 print(count)
 PYEOF
 )"
-PLAN_SYNC_ENABLED="$(python3 - "$INSTALL_PLAN_FILE" << 'PYEOF'
+PLAN_SYNC_ENABLED="$($QQ_PY - "$INSTALL_PLAN_FILE" << 'PYEOF'
 import json, sys
 payload = json.load(open(sys.argv[1]))
 print("1" if payload.get("sync") else "0")
@@ -278,7 +295,7 @@ echo "  Scripts: $SCRIPT_COUNT managed files selected by install modules"
 echo "  Skills + Hooks: behavior still comes from qq.yaml packs and the qq plugin"
 
 has_install_module() {
-  python3 - "$INSTALL_PLAN_FILE" "$1" <<'PYEOF'
+  $QQ_PY - "$INSTALL_PLAN_FILE" "$1" <<'PYEOF'
 import json, sys
 payload = json.load(open(sys.argv[1]))
 print("true" if sys.argv[2] in (payload.get("selectedModules") or []) else "false")
@@ -295,7 +312,7 @@ HAS_ENGINE_UNREAL="$(has_install_module engine-unreal)"
 HAS_ENGINE_SBOX="$(has_install_module engine-sbox)"
 
 SPECIAL_MANAGED_FILE_LIST="$(mktemp "${TMPDIR:-/tmp}/qq-install-managed.XXXXXX.txt")"
-python3 - "$INSTALL_PLAN_FILE" "$SPECIAL_MANAGED_FILE_LIST" <<'PYEOF'
+$QQ_PY - "$INSTALL_PLAN_FILE" "$SPECIAL_MANAGED_FILE_LIST" <<'PYEOF'
 import json, sys
 
 payload = json.load(open(sys.argv[1]))
@@ -335,7 +352,7 @@ fi
 if [ "$HAS_HOST_CLAUDE" = "true" ]; then
 CLAUDE_LOCAL_SETTINGS="$TARGET/.claude/settings.local.json"
 mkdir -p "$TARGET/.claude"
-python3 - "$CLAUDE_LOCAL_SETTINGS" "$HAS_HOST_CODEX" << 'PYEOF'
+"$QQ_PY" - "$CLAUDE_LOCAL_SETTINGS" "$HAS_HOST_CODEX" << 'PYEOF'
 import json
 import sys
 from pathlib import Path
@@ -420,9 +437,9 @@ fi
 # ── Built-in MCP bridge ──
 if [ "$HAS_HOST_MCP" = "true" ]; then
 MCP_CONFIG="$TARGET/.mcp.json"
-BRIDGE_SCRIPT="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field bridgeScript --project "$TARGET" --engine "$ENGINE")"
-BRIDGE_SERVER_NAME="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field bridgeServerName --project "$TARGET" --engine "$ENGINE")"
-python3 - "$MCP_CONFIG" "$BRIDGE_SCRIPT" "$BRIDGE_SERVER_NAME" << 'PYEOF'
+BRIDGE_SCRIPT="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field bridgeScript --project "$TARGET" --engine "$ENGINE")"
+BRIDGE_SERVER_NAME="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field bridgeServerName --project "$TARGET" --engine "$ENGINE")"
+$QQ_PY - "$MCP_CONFIG" "$BRIDGE_SCRIPT" "$BRIDGE_SERVER_NAME" << 'PYEOF'
 import json
 import sys
 from pathlib import Path
@@ -460,14 +477,14 @@ fi
 
 # ── Engine-side bridge assets ──
 if [[ "$ENGINE" == "godot" && "$HAS_ENGINE_GODOT" == "true" ]]; then
-  ADDON_SOURCE_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
-  ADDON_TARGET_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
-  ADDON_PLUGIN_PATH="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field editorPluginConfigPath --project "$TARGET" --engine "$ENGINE")"
+  ADDON_SOURCE_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
+  ADDON_TARGET_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
+  ADDON_PLUGIN_PATH="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field editorPluginConfigPath --project "$TARGET" --engine "$ENGINE")"
   if [[ -n "$ADDON_SOURCE_DIR" && -d "$SCRIPT_DIR/$ADDON_SOURCE_DIR" && -n "$ADDON_TARGET_DIR" ]]; then
     mkdir -p "$TARGET/$(dirname "$ADDON_TARGET_DIR")"
     rm -rf "$TARGET/$ADDON_TARGET_DIR"
     cp -R "$SCRIPT_DIR/$ADDON_SOURCE_DIR" "$TARGET/$ADDON_TARGET_DIR"
-    python3 - "$TARGET/project.godot" "$ADDON_PLUGIN_PATH" << 'PYEOF'
+    $QQ_PY - "$TARGET/project.godot" "$ADDON_PLUGIN_PATH" << 'PYEOF'
 import re
 import sys
 from pathlib import Path
@@ -519,11 +536,11 @@ PYEOF
     echo "  Godot addon: source assets not found — install incomplete"
   fi
 elif [[ "$ENGINE" == "unreal" && "$HAS_ENGINE_UNREAL" == "true" ]]; then
-  REQUIRED_PLUGINS_JSON="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field requiredProjectPlugins --project "$TARGET" --engine "$ENGINE")"
-  SUPPORT_SOURCE_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
-  SUPPORT_TARGET_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
-  STARTUP_COMMAND="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field editorBridgeStartupCommand --project "$TARGET" --engine "$ENGINE")"
-  UPROJECT_FILE="$(python3 - "$TARGET" "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
+  REQUIRED_PLUGINS_JSON="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field requiredProjectPlugins --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_SOURCE_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_TARGET_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
+  STARTUP_COMMAND="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field editorBridgeStartupCommand --project "$TARGET" --engine "$ENGINE")"
+  UPROJECT_FILE="$($QQ_PY - "$TARGET" "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
 import json
 import sys
 from pathlib import Path
@@ -566,7 +583,7 @@ project_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 print(project_path.name)
 PYEOF
 )"
-  REQUIRED_PLUGINS_LABEL="$(python3 - "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
+  REQUIRED_PLUGINS_LABEL="$($QQ_PY - "$REQUIRED_PLUGINS_JSON" << 'PYEOF'
 import json
 import sys
 
@@ -584,7 +601,7 @@ PYEOF
     echo "  Unreal editor bridge: support assets not found — install incomplete"
   fi
   mkdir -p "$TARGET/Config"
-  python3 - "$TARGET/Config/DefaultEngine.ini" "$STARTUP_COMMAND" << 'PYEOF'
+  $QQ_PY - "$TARGET/Config/DefaultEngine.ini" "$STARTUP_COMMAND" << 'PYEOF'
 import sys
 from pathlib import Path
 
@@ -628,8 +645,8 @@ config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
 PYEOF
   echo "  Unreal editor bridge: configured Python startup hook in Config/DefaultEngine.ini"
 elif [[ "$ENGINE" == "sbox" && "$HAS_ENGINE_SBOX" == "true" ]]; then
-  SUPPORT_SOURCE_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
-  SUPPORT_TARGET_DIR="$(python3 "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_SOURCE_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportSourceDir --project "$TARGET" --engine "$ENGINE")"
+  SUPPORT_TARGET_DIR="$($QQ_PY "$SCRIPT_DIR/scripts/qq_engine.py" field engineSupportTargetDir --project "$TARGET" --engine "$ENGINE")"
   if [[ -n "$SUPPORT_SOURCE_DIR" && -d "$SCRIPT_DIR/$SUPPORT_SOURCE_DIR" && -n "$SUPPORT_TARGET_DIR" ]]; then
     mkdir -p "$TARGET/$SUPPORT_TARGET_DIR"
     cp -R "$SCRIPT_DIR/$SUPPORT_SOURCE_DIR"/. "$TARGET/$SUPPORT_TARGET_DIR/"
@@ -644,7 +661,7 @@ fi
 MANIFEST="$TARGET/Packages/manifest.json"
 TYKIT_REF="https://github.com/tykisgod/tykit.git#84b129b026d3b725f5f7dd21d59a5fe9d206850c"
 if [[ "$ENGINE" == "unity" && -f "$MANIFEST" ]]; then
-  TYKIT_ACTION=$(python3 - "$MANIFEST" "$TYKIT_REF" << 'PYEOF'
+  TYKIT_ACTION=$($QQ_PY - "$MANIFEST" "$TYKIT_REF" << 'PYEOF'
 import json, sys
 manifest_path, tykit_ref = sys.argv[1], sys.argv[2]
 with open(manifest_path) as f:
@@ -683,7 +700,7 @@ fi
 
 # ── Install state + sync ──
 INSTALL_STATE_PATH="$TARGET/.qq/install-state.json"
-python3 - "$TARGET" "$INSTALL_STATE_PATH" "$INSTALL_PLAN_FILE" "$SPECIAL_MANAGED_FILE_LIST" "$PLAN_SYNC_ENABLED" > /dev/null << 'PYEOF'
+$QQ_PY - "$TARGET" "$INSTALL_STATE_PATH" "$INSTALL_PLAN_FILE" "$SPECIAL_MANAGED_FILE_LIST" "$PLAN_SYNC_ENABLED" > /dev/null << 'PYEOF'
 import json
 import os
 import shutil
@@ -812,9 +829,9 @@ echo "  8. Type /qq:add-tests to author coverage, or /qq:test to run it"
 if [ "$HAS_HOST_CODEX" = "true" ]; then
   echo ""
   echo "Optional Codex MCP setup:"
-  echo "  python3 ./scripts/qq-codex-mcp.py install --pretty"
-  echo "  python3 ./scripts/qq-codex-mcp.py status --pretty"
-  echo "  python3 ./scripts/qq-codex-exec.py --dry-run --pretty 'Summarize current qq state'"
+  echo "  $QQ_PY ./scripts/qq-codex-mcp.py install --pretty"
+  echo "  $QQ_PY ./scripts/qq-codex-mcp.py status --pretty"
+  echo "  $QQ_PY ./scripts/qq-codex-exec.py --dry-run --pretty 'Summarize current qq state'"
 fi
 
 rm -f "$INSTALL_PLAN_FILE" "$SPECIAL_MANAGED_FILE_LIST"

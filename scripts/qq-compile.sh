@@ -3,9 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Python compatibility
+# Python compatibility (Windows Store python3 alias is on PATH but broken;
+# use --version to detect a working interpreter, not command -v)
 : "${QQ_PY:=python3}"
-command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
+"$QQ_PY" --version >/dev/null 2>&1 || QQ_PY="python"
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 ARGS=("$@")

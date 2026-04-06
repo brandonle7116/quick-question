@@ -22,6 +22,7 @@ from qq_engine import (
     resolve_project_engine,
 )
 from qq_internal_config import read_optional_structured, resolve_project_config
+from qq_internal_git import apply_safe_git_hooks_fix, check_git_hooks
 from qq_internal_install import load_install_state, resolve_install_plan, install_state_path
 
 
@@ -441,7 +442,7 @@ def codex_mcp_host_state(project_dir: Path) -> dict[str, Any]:
             "error": "qq-codex-mcp.py not found",
         }
     result = subprocess.run(
-        ["python3", str(helper), "status", "--project", str(project_dir)],
+        [sys.executable, str(helper), "status", "--project", str(project_dir)],
         check=False,
         capture_output=True,
         text=True,
@@ -567,7 +568,7 @@ def build_controller_state(project_dir: Path) -> dict[str, Any]:
         return {}
 
     result = subprocess.run(
-        ["python3", str(project_state_script), "--project", str(project_dir), "--no-write"],
+        [sys.executable, str(project_state_script), "--project", str(project_dir), "--no-write"],
         check=False,
         capture_output=True,
         text=True,
@@ -1291,6 +1292,7 @@ def build_payload(project_dir: Path, engine: str, registry: dict[str, Any]) -> d
         "controller": controller,
         "recommendedExecution": recommended_execution,
         "parallelAgentSafety": parallel_agent_safety,
+        "gitHooks": check_git_hooks(project_dir),
         "installation": build_installation_state(project_dir),
         "hosts": {
             "codex": codex_host,
@@ -1306,6 +1308,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--engine", default=None, help="Engine adapter id to inspect")
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY_PATH), help="Path to qq capability registry JSON")
     parser.add_argument("--write-state", action="store_true", help="Write provider-resolution.json into .qq/state/")
+    parser.add_argument(
+        "--fix-git-hooks",
+        action="store_true",
+        help="Apply the safe core.hooksPath auto-fix before reporting (only acts when local config is broken).",
+    )
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
     return parser
 
@@ -1317,7 +1324,11 @@ def main() -> int:
     config = resolve_project_config(project_dir)
     engine = args.engine or str(config.get("engine") or "") or resolve_project_engine(project_dir) or registry.get("defaultEngine") or "unity"
 
+    git_hooks_fix = apply_safe_git_hooks_fix(project_dir) if args.fix_git_hooks else None
+
     payload = build_payload(project_dir, engine, registry)
+    if git_hooks_fix is not None:
+        payload["gitHooksFix"] = git_hooks_fix
     if args.write_state:
         payload["statePath"] = str(write_state(project_dir, payload))
 

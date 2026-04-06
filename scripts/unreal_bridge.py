@@ -714,7 +714,7 @@ class UnrealBridge:
 
     def doctor(self, args: dict[str, Any]) -> dict[str, Any]:
         project_dir = self.resolve_project(args.get("project_dir"))
-        result = run_command(["python3", str(project_dir / "scripts" / "qq-doctor.py"), "--project", str(project_dir)], cwd=project_dir)
+        result = run_command([sys.executable, str(project_dir / "scripts" / "qq-doctor.py"), "--project", str(project_dir)], cwd=project_dir)
         if result.returncode != 0:
             raise BridgeError("DOCTOR_FAILED", result.stderr.strip() or result.stdout.strip() or "qq-doctor failed")
         payload = json.loads(result.stdout)

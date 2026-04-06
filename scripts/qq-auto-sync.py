@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from qq_internal_git import apply_safe_git_hooks_fix
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -90,6 +92,14 @@ def main() -> int:
 
     project_dir = Path(args.project).resolve()
     plugin_root = Path(args.plugin_root).resolve()
+
+    # Repair the silently-broken core.hooksPath configuration if present.
+    # Only acts when the local config points at the default .git/hooks/ — never
+    # touches global/system git config or user-chosen custom hook directories.
+    git_hooks_fix = apply_safe_git_hooks_fix(project_dir)
+    if git_hooks_fix:
+        previous = git_hooks_fix.get("previousValue") or "(unset)"
+        print(f"[qq] Repaired core.hooksPath (was {previous}) → {git_hooks_fix['command']}")
 
     install_state_path = project_dir / ".qq" / "install-state.json"
     state = load_json(install_state_path)

@@ -39,7 +39,7 @@ def load_worktree_status(project_dir: Path) -> dict[str, Any]:
     if not helper.is_file():
         return {}
     result = subprocess.run(
-        ["python3", str(helper), "status", "--project", str(project_dir)],
+        [sys.executable, str(helper), "status", "--project", str(project_dir)],
         check=False,
         capture_output=True,
         text=True,
@@ -54,8 +54,13 @@ def load_worktree_status(project_dir: Path) -> dict[str, Any]:
 
 
 def run_codex(arguments: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
+    # Windows: subprocess.run can't exec .CMD/.BAT files via bare name without
+    # PATHEXT resolution; use shutil.which to get the resolved path. shutil.which
+    # has already been called by callers that gate on codex availability, so
+    # falling back to "codex" here is fine for Linux/macOS.
+    codex_exe = shutil.which("codex") or "codex"
     return subprocess.run(
-        ["codex", *arguments],
+        [codex_exe, *arguments],
         check=check,
         capture_output=True,
         text=True,

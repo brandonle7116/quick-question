@@ -263,7 +263,7 @@ class GenericScriptBridge:
 
     def qq_doctor(self, arguments: dict[str, Any]) -> dict[str, Any]:
         project_dir = self.resolve_project(arguments)
-        command = ["python3", str(project_dir / "scripts" / "qq-doctor.py"), "--project", str(project_dir)]
+        command = [sys.executable, str(project_dir / "scripts" / "qq-doctor.py"), "--project", str(project_dir)]
         result = run_command(command, cwd=project_dir)
         if result.returncode != 0:
             raise BridgeError("DOCTOR_FAILED", result.stderr.strip() or result.stdout.strip() or "qq-doctor failed")
@@ -279,7 +279,7 @@ class GenericScriptBridge:
 
     def qq_project_state(self, arguments: dict[str, Any]) -> dict[str, Any]:
         project_dir = self.resolve_project(arguments)
-        command = ["python3", str(project_dir / "scripts" / "qq-project-state.py"), "--project", str(project_dir), "--no-write"]
+        command = [sys.executable, str(project_dir / "scripts" / "qq-project-state.py"), "--project", str(project_dir), "--no-write"]
         result = run_command(command, cwd=project_dir)
         if result.returncode != 0:
             raise BridgeError("PROJECT_STATE_FAILED", result.stderr.strip() or result.stdout.strip() or "qq-project-state failed")

@@ -745,7 +745,7 @@ class SboxBridge:
     def doctor(self, project_dir: str | None = None) -> dict[str, Any]:
         resolved = self.resolve_project(project_dir)
         health = self.health(str(resolved))
-        command = ["python3", str(resolved / "scripts" / "qq-doctor.py"), "--project", str(resolved)]
+        command = [sys.executable, str(resolved / "scripts" / "qq-doctor.py"), "--project", str(resolved)]
         result = run_command(command, cwd=resolved)
         if result.returncode != 0:
             raise BridgeError("DOCTOR_FAILED", result.stderr.strip() or result.stdout.strip() or "qq-doctor failed")

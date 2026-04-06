@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # qq-runtime.sh — runtime data helpers shared by qq shell scripts
 
-# Python compatibility
+# Python compatibility (Windows Store python3 alias is on PATH but broken;
+# use --version to detect a working interpreter, not command -v)
 : "${QQ_PY:=python3}"
-command -v "$QQ_PY" >/dev/null 2>&1 || QQ_PY="python"
+"$QQ_PY" --version >/dev/null 2>&1 || QQ_PY="python"
 
 qq_project_dir() {
     if [[ -n "${PROJECT_DIR:-}" ]]; then
