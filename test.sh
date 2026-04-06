@@ -248,9 +248,10 @@ for path in candidates:
     except (OSError, UnicodeDecodeError):
         continue
     in_fence = False
+    fence_marker = chr(96) * 3  # avoid triple-backtick literal — bash $() parser
     for lineno, line in enumerate(text.splitlines(), 1):
-        # Skip fenced code blocks (``` ... ```).
-        if line.lstrip().startswith('```'):
+        # Skip fenced code blocks (lines starting with three backticks).
+        if line.lstrip().startswith(fence_marker):
             in_fence = not in_fence
             continue
         if in_fence:
