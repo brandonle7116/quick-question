@@ -59,7 +59,7 @@
 
 当前能力注册表位于：
 
-- [`scripts/qq-capabilities.json`](../../scripts/qq-capabilities.json)
+- [`scripts/qq-capabilities.json`](../../../scripts/qq-capabilities.json)
 
 当前第一批 capability：
 

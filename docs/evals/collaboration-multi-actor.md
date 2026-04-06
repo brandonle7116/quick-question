@@ -46,7 +46,7 @@ The automated suite models one shared project policy with three independent work
 - cross-host concurrency safety
 - successful Unity-backed `/qq:test` from a clean collaboration worktree under Claude or Codex
 
-That remains the main open validation in [`docs/todo.md`](../todo.md).
+That remains the main open validation in [`docs/dev/todo.md`](../dev/todo.md).
 
 ## How To Run
 

@@ -9,13 +9,13 @@ _Last updated: 2026-03-31_
 
 从当前代码看，`quick-question` 已经对三类引擎建立了明确兼容面：
 
-- engine detection + metadata via [`scripts/qq_engine.py`](../../scripts/qq_engine.py)
-- capability / provider resolution via [`scripts/qq-capabilities.json`](../../scripts/qq-capabilities.json)
-- host-local direct workflows via [`scripts/qq-compile.sh`](../../scripts/qq-compile.sh), [`scripts/qq-test.sh`](../../scripts/qq-test.sh)
-- project diagnosis via [`scripts/qq-doctor.py`](../../scripts/qq-doctor.py)
-- worktree-aware execution via [`scripts/qq-worktree.py`](../../scripts/qq-worktree.py)
-- built-in MCP bridge routing via [`scripts/qq_mcp.py`](../../scripts/qq_mcp.py)
-- automated validation in [`test.sh`](../../test.sh)
+- engine detection + metadata via [`scripts/qq_engine.py`](../../../scripts/qq_engine.py)
+- capability / provider resolution via [`scripts/qq-capabilities.json`](../../../scripts/qq-capabilities.json)
+- host-local direct workflows via [`scripts/qq-compile.sh`](../../../scripts/qq-compile.sh), [`scripts/qq-test.sh`](../../../scripts/qq-test.sh)
+- project diagnosis via [`scripts/qq-doctor.py`](../../../scripts/qq-doctor.py)
+- worktree-aware execution via [`scripts/qq-worktree.py`](../../../scripts/qq-worktree.py)
+- built-in MCP bridge routing via [`scripts/qq_mcp.py`](../../../scripts/qq_mcp.py)
+- automated validation in [`test.sh`](../../../test.sh)
 
 当前 `main` 上的真实兼容面是：
 
@@ -86,13 +86,13 @@ _Last updated: 2026-03-31_
 
 从当前代码结构看，`s&box` 不需要为“多引擎抽象”重新开路，已有的基础已经够用：
 
-- [`scripts/qq_engine.py`](../../scripts/qq_engine.py) 已经把 engine metadata 抽成统一表
-- [`scripts/qq-capabilities.json`](../../scripts/qq-capabilities.json) 已经把 capability/provider/resolution 做成显式 registry
-- [`scripts/qq-compile.sh`](../../scripts/qq-compile.sh) 和 [`scripts/qq-test.sh`](../../scripts/qq-test.sh) 已经是按 engine 路由的统一入口
-- [`scripts/qq_mcp.py`](../../scripts/qq_mcp.py) 已经有 generic script bridge，可以先提供 host-neutral MCP 能力
-- [`scripts/qq-doctor.py`](../../scripts/qq-doctor.py) 已经形成“provider availability + evidence + resolution”诊断模型
-- [`install.sh`](../../install.sh) 已经能按 engine 分支安装 project-local bridge 资产
-- [`test.sh`](../../test.sh) 已经把 Godot / Unreal fixture 跑成了正式 regression contract
+- [`scripts/qq_engine.py`](../../../scripts/qq_engine.py) 已经把 engine metadata 抽成统一表
+- [`scripts/qq-capabilities.json`](../../../scripts/qq-capabilities.json) 已经把 capability/provider/resolution 做成显式 registry
+- [`scripts/qq-compile.sh`](../../../scripts/qq-compile.sh) 和 [`scripts/qq-test.sh`](../../../scripts/qq-test.sh) 已经是按 engine 路由的统一入口
+- [`scripts/qq_mcp.py`](../../../scripts/qq_mcp.py) 已经有 generic script bridge，可以先提供 host-neutral MCP 能力
+- [`scripts/qq-doctor.py`](../../../scripts/qq-doctor.py) 已经形成“provider availability + evidence + resolution”诊断模型
+- [`install.sh`](../../../install.sh) 已经能按 engine 分支安装 project-local bridge 资产
+- [`test.sh`](../../../test.sh) 已经把 Godot / Unreal fixture 跑成了正式 regression contract
 
 这意味着 `s&box` 的难点不在“要不要重构 core”，而在于：
 
@@ -160,7 +160,7 @@ _Last updated: 2026-03-31_
 
 ## 7. Proposed Engine Metadata
 
-在 [`scripts/qq_engine.py`](../../scripts/qq_engine.py) 中新增 `sbox` engine definition，目标形态如下：
+在 [`scripts/qq_engine.py`](../../../scripts/qq_engine.py) 中新增 `sbox` engine definition，目标形态如下：
 
 ```python
 "sbox": {
@@ -229,7 +229,7 @@ _Last updated: 2026-03-31_
 
 ## 8. Capability and Provider Model
 
-在 [`scripts/qq-capabilities.json`](../../scripts/qq-capabilities.json) 中新增：
+在 [`scripts/qq-capabilities.json`](../../../scripts/qq-capabilities.json) 中新增：
 
 ### 8.1 Engine adapter
 
@@ -332,9 +332,9 @@ tool mappings 形态：
 
 新增：
 
-- [`scripts/sbox-compile.sh`](../../scripts/sbox-compile.sh)
+- [`scripts/sbox-compile.sh`](../../../scripts/sbox-compile.sh)
 
-并由 [`scripts/qq-compile.sh`](../../scripts/qq-compile.sh) 按 engine 路由。
+并由 [`scripts/qq-compile.sh`](../../../scripts/qq-compile.sh) 按 engine 路由。
 
 ## 10. Test Contract
 
@@ -351,7 +351,7 @@ tool mappings 形态：
 
 新增：
 
-- [`scripts/sbox-test.sh`](../../scripts/sbox-test.sh)
+- [`scripts/sbox-test.sh`](../../../scripts/sbox-test.sh)
 
 行为：
 
@@ -366,7 +366,7 @@ tool mappings 形态：
 
 ## 11. Artifact Scan and Project State
 
-`artifact.scan` 与 [`scripts/qq-project-state.py`](../../scripts/qq-project-state.py) 需要识别 `s&box` 的项目结构。
+`artifact.scan` 与 [`scripts/qq-project-state.py`](../../../scripts/qq-project-state.py) 需要识别 `s&box` 的项目结构。
 
 至少要补：
 
@@ -424,7 +424,7 @@ tool mappings 形态：
 
 ## 13. Install Contract
 
-[`install.sh`](../../install.sh) 对 `sbox` 的目标应更接近 `godot/unreal` 的 built-in bridge 安装，但仍保持轻量：
+[`install.sh`](../../../install.sh) 对 `sbox` 的目标应更接近 `godot/unreal` 的 built-in bridge 安装，但仍保持轻量：
 
 ### 13.1 v0 install must do
 
@@ -447,7 +447,7 @@ tool mappings 形态：
 
 ## 14. Doctor Contract
 
-[`scripts/qq-doctor.py`](../../scripts/qq-doctor.py) 需要同时覆盖 `sbox.qq-direct` 和 `sbox.qq-mcp`。
+[`scripts/qq-doctor.py`](../../../scripts/qq-doctor.py) 需要同时覆盖 `sbox.qq-direct` 和 `sbox.qq-mcp`。
 
 v0 至少检查：
 
@@ -488,9 +488,9 @@ v0 至少检查：
 
 当前 `main` 已经有 `sbox.qq-mcp`：
 
-- generic `qq_*` tools via [`scripts/qq_mcp.py`](../../scripts/qq_mcp.py)
-- typed S&box tools via [`scripts/sbox_bridge.py`](../../scripts/sbox_bridge.py)
-- project-local editor bridge support via [`engines/sbox/Editor/QQ/QQSboxEditorBridge.cs`](../../engines/sbox/Editor/QQ/QQSboxEditorBridge.cs)
+- generic `qq_*` tools via [`scripts/qq_mcp.py`](../../../scripts/qq_mcp.py)
+- typed S&box tools via [`scripts/sbox_bridge.py`](../../../scripts/sbox_bridge.py)
+- project-local editor bridge support via [`engines/sbox/Editor/QQ/QQSboxEditorBridge.cs`](../../../engines/sbox/Editor/QQ/QQSboxEditorBridge.cs)
 
 typed surface 当前包含：
 

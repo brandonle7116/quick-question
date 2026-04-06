@@ -200,6 +200,92 @@ else
   printf '    %s\n' $LEGACY_GATE_FILES
 fi
 
+# 5e: cross-doc link rot — verify every relative markdown link in tracked
+# docs resolves to a file or directory that exists. Catches the class of
+# drift where a doc gets renamed/moved without updating the things linking
+# to it.
+LINK_ROT_STATUS=0
+LINK_ROT_OUTPUT="$($QQ_PY - "$SCRIPT_DIR" <<'PY' 2>&1
+import re
+import sys
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+# Inline markdown link: [text](url). Reference-style links and HTML <a> are
+# intentionally out of scope — they're rare in this corpus and would add false
+# positives. URL captures everything up to the next ')'.
+link_re = re.compile(r'\[[^\]]*\]\(([^)\s]+)\)')
+broken: list[str] = []
+
+# Top-level docs at repo root.
+candidates: list[Path] = []
+for name in ('README.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md',
+             'SECURITY.md', 'CODE_OF_CONDUCT.md', 'CHANGELOG.md'):
+    p = repo / name
+    if p.is_file():
+        candidates.append(p)
+
+# Recurse into docs/ and templates/, but skip:
+#   - docs/superpowers/  — historical spec/plan files for completed work
+#     that intentionally reference files since deleted (Context Capsule, etc.)
+#   - docs/main/         — codex review log dumps with absolute paths
+#   - any *_review.md    — review output dumps, not maintained docs
+SKIPPED_PARTS = {'superpowers', 'main'}
+for sub in ('docs', 'templates'):
+    base = repo / sub
+    if not base.is_dir():
+        continue
+    for path in base.rglob('*.md'):
+        if any(part in SKIPPED_PARTS for part in path.parts):
+            continue
+        if path.name.endswith('_review.md'):
+            continue
+        candidates.append(path)
+
+for path in candidates:
+    try:
+        text = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError):
+        continue
+    in_fence = False
+    for lineno, line in enumerate(text.splitlines(), 1):
+        # Skip fenced code blocks (``` ... ```).
+        if line.lstrip().startswith('```'):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for m in link_re.finditer(line):
+            url = m.group(1).strip()
+            # Skip external URLs, in-page anchors, and non-file schemes.
+            if url.startswith(('http://', 'https://', 'mailto:', 'ftp://',
+                               'tel:', 'data:', 'javascript:', '#')):
+                continue
+            # Drop fragment / query — we only check the file part.
+            url_path = url.split('#', 1)[0].split('?', 1)[0]
+            if not url_path:
+                continue
+            target = (path.parent / url_path).resolve()
+            if not target.exists():
+                rel = path.relative_to(repo).as_posix()
+                broken.append(f'{rel}:{lineno} -> {url}')
+
+if broken:
+    print('\n'.join(broken))
+    sys.exit(1)
+PY
+)" || LINK_ROT_STATUS=$?
+if [ "$LINK_ROT_STATUS" -eq 0 ]; then
+  pass "no broken relative markdown links in tracked docs"
+else
+  BROKEN_COUNT=$(printf '%s' "$LINK_ROT_OUTPUT" | awk '/->/{c++} END{print c+0}')
+  fail "broken relative markdown links found ($BROKEN_COUNT)"
+  printf '%s\n' "$LINK_ROT_OUTPUT" | head -20 | sed 's/^/    /'
+  if [ "$BROKEN_COUNT" -gt 20 ]; then
+    printf '    ... %s more\n' "$((BROKEN_COUNT - 20))"
+  fi
+fi
+
 # ── 6. SKILL.md frontmatter ──
 echo -e "${CYAN}[6/10] SKILL.md frontmatter${NC}"
 

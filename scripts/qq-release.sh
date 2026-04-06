@@ -168,13 +168,13 @@ PY
 
   echo "→ Bumping README version badge: v$CURRENT_VERSION → v$NEW_VERSION"
   "$QQ_PY" - "$README_FILE" "$CURRENT_VERSION" "$NEW_VERSION" <<'PY'
-import re
 import sys
 
 path, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, encoding="utf-8") as fh:
     text = fh.read()
-old_pattern = f"version-v{re.escape(old)}-blue"
+# This is text.replace, not re.sub — the substring is literal, no regex escaping.
+old_pattern = f"version-v{old}-blue"
 new_pattern = f"version-v{new}-blue"
 if old_pattern not in text:
     print(f"Warning: README badge '{old_pattern}' not found; skipping badge bump", file=sys.stderr)

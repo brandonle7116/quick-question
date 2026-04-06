@@ -10,7 +10,7 @@ It does **not** replace qq's existing fast path:
 
 If qq / Claude is using MCP, this built-in bridge should be the default MCP backend. Third-party Unity MCP servers remain compatible fallbacks, not the first choice.
 
-If you are validating this in a demo or sample project, keep that project on the same install path as real users. See [Consumer Rollout](consumer-rollout.md).
+If you are validating this in a demo or sample project, keep that project on the same install path as real users. See [Consumer Rollout](../dev/consumer-rollout.md).
 
 For qq-managed consumer projects, `install.sh` now copies the bridge into `scripts/`, writes `.mcp.json` to point at the project-local `scripts/qq_mcp.py`, and adds `./scripts/qq-doctor.sh`.
 

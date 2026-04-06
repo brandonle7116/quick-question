@@ -190,7 +190,7 @@ This file tracks follow-up issues discovered after runtime, policy, and host-int
   - Fix: refreshed local Claude auth with a clean logout/login flow.
   - Post-fix smoke: plain `claude -p "Reply with OK."` works again, and a clean temp-project `/qq:go` host smoke succeeds.
 - [x] Multi-engineer collaboration routing now has a documented, repeatable E2E suite.
-  - Added [`docs/evals/collaboration-multi-actor.md`](./evals/collaboration-multi-actor.md) and [`docs/evals/collaboration-multi-actor.json`](./evals/collaboration-multi-actor.json).
+  - Added [`docs/evals/collaboration-multi-actor.md`](../evals/collaboration-multi-actor.md) and [`docs/evals/collaboration-multi-actor.json`](../evals/collaboration-multi-actor.json).
   - The suite now runs in `./test.sh` and covers prototype, feature, and hardening work under shared project defaults plus per-worktree overrides.
 - [x] Consumer plugin rollout now picks up the current mode-aware `/qq:go` controller.
   - Root cause: consumer projects were still running an older cached plugin build even though the marketplace repo had moved on.

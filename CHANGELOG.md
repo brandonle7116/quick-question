@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.11] — 2026-04-06
+
+Add cross-doc link rot lint as test.sh section 5e and fix the 32 broken links it found across docs/. Also fixes a bug in qq-release.sh introduced in v1.16.10 (re.escape leaking into a text.replace call) — caught by the helper's own post-bump lint check on first dogfood.
+
+
+
 ## [1.16.10] — 2026-04-06
 
 ### Fixed
