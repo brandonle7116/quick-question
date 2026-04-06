@@ -1,0 +1,8 @@
+# Force LF line endings for shell scripts (Windows Git Bash refuses CRLF .sh)
+*.sh text eol=lf
+
+# Python scripts also use LF (cross-platform consistency)
+*.py text eol=lf
+
+# Other text files: let git auto-detect
+* text=auto
