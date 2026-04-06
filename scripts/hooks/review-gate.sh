@@ -25,7 +25,7 @@ case "$ACTION" in
     # PreToolUse (Edit|Write): gate 激活期间阻止修改代码/文档，直到 subagent 验证完成
     [[ -f "$GATE_FILE" ]] || exit 0
 
-    file_path=$(jq -r '.tool_input.file_path // ""')
+    file_path="$(qq_hook_input tool_input.file_path)"
 
     # 只拦截相关文件类型
     case "$file_path" in
@@ -54,7 +54,7 @@ case "$ACTION" in
 
   set)
     # PostToolUse (Bash): 检测 review 脚本执行完毕后激活 gate
-    cmd=$(jq -r '.tool_input.command // ""')
+    cmd="$(qq_hook_input tool_input.command)"
 
     if echo "$cmd" | grep -qE '\./scripts/(code-review|plan-review|claude-review|claude-plan-review)\.sh'; then
       echo "$(date +%s):0:0" > "$GATE_FILE"

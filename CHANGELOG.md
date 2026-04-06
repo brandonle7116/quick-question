@@ -2,6 +2,11 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.6] — 2026-04-06
+
+### Fixed
+- **Hook scripts no longer require `jq`** — all 6 Bash/Edit/Write/Agent hook scripts (`auto-compile.sh`, `compile-gate-check.sh`, `pre-push-test.sh`, `review-gate.sh`, `skill-modified-track.sh`) now use a new `qq_hook_input` helper in `qq-runtime.sh` that prefers `jq` when available and falls back to `$QQ_PY` (python3) when it isn't. Previously, Windows users without `jq` on PATH saw repeated `PreToolUse:Bash hook error` / `PostToolUse:Bash hook error` on every Bash tool call because `set -euo pipefail` + `jq: command not found` (exit 127) crashed the scripts. The fallback keeps hooks working on any box that has python3 (already a hard dependency).
+
 ## [1.16.5] — 2026-04-06
 
 ### Fixed

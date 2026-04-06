@@ -234,6 +234,50 @@ qq_hook_enabled() {
     esac
 }
 
+# qq_hook_input — extract a dotted field from the hook JSON on stdin.
+# Reads stdin once and caches the payload so multiple calls in the same
+# script share the same input. Uses jq when available, otherwise falls
+# back to $QQ_PY (python). Always returns 0 so callers under `set -e`
+# never crash on missing fields or parse errors.
+#
+# Usage:
+#   file_path="$(qq_hook_input tool_input.file_path)"
+#   cmd="$(qq_hook_input tool_input.command)"
+qq_hook_input() {
+    local field="$1"
+    if [[ -z "${_QQ_HOOK_INPUT_CACHE+x}" ]]; then
+        if [[ -t 0 ]]; then
+            _QQ_HOOK_INPUT_CACHE=""
+        else
+            _QQ_HOOK_INPUT_CACHE="$(cat 2>/dev/null || true)"
+        fi
+    fi
+    [[ -n "$_QQ_HOOK_INPUT_CACHE" ]] || return 0
+    local result=""
+    if command -v jq >/dev/null 2>&1; then
+        result="$(printf '%s' "$_QQ_HOOK_INPUT_CACHE" | jq -r ".${field} // \"\"" 2>/dev/null || printf '')"
+    else
+        result="$(printf '%s' "$_QQ_HOOK_INPUT_CACHE" | "$QQ_PY" -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+cur = data
+for k in sys.argv[1].split("."):
+    if isinstance(cur, dict) and k in cur:
+        cur = cur[k]
+    else:
+        sys.exit(0)
+if cur is None or isinstance(cur, (dict, list)):
+    sys.exit(0)
+print(cur)
+' "$field" 2>/dev/null || printf '')"
+    fi
+    printf '%s' "$result"
+    return 0
+}
+
 qq_skill_enabled() {
     local skill_name="$1"
     local value

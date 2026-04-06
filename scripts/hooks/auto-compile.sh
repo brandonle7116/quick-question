@@ -11,7 +11,7 @@ if [ "$(qq_hook_enabled auto_compile)" != "true" ]; then
   exit 0
 fi
 
-file_path="$(jq -r '.tool_input.file_path // ""')"
+file_path="$(qq_hook_input tool_input.file_path)"
 if [[ -z "$file_path" ]]; then
   exit 0
 fi
