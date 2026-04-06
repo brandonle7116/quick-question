@@ -20,14 +20,16 @@ This repository explicitly allows aggressive refactoring when it improves the de
 `qq.yaml` supports a separate `trust_level` knob:
 
 - `trusted`: current internal-team default
-- `balanced`: disable automatic Context Capsule consumption and only widen Codex into the source worktree for closeout-like flows
+- `balanced`: only widen Codex into the source worktree for closeout-like flows
 - `strict`: require explicit `--allow-source-worktree` and keep raw engine commands off the standard MCP surface
 
-When touching host wrappers, Context Capsule consumption, or MCP exposure, preserve this split:
+When touching host wrappers or MCP exposure, preserve this split:
 
 - `work_mode` = task stage
 - `policy_profile` = verification floor
 - `trust_level` = automatic permission boundary
+
+> Historical note: earlier versions had a "Context Capsule" consumption mechanism that the `balanced` level disabled. Context Capsule was removed in v1.10.0 — the trust-level split above reflects the current shape.
 
 ## Execution Environment Split
 
@@ -42,14 +44,14 @@ When developing this repository, treat execution environments as a hard split:
   - `install.sh`
   - `test.sh`
   - policy / doctor / controller / runtime-core changes
-- Use the **host machine** for Unity-specific validation:
-  - `tykit`
-  - Unity compile/test routing
+- Use the **host machine** for engine-specific validation:
+  - `tykit` and other engine bridges
+  - engine compile / test routing (Unity, Godot, Unreal, S&box)
   - real project install flow
-  - Editor-backed Claude/Codex E2E
-  - any check that depends on a live Unity Editor
+  - Editor-backed Claude / Codex E2E
+  - any check that depends on a live engine Editor
 
-Do not try to force local Unity Editor work into Docker.
+Do not try to force local engine Editor work into Docker.
 
 Default repo-dev loop:
 
@@ -57,7 +59,7 @@ Default repo-dev loop:
 2. Use `./scripts/docker-dev.sh build` once if needed.
 3. Do repo-side development in `./scripts/docker-dev.sh shell`.
 4. Run `./scripts/docker-dev.sh test` for repo-side validation.
-5. If the change touches Unity behavior, switch back to the host and validate against a real Unity project.
+5. If the change touches engine behavior (Unity / Godot / Unreal / S&box), switch back to the host and validate against a real project of that engine.
 
 ## Parallel Agent Rule
 
@@ -81,4 +83,4 @@ Recommended pattern:
 2. Build the repo-dev image once with `./scripts/docker-dev.sh build`.
 3. Let each agent use its own worktree and its own `./scripts/docker-dev.sh shell` session.
 4. Let each agent run `./scripts/docker-dev.sh test` in that worktree before handoff or merge.
-5. If a task touches Unity / `tykit`, validate that task on the host machine instead of trying to force it into Docker.
+5. If a task touches a live engine Editor or `tykit`, validate that task on the host machine instead of trying to force it into Docker.

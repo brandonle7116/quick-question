@@ -4,32 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**quick-question** is a Claude Code plugin that provides a Unity developer-loop runtime: artifact-driven control (`/qq:go`), auto-compilation hooks, test pipelines, executable policy checks, cross-model and Claude-only code review, and 22 skills (`/qq:*`). It targets macOS + Windows (Windows requires Git for Windows) with Unity 2021.3+.
+**quick-question** is the agent control plane for game-dev work. It is a Claude Code plugin **and** an engine-agnostic runtime: artifact-driven control (`/qq:go`), auto-compile hooks, test pipelines, deterministic policy checks, dual-mode cross-model / Claude-only code review with a verification loop, and 26 skills (`/qq:*`). It targets macOS and Windows (Windows requires Git for Windows for bash + core utilities). Engines at runtime parity: **Unity 2021.3+**, **Godot 4.x**, **Unreal 5.x**, **S&box**. Unity has the deepest integration via tykit (in-process HTTP server); the other three reach parity through Python bridges.
+
+Although Claude Code gets the deepest integration (slash commands, hooks, review gates), the runtime core is agent-agnostic: scripts and bridges are plain shell + Python, and `.qq/` state is plain JSON. Codex CLI, Cursor, Continue, and any MCP-compatible host can use the same runtime through `qq_mcp.py` / `tykit_mcp.py` / direct HTTP.
 
 ## Repository Structure
 
-- `hooks/hooks.json` — Hook definitions (PreToolUse, PostToolUse, Stop) loaded by the Claude Code plugin system
-- `scripts/` — Bash scripts for compilation, testing, and review (run inside the target Unity project)
-- `.qq/` — Runtime data written in target Unity projects (`runs/`, `state/`, `telemetry/`)
-- `skills/` — 22 skill definitions (each has a `SKILL.md`), invoked as `/qq:<name>`
-- `packages/com.tyk.tykit/` — UPM package providing tykit (in-process HTTP server for Unity Editor control)
+- `hooks/hooks.json` — Hook definitions (PreToolUse, PostToolUse, Stop, SessionStart) loaded by the Claude Code plugin system
+- `scripts/` — Bash + Python runtime: compile / test / review dispatchers, hook helpers, MCP bridges, controller, runtime helpers
+  - `scripts/hooks/` — Hook implementations (`auto-compile.sh`, `compile-gate-check.sh`, `review-gate.sh`, `pre-push-test.sh`, `skill-modified-track.sh`, `auto-sync.sh`, `session-cleanup.sh`, `auto-pipeline-*`, `execute-resume-hint.sh`)
+  - `scripts/platform/` — OS detection helpers
+  - `scripts/qq_engine.py` — multi-engine source-file matcher (`matches-source`)
+  - `scripts/qq-compile.sh` — multi-engine compile dispatcher (delegates to `unity-compile-smart.sh` / `godot-compile.sh` / `unreal-compile.sh` / `sbox-compile.sh`)
+  - `scripts/qq-test.sh` — multi-engine test dispatcher
+  - `scripts/qq-project-state.py` — artifact-driven controller (preferred path for `/qq:go`)
+  - `scripts/qq-policy-check.sh` — deterministic policy checks (run before deeper review workflows)
+  - `scripts/qq-decisions.py` — cross-skill decision journal (`session-decisions.json`)
+- `engines/` — Per-engine assets (`unreal/`, `godot/`, `sbox/`); referenced by the install flow
+- `shared/` — Shared prompt fragments (e.g. `verification-prompt.md`)
+- `bin/` — Wrapper executables added to Claude Code's PATH so `SKILL.md` can call commands by bare name
+- `.qq/` — Runtime data written **inside target projects** (`runs/`, `state/`, `telemetry/`), not in this repo
+- `skills/` — 26 skill directories, each with a `SKILL.md`, invoked as `/qq:<name>`
+- `packages/com.tyk.tykit/` — UPM package providing tykit (in-process HTTP server inside Unity Editor)
 - `.claude-plugin/` — Plugin manifest (`plugin.json`, `marketplace.json`)
-- `templates/` — `CLAUDE.md.example` and `AGENTS.md.example` copied into target projects by `install.sh`
-- `install.sh` — Installs scripts, templates, and tykit into a Unity project
+- `templates/` — `CLAUDE.md.example`, `AGENTS.md.example`, `qq.yaml.example` copied into target projects by `install.sh`
+- `install.sh` — Installs scripts, templates, bridges, and tykit into a target project (auto-detects engine; supports `--wizard`, `--preset`, `--profile`, `--modules`, `--without`)
+- `test.sh` — Self-tests: shellcheck, JSON validation, executable bits, README consistency (skill count + per-skill `/qq:` reference), benchmark suites
 
 ## Key Architecture
 
 ### Hook System
 
-Defined in `hooks/hooks.json`, hooks are the plugin's runtime behavior:
+Defined in `hooks/hooks.json`. Hooks are the plugin's runtime behavior:
 
-- **PreToolUse (Edit|Write):** Review Gate — blocks code edits while review verification is pending
-- **PostToolUse (Write|Edit):** Auto-compiles `.cs` files via `unity-compile-smart.sh`; tracks skill file modifications for review enforcement
-- **PostToolUse (Bash):** Activates review gate when `code-review.sh` or `plan-review.sh` runs
-- **PostToolUse (Agent):** Increments verification subagent counter (to release review gate)
-- **Stop:** Blocks session end if skills were modified without running `/qq:self-review`; cleans up gate files
+- **PreToolUse (Edit | Write):** Compile Gate (`compile-gate-check.sh`) blocks edits to engine source files when compile is red or the project has never been opened in its editor; Review Gate (`review-gate.sh check`) blocks code/doc edits while review verification is pending.
+- **PostToolUse (Write | Edit):** Auto-compile (`auto-compile.sh`) compiles via `qq-compile.sh` after edits to engine source files. The dispatcher handles `.cs` (Unity / S&box), `.gd` (Godot), and C++ (Unreal). Skill file changes are tracked by `skill-modified-track.sh`.
+- **PostToolUse (Bash):** `review-gate.sh set` activates the review gate when `code-review.sh`, `claude-review.sh`, `plan-review.sh`, or `claude-plan-review.sh` runs.
+- **PostToolUse (Agent):** `review-gate.sh count` increments the verification subagent counter to release the review gate once all expected verifiers complete.
+- **Stop:** `check-skill-review.sh` blocks session end if skills were modified without `/qq:self-review`; `review-gate.sh stop` blocks if verification is incomplete; `auto-pipeline-stop.sh` and `session-cleanup.sh` finalize state.
+- **SessionStart:** `auto-sync.sh` syncs plugin scripts into the target project; on `compact`, `execute-resume-hint.sh` and `auto-pipeline-resume-hint.sh` surface in-flight work.
 
-All temp files are keyed by `$PPID` for session isolation (e.g., `$QQ_TEMP_DIR/review-gate-$PPID`).
+All gate / temp files are keyed by `$PPID` for session isolation (e.g. `$QQ_TEMP_DIR/review-gate-$PPID`, `$QQ_TEMP_DIR/compile-gate-$PPID`).
+
+Hook scripts read tool input from stdin via the shared `qq_hook_input` helper in `scripts/qq-runtime.sh` (jq-first, with a `$QQ_PY` python fallback so hooks work even when jq is missing).
 
 ### Artifact-driven Controller
 
@@ -37,54 +54,70 @@ All temp files are keyed by `$PPID` for session isolation (e.g., `$QQ_TEMP_DIR/r
 
 1. Read project state from artifacts and recent run records
 2. Recommend the next skill
-3. Only fall back to prompt/context heuristics when state is ambiguous
+3. Only fall back to prompt / context heuristics when state is ambiguous
+
+The decision journal (`scripts/qq-decisions.py`) records cross-skill decisions in `.qq/state/session-decisions.json` so later skills can stay coherent with earlier ones.
 
 ### Runtime Data + Policy
 
 - `scripts/qq-run-record.py` and `scripts/qq-runtime.sh` write structured runtime data to `.qq/`
-- `scripts/qq-policy-check.sh` runs deterministic Unity checks before deeper best-practice or review workflows
-- `.qq/state/*.json` is the preferred source for latest compile/test state; raw `.qq/runs/*.json` logs are for debugging or CI-style consumption
+- `scripts/qq-policy-check.sh` runs deterministic engine checks (compile / test / asset hygiene) before deeper best-practice or review workflows
+- `.qq/state/*.json` is the preferred source for the latest compile / test state; raw `.qq/runs/*.json` logs are for debugging or CI-style consumption
+- `.qq/state/session-decisions.json` is the cross-skill decision journal
 
-### Smart Compilation Stack
+### Smart Compile Dispatch
 
-`unity-compile-smart.sh` is the orchestrator, choosing the best path:
-1. **tykit mode** — HTTP call to in-process Unity server (fastest, non-blocking)
-2. **Editor trigger** — osascript (macOS) or PowerShell (Windows) to trigger compile in open Unity (fallback)
-3. **Batch mode** — `Unity -quit -batchmode` (when Editor is closed)
+`scripts/qq-compile.sh` is the multi-engine entry point. It detects the active engine and delegates:
 
-Shared utilities live in `unity-common.sh` (Editor detection, Unity path lookup, tykit port discovery).
+- **Unity** → `unity-compile-smart.sh`, which picks the best path:
+  1. **tykit mode** — HTTP call to in-process Unity server (fastest, non-blocking)
+  2. **Editor trigger** — osascript (macOS) or PowerShell (Windows) to trigger compile in an open Editor
+  3. **Batch mode** — `Unity -quit -batchmode` (when the Editor is closed)
+- **Godot** → `godot-compile.sh` (headless `--check-only` GDScript validation)
+- **Unreal** → `unreal-compile.sh` (UnrealBuildTool + editor commandlet)
+- **S&box** → `sbox-compile.sh` (`dotnet build`)
+
+Shared utilities live in `unity-common.sh` / `godot-common.sh` / `unreal-common.sh` / `sbox-common.sh` (Editor detection, paths, port discovery).
 
 ### tykit
 
-UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play/stop, console, find/inspect. Port stored in `Temp/tykit.json` (hash of project path).
+UPM package at `packages/com.tyk.tykit/`. An HTTP server auto-starting in Unity Editor, exposing commands: status, compile, run-tests, play / stop, console, find / inspect. Port stored in `Temp/tykit.json` (hash of project path). Works standalone without qq; the Python bridge `tykit_bridge.py` and the MCP wrapper `tykit_mcp.py` expose the same surface to non-Unity hosts.
 
 ### Code Review
 
-Two symmetric review modes, same verification loop:
+Two symmetric review modes share the same verification loop:
+
 - **Claude review** (`/qq:claude-code-review`): `claude-review.sh` → `claude -p` (process-isolated), then verification subagents check each finding
 - **Codex review** (`/qq:codex-code-review`): `code-review.sh` → `codex exec` (cross-model), then verification subagents check each finding
 
-Both modes: over-engineering check, fix confirmed issues, loop until clean (max 5 rounds). The review gate (`scripts/hooks/review-gate-*.sh`) blocks code edits until ALL verification subagents complete (three-field gate format: `<ts>:<completed>:<expected>`). MCP exposes one-shot `qq_code_review` and `qq_plan_review` tools for non-Claude hosts.
+Both modes: over-engineering check, fix confirmed issues, loop until clean (max 5 rounds). The unified review gate (`scripts/hooks/review-gate.sh`) blocks code edits until ALL verification subagents complete (three-field gate format: `<ts>:<completed>:<expected>`). MCP exposes one-shot `qq_code_review` and `qq_plan_review` tools for non-Claude hosts.
+
+There are also legacy `review-gate-{check,set,count,stop}.sh` scripts kept for backward compatibility with already-installed projects; new hook bindings should use `review-gate.sh <subcommand>`.
 
 ## Development Commands
 
 ```bash
-# Test the installer against a Unity project
-./install.sh /path/to/unity-project
+# Test the installer against a project
+./install.sh /path/to/your-project
 
 # Validate shell scripts
-shellcheck scripts/*.sh
+shellcheck scripts/*.sh scripts/hooks/*.sh
 
 # Validate hook JSON
 python3 -m json.tool hooks/hooks.json > /dev/null
+
+# Run the full self-test suite (shellcheck, JSON, structural checks, README consistency, benchmark suites)
+./test.sh
 ```
 
-There is no build step or package manager for this repo itself. Run `./test.sh` for self-tests (shellcheck, JSON validation, structural checks, README consistency). The scripts and skills are consumed as-is by the plugin system.
+There is no build step or package manager for this repo itself. The scripts and skills are consumed as-is by the Claude Code plugin system.
 
 ## Conventions
 
-- Scripts use `set -euo pipefail` and source `unity-common.sh` for shared functions
+- Scripts use `set -euo pipefail` and source `qq-runtime.sh` / `platform/detect.sh` / engine-specific common files for shared functions
 - Skills are each a directory under `skills/<name>/` containing `SKILL.md`
-- Hook scripts in `scripts/hooks/` follow the naming pattern `review-gate-{check,set,count,stop}.sh`
-- Comments in shell scripts are in Chinese (author preference); code and user-facing output are in English
-- The `install.sh` output now uses the current plugin skill names (`/qq:test`, `/qq:commit-push`, etc.)
+- Hook scripts in `scripts/hooks/` parse stdin JSON via `qq_hook_input` (jq-first, python3 fallback) — never call `jq` directly in new hook scripts
+- Comments in shell scripts are in Chinese (author preference); code identifiers and user-facing output are in English
+- `install.sh` output uses the current plugin skill names (`/qq:test`, `/qq:commit-push`, etc.)
+- `.gitattributes` enforces LF line endings for `.sh` and `.py` so Windows checkouts don't corrupt hook scripts
+- Comments and side-effects in hook scripts must remain idempotent; hooks may fire twice on the same input

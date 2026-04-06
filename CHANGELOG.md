@@ -2,6 +2,14 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.7] — 2026-04-06
+
+### Changed
+- **README rewrite (English half)** — sharper pitch ("The control plane for game-dev agents. Close the loop — compile, test, review, and ship — verified inside Unity, Godot, Unreal, and S&box."), tightened prose, the lifecycle-aware narrative woven directly into "Why qq", "How it works" promoted to immediately after the intro, the four engine bridges treated as runtime parity throughout. Version badge bumped to v1.16.6, "preview" label dropped from the platform badge to reflect the 1.15.x / 1.16.x Windows hardening. Install section's four `<details>` collapsibles consolidated into a single connect-your-agent table. The Chinese section is unchanged this pass and now carries a banner pointing to the English section as canonical.
+- **`.claude-plugin/plugin.json` description** — replaced the feature-list paragraph with the new control-plane pitch, aligned with README hero.
+- **`CLAUDE.md` (project root) full rewrite** — corrected stale claims ("Unity developer-loop runtime" / "22 skills" / "Unity 2021.3+"). Now: multi-engine runtime, 26 skills, four engines, accurate hook surface (compile gate, review gate, session-start auto-sync, decision journal), `qq-compile.sh` multi-engine dispatcher, unified `review-gate.sh` with subcommands, mention of `qq_hook_input` shared helper.
+- **`AGENTS.md` cleanup** — removed Context Capsule residue (Context Capsule was removed in v1.10.0 but the trust-level description still referenced it). Generalized "Unity-specific validation" to "engine-specific validation" so the host / Docker split rule reads correctly for Godot / Unreal / S&box work too.
+
 ## [1.16.6] — 2026-04-06
 
 ### Fixed
