@@ -71,7 +71,7 @@ python3 /path/to/quick-question/scripts/tykit_mcp.py --project /path/to/unity-pr
 
 ### `standard`
 
-默认 profile。暴露大多数 agent 需要的高频 tool：
+默认 profile。暴露大多数 agent 需要的高频 tool（15 个）：
 
 - `unity_health`
 - `unity_doctor`
@@ -82,8 +82,12 @@ python3 /path/to/quick-question/scripts/tykit_mcp.py --project /path/to/unity-pr
 - `unity_query`
 - `unity_object`
 - `unity_assets`
+- `unity_physics` *（v0.5 — 物理查询：raycast、raycast-all、overlap-sphere）*
 - `unity_batch`
 - `unity_raw_command`
+- `unity_main_thread_health` *（v0.5 — 监听线程健康探针；永远不会阻塞在主线程上）*
+- `unity_focus_window` *（v0.5 — Windows；把 Unity 拉到前台；运行在监听线程上）*
+- `unity_dismiss_dialog` *（v0.5 — Windows；关闭 modal 对话框；运行在监听线程上）*
 
 ### `full`
 
@@ -107,10 +111,33 @@ python3 scripts/tykit_mcp.py --project /path/to/unity-project --profile full
 
 - `unity_compile` 一次 tool 调用完成整个编译工作流
 - `unity_run_tests` 一次 tool 调用完成整个测试工作流
+- `unity_object` 通过 `action` 鉴别符把 transform / property / 反射 / array / component 操作打包到一个 tool 中
+- `unity_query` 把 status / find / inspect / hierarchy / get-properties 打包到一个只读 tool 中
+- `unity_assets` 把资源 find / load / create-scriptable-object / refresh 打包到一个 tool 中
+- `unity_physics` 把 raycast / raycast-all / overlap-sphere 打包到一个只读 tool 中
 - `unity_batch` 让客户端在一次 MCP 往返中组合多个操作
 - `unity_raw_command` 保持完整的 `tykit` 命令面可达
 
 这避免了"MCP 千刀万剐"问题。
+
+## 主线程恢复（v0.5）
+
+`unity_main_thread_health`、`unity_focus_window` 和 `unity_dismiss_dialog` 是一等 tool，因为它们能在所有其他 Unity 桥接都死掉的场景下幸存：主线程被卡住。
+
+当 Unity 弹出 modal 对话框（"Save modified scenes?"、编译错误弹窗、资源导入进度条）或者后台节流的 domain reload 时，普通的 `unity_*` tool 会把命令排进已经卡住的主线程队列，然后一直 hang 直到 `timeout_sec`。恢复 tool 运行在 tykit 的监听线程上，绕过队列：
+
+- `unity_main_thread_health` —— 返回队列深度、距离上次主线程 tick 的时间、`mainThreadBlocked` 启发式判断。当 `unity_compile` / `unity_run_tests` / `unity_object` 调用卡住时用它来区分 "Unity 在忙" 和 "Unity 卡死了"。
+- `unity_focus_window` —— 对 Unity 主窗口调用 `SetForegroundWindow`（仅 Windows）。解除后台节流的卡住操作（domain reload、`git` 包解析）。
+- `unity_dismiss_dialog` —— 向 Unity 拥有的前台对话框发送 `WM_CLOSE`（仅 Windows）。从阻塞 modal 中恢复。
+
+工具超时时的恢复流程：
+
+1. 调用 `unity_main_thread_health` → 如果 `mainThreadBlocked` 为 `true`，主线程已停滞
+2. 调用 `unity_focus_window` → 用于后台节流情况
+3. 调用 `unity_dismiss_dialog` → 用于 modal 对话框
+4. 重试原始 tool
+
+**这是与其他 Unity MCP 后端的核心差异化**。
 
 ## 快速路径路由
 
@@ -118,7 +145,7 @@ python3 scripts/tykit_mcp.py --project /path/to/unity-project --profile full
 
 优先级顺序：
 
-1. 项目本地 qq 脚本：`scripts/unity-compile-smart.sh`
+1. 项目本地 qq 脚本：`scripts/qq-compile.sh`（v1.16.x —— 多引擎 dispatcher；Unity 部分委托给 `unity-compile-smart.sh` 的三层 fallback：tykit HTTP → editor trigger → batch mode）
 2. `tykit` 包辅助脚本：`Packages/com.tyk.tykit/Scripts~/unity-eval.sh`
 3. 直接 `tykit` HTTP 轮询
 
@@ -126,7 +153,7 @@ python3 scripts/tykit_mcp.py --project /path/to/unity-project --profile full
 
 优先级顺序：
 
-1. 项目本地 qq 脚本：`scripts/unity-test.sh`
+1. 项目本地 qq 脚本：`scripts/qq-test.sh`（多引擎；Unity 部分委托给 `unity-test.sh`）
 2. 直接 `tykit` HTTP `run-tests` / `get-test-result`
 
 这意味着安装了 qq 的项目保持现有行为，而仅安装 `tykit` 的项目在编辑器打开时同样能工作。
@@ -177,6 +204,44 @@ python3 scripts/tykit_mcp.py --project /path/to/unity-project --profile full
     "filter": "Health",
     "timeout_sec": 180
   }
+}
+```
+
+### Physics
+
+```json
+{
+  "name": "unity_physics",
+  "arguments": {
+    "action": "raycast",
+    "origin": [0, 5, 0],
+    "direction": [0, -1, 0],
+    "maxDistance": 100
+  }
+}
+```
+
+### Object 反射调用方法
+
+```json
+{
+  "name": "unity_object",
+  "arguments": {
+    "action": "call-method",
+    "id": 12345,
+    "component": "PlayerHealth",
+    "method": "TakeDamage",
+    "parameters": [10]
+  }
+}
+```
+
+### 主线程健康
+
+```json
+{
+  "name": "unity_main_thread_health",
+  "arguments": {}
 }
 ```
 

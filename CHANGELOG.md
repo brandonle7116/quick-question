@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.13] — 2026-04-07
+
+Ship the actual tykit doc content described in v1.16.12's release notes. The v1.16.12 commit bumped the version and added the CHANGELOG entry but qq-release.sh only auto-staged the 3 release-managed files (plugin.json, README badge, CHANGELOG), not the 5 supporting tykit doc rewrites — so the changelog described content that hadn't shipped yet. This release contains: docs/en/tykit-api.md (full ~60-command rewrite organized by category, plus Two HTTP Channels and Main Thread Recovery sections), docs/zh-CN/tykit-api.md (mirror), docs/en/tykit-mcp.md (standard profile 11→15 tools, new examples for unity_physics / unity_object reflection / unity_main_thread_health, dedicated Main Thread Recovery section, Fast-Path Routing now mentions qq-compile.sh), docs/zh-CN/tykit-mcp.md (mirror), and packages/com.tyk.tykit/README.md (en/zh full rewrite + ja/ko summary refresh). Also fixes qq-release.sh itself: the 'these will be included in the release commit' warning was a lie — it didn't actually stage the listed files. v1.16.13 makes the warning true by auto-staging extra dirty files into the release commit.
+
+
+
 ## [1.16.12] — 2026-04-07
 
 Big tykit doc refresh after the v0.5.0 surface expansion (~50 new commands across reflection, prefab, physics, asset, UI, prefs, batch, recovery). Rewrites docs/en/tykit-api.md, docs/zh-CN/tykit-api.md, and packages/com.tyk.tykit/README.md (en + zh + ja + ko sections) to cover the full ~60-command surface organized by category. Updates docs/en/tykit-mcp.md and docs/zh-CN/tykit-mcp.md: standard profile from 11 to 15 tools, new examples for unity_physics / unity_object reflection / unity_main_thread_health, dedicated 'Main Thread Recovery' section, Fast-Path Routing now mentions qq-compile.sh multi-engine dispatcher. Root README tykit section expanded with the v0.5.0 differentiator story (listener-thread GET endpoints surviving blocked main threads — every other Unity bridge dies in this scenario).

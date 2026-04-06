@@ -71,7 +71,7 @@ If your client launches from the Unity project root, `--project` is optional.
 
 ### `standard`
 
-Default profile. Exposes the high-value tools most agents need:
+Default profile. Exposes the high-value tools most agents need (15 tools):
 
 - `unity_health`
 - `unity_doctor`
@@ -82,8 +82,12 @@ Default profile. Exposes the high-value tools most agents need:
 - `unity_query`
 - `unity_object`
 - `unity_assets`
+- `unity_physics` *(v0.5 — physics queries: raycast, raycast-all, overlap-sphere)*
 - `unity_batch`
 - `unity_raw_command`
+- `unity_main_thread_health` *(v0.5 — listener-thread health probe; never blocks on main thread)*
+- `unity_focus_window` *(v0.5 — Windows; brings Unity to foreground; runs on listener thread)*
+- `unity_dismiss_dialog` *(v0.5 — Windows; closes modal dialogs; runs on listener thread)*
 
 ### `full`
 
@@ -107,10 +111,33 @@ The bridge intentionally favors coarse tools for performance:
 
 - `unity_compile` completes the whole compile workflow in one tool call
 - `unity_run_tests` completes the whole test workflow in one tool call
+- `unity_object` bundles transform / property / reflection / array / component operations into a single tool with an `action` discriminator
+- `unity_query` bundles status / find / inspect / hierarchy / get-properties into a single read-only tool
+- `unity_assets` bundles asset find / load / create-scriptable-object / refresh into a single tool
+- `unity_physics` bundles raycast / raycast-all / overlap-sphere into a single read-only tool
 - `unity_batch` lets the client combine multiple operations into one MCP round trip
 - `unity_raw_command` keeps the full `tykit` command surface reachable
 
 This avoids the "MCP death by a thousand tiny calls" problem.
+
+## Main Thread Recovery (v0.5)
+
+`unity_main_thread_health`, `unity_focus_window`, and `unity_dismiss_dialog` are first-class tools because they survive what kills every other Unity bridge: a blocked main thread.
+
+When Unity is showing a modal dialog ("Save modified scenes?", a compile error popup, the asset import progress bar) or background-throttling a domain reload, normal `unity_*` tools queue commands on the main thread that's already stuck, and they hang until they hit `timeout_sec`. The recovery tools run on tykit's listener thread and bypass the queue:
+
+- `unity_main_thread_health` — returns queue depth, time since last main-thread tick, and a `mainThreadBlocked` heuristic. Use this when a `unity_compile` / `unity_run_tests` / `unity_object` call is hanging to distinguish "Unity is busy" from "Unity is stuck".
+- `unity_focus_window` — `SetForegroundWindow` on Unity's main window (Windows only). Unsticks background-throttled operations like domain reload and `git` package resolve.
+- `unity_dismiss_dialog` — posts `WM_CLOSE` to the foreground dialog owned by Unity (Windows only). Recovers from blocking modals.
+
+Recovery flow when a tool times out:
+
+1. Call `unity_main_thread_health` → if `mainThreadBlocked` is `true`, the main thread is stalled
+2. Call `unity_focus_window` → for background throttling
+3. Call `unity_dismiss_dialog` → for modal dialogs
+4. Retry the original tool
+
+This is **the** differentiator vs. other Unity MCP backends.
 
 ## Fast-Path Routing
 
@@ -118,7 +145,7 @@ This avoids the "MCP death by a thousand tiny calls" problem.
 
 Priority order:
 
-1. Project-local qq script: `scripts/unity-compile-smart.sh`
+1. Project-local qq script: `scripts/qq-compile.sh` (v1.16.x — multi-engine dispatcher; for Unity it delegates to `unity-compile-smart.sh`'s 3-tier fallback: tykit HTTP → editor trigger → batch mode)
 2. `tykit` package helper: `Packages/com.tyk.tykit/Scripts~/unity-eval.sh`
 3. Direct `tykit` HTTP polling
 
@@ -126,7 +153,7 @@ Priority order:
 
 Priority order:
 
-1. Project-local qq script: `scripts/unity-test.sh`
+1. Project-local qq script: `scripts/qq-test.sh` (multi-engine; Unity delegates to `unity-test.sh`)
 2. Direct `tykit` HTTP `run-tests` / `get-test-result`
 
 This means qq-installed projects keep their existing behavior, while plain `tykit` projects still work when the Editor is open.
@@ -177,6 +204,44 @@ This means qq-installed projects keep their existing behavior, while plain `tyki
     "filter": "Health",
     "timeout_sec": 180
   }
+}
+```
+
+### Physics
+
+```json
+{
+  "name": "unity_physics",
+  "arguments": {
+    "action": "raycast",
+    "origin": [0, 5, 0],
+    "direction": [0, -1, 0],
+    "maxDistance": 100
+  }
+}
+```
+
+### Object reflection (call a method)
+
+```json
+{
+  "name": "unity_object",
+  "arguments": {
+    "action": "call-method",
+    "id": 12345,
+    "component": "PlayerHealth",
+    "method": "TakeDamage",
+    "parameters": [10]
+  }
+}
+```
+
+### Main thread health
+
+```json
+{
+  "name": "unity_main_thread_health",
+  "arguments": {}
 }
 ```
 

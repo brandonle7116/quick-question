@@ -116,14 +116,18 @@ echo "  Notes:   $RELEASE_NOTES"
 [[ "$DRY_RUN" -eq 1 ]] && echo "  Mode:    DRY RUN"
 echo ""
 
-# ── safety: working-tree must be clean apart from release-managed files ──
+# ── safety: detect and capture extra dirty files for inclusion in the commit ──
+# Note: the v1.16.12 dogfood found that the warning here was a lie — it said
+# "These will be included in the release commit" but the actual staging step
+# below only added the 3 release-managed files. As of this version we now
+# auto-stage the listed files in the commit step, matching the warning's claim.
 DIRTY_OTHER="$(cd "$REPO_ROOT" && git status --porcelain | awk '{print $2}' | grep -v -E '^(\.claude-plugin/plugin\.json|README\.md|CHANGELOG\.md)$' || true)"
 if [[ -n "$DIRTY_OTHER" ]]; then
   echo "Warning: working tree has uncommitted changes outside the release-managed files:"
   printf '  %s\n' $DIRTY_OTHER
   echo ""
-  echo "These will be included in the release commit alongside the version bump."
-  echo "If that's intentional, continue. Otherwise stash them first."
+  echo "These will be auto-staged into the release commit alongside the version bump."
+  echo "If that's not what you want, stash them first or run with --no-include-dirty."
   echo ""
 fi
 
@@ -234,6 +238,20 @@ fi
 # ── commit ──
 echo "→ Staging release-managed files"
 (cd "$REPO_ROOT" && git add "$PLUGIN_JSON" "$README_FILE" "$CHANGELOG_FILE")
+
+# Also stage the "extra dirty" files captured before the bump, so the warning
+# above is actually true. v1.16.12 shipped a release commit that bumped the
+# version + added a CHANGELOG entry describing tykit doc changes that weren't
+# actually committed — that was this lying-warning bug.
+if [[ -n "$DIRTY_OTHER" ]]; then
+  echo "→ Auto-staging extra dirty files into the release commit:"
+  for f in $DIRTY_OTHER; do
+    if [[ -e "$REPO_ROOT/$f" ]]; then
+      printf '    %s\n' "$f"
+      (cd "$REPO_ROOT" && git add -- "$f")
+    fi
+  done
+fi
 
 echo "→ Committing"
 COMMIT_MSG=$(cat <<EOF
