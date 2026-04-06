@@ -2,6 +2,14 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.4] — 2026-04-06
+
+### Added
+- **Token efficiency spec** at `docs/qq/main/token-efficiency-spec.md` — analysis of model tiering, incremental plan context, dynamic max_turns, smart diff. Implementation landed in maliang-orchestrator (separate repo).
+
+### Notes
+- v1.16.3 was released as a hotfix bundle but missed CHANGELOG entries for several earlier improvements; v1.16.4 catches up the docs.
+
 ## [1.16.3] — 2026-04-05
 
 ### Added
