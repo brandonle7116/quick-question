@@ -18,13 +18,13 @@ Use:
 Prefer direct local workflows:
 
 - hooks
-- `scripts/unity-compile-smart.sh`
-- `scripts/unity-test.sh`
+- `scripts/qq-compile.sh` (multi-engine dispatcher; delegates to `unity-compile-smart.sh` / `godot-compile.sh` / `unreal-compile.sh` / `sbox-compile.sh`)
+- `scripts/qq-test.sh` (same multi-engine dispatch for tests)
 - local repo context and skill prompts
 
 This keeps compile/test latency low and avoids unnecessary MCP schema overhead.
 
-If qq / Claude is using MCP anyway, prefer the built-in `tykit_mcp` bridge before third-party Unity MCP servers.
+If qq / Claude is using MCP anyway, prefer the built-in `tykit_mcp` / `qq_mcp` bridge before third-party MCP servers.
 
 ### Codex / Cursor / Continue / other MCP clients
 
@@ -121,16 +121,16 @@ The bridge exists so both can be true at the same time.
 
 ## Adapter Boundary
 
-`quick-question` is moving toward:
+`quick-question` is structured as:
 
 - `qq-core`
 - engine adapters
 - host adapters
 - transport adapters
 
-The current Unity stack is still the only strongly implemented adapter family, but capability routing should already be treated as engine-agnostic core infrastructure.
+All four engines (Unity, Godot, Unreal, S&box) now have direct + built-in `qq-mcp` bridge adapters. Unity has the deepest integration (tykit in-process HTTP, third-party MCP fallbacks); Godot, Unreal, and S&box are at runtime parity through Python bridges. Capability routing is engine-agnostic core infrastructure.
 
-The current contract is documented in [Adapter Contract](architecture/adapter-contract.md).
+The current contract is documented in [Adapter Contract](architecture/adapter-contract.md). The S&box adapter shape is documented in [S&box Adapter Spec](architecture/sbox-adapter-spec.md).
 
 ## Profiles
 
@@ -152,25 +152,25 @@ Use this when an agent needs more of the long tail:
 
 ## Operational Guidance
 
+The guidance below uses Unity tool names for concreteness, but the same patterns apply to the other engines via `godot_*`, `unreal_*`, and `sbox_*` tools exposed by their respective bridges.
+
 If the project has qq scripts installed:
 
-- `unity_compile` and `unity_run_tests` should use them first
+- `unity_compile` / `godot_compile` / `unreal_compile` / `sbox_compile` (and the corresponding `*_run_tests`) should use the local `qq-compile.sh` / `qq-test.sh` paths first
 
-If `tykit_mcp` is available:
+If a built-in qq MCP bridge is available (`tykit_mcp` for Unity, `qq_mcp` for the rest):
 
-- prefer `unity_*` tools before third-party MCP tool names
+- prefer engine-prefixed tools (`unity_*`, `godot_*`, `unreal_*`, `sbox_*`) before third-party MCP tool names
 - treat third-party MCP servers as explicit compatibility fallbacks
 
-If the project only has `tykit`:
+If the project only has the engine bridge directly (e.g. only `tykit`):
 
-- compile falls back to `unity-eval.sh` or direct HTTP
-- tests fall back to `run-tests` / `get-test-result` while the Editor is open
+- compile and test fall back to direct HTTP / direct script invocation while the Editor is open
 
 If you need a command that is not wrapped yet:
 
-- use `unity_raw_command`
+- use `unity_raw_command` (Unity) or the equivalent raw command escape on the other engines, when `trust_level` allows it
 
 If the agent is chatty and MCP round trips are becoming a bottleneck:
 
-- use `unity_batch`
-- prefer coarse tools over raw command chains
+- prefer coarse tools (e.g. `unity_batch`) over raw command chains

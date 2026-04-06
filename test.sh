@@ -154,6 +154,35 @@ for dir in $SKILL_DIRS; do
   fi
 done
 
+# 5b: skill count consistency across language READMEs (Chinese 个, Japanese 個, Korean 개)
+for lang_readme in "$SCRIPT_DIR/docs/zh-CN/README.md" "$SCRIPT_DIR/docs/ja/README.md" "$SCRIPT_DIR/docs/ko/README.md"; do
+  if [ -f "$lang_readme" ]; then
+    rel_path="${lang_readme#"$SCRIPT_DIR/"}"
+    if grep -qE "${ACTUAL_SKILL_COUNT} ?(skill|slash|个|個|개)" "$lang_readme"; then
+      pass "$rel_path mentions $ACTUAL_SKILL_COUNT (skill count consistent)"
+    else
+      fail "$rel_path does NOT mention $ACTUAL_SKILL_COUNT (skill count drift)"
+    fi
+  fi
+done
+
+# 5c: README version badge matches plugin.json
+PLUGIN_VERSION=$($QQ_PY -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$SCRIPT_DIR/.claude-plugin/plugin.json" 2>/dev/null || printf 'unknown')
+if [ "$PLUGIN_VERSION" != "unknown" ] && grep -q "version-v${PLUGIN_VERSION}" "$SCRIPT_DIR/README.md"; then
+  pass "README version badge matches plugin.json (v$PLUGIN_VERSION)"
+else
+  fail "README version badge does NOT match plugin.json (v$PLUGIN_VERSION)"
+fi
+
+# 5d: no legacy review-gate-{check,set,count,stop}.sh references in docs/ or templates/
+LEGACY_GATE_FILES=$(grep -rEl 'review-gate-(check|set|count|stop)\.sh' "$SCRIPT_DIR/docs" "$SCRIPT_DIR/templates" 2>/dev/null || true)
+if [ -z "$LEGACY_GATE_FILES" ]; then
+  pass "no legacy review-gate-{check,set,count,stop}.sh refs in docs/ or templates/"
+else
+  fail "legacy review-gate-*.sh refs found in:"
+  printf '    %s\n' $LEGACY_GATE_FILES
+fi
+
 # ── 6. SKILL.md frontmatter ──
 echo -e "${CYAN}[6/10] SKILL.md frontmatter${NC}"
 

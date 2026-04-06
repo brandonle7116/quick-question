@@ -2,6 +2,21 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.9] — 2026-04-06
+
+### Added
+- **`test.sh` README consistency lint extended** with four new checks (section 5):
+  1. Skill count consistency across the three language READMEs (`docs/zh-CN/README.md`, `docs/ja/README.md`, `docs/ko/README.md`) — regex covers English, Chinese 个, Japanese 個, and Korean 개.
+  2. README version badge matches `.claude-plugin/plugin.json` version field — catches the kind of badge drift we had between v1.13.0 and v1.16.6 unnoticed for several releases.
+  3. No legacy `review-gate-{check,set,count,stop}.sh` references anywhere in `docs/` or `templates/` — the unified `review-gate.sh <subcommand>` form is now enforced by CI.
+  4. (Future-proofing the same shape for any other split-script consolidation we do.)
+
+### Changed
+- **`docs/dev/agent-integration.md`** — updated three sections to reflect multi-engine reality: the qq/Claude transport list now references `qq-compile.sh` / `qq-test.sh` (multi-engine dispatchers); the Adapter Boundary section no longer claims Unity is the only strongly implemented adapter family (Godot, Unreal, S&box are at runtime parity); the Operational Guidance section now uses Unity tool names as concrete examples but explicitly notes the same patterns apply to `godot_*` / `unreal_*` / `sbox_*`.
+
+### Notes
+- Survey agents during the v1.16.7 / v1.16.8 cleanup produced multiple false positives (claimed stale items in `templates/CLAUDE.md.example`, `templates/AGENTS.md.example`, `packages/com.tyk.tykit/README.md` ja/ko sections, `docs/dev/qq-project-state.md` field naming, `docs/dev/qq-benchmarks.md` suite files, `scripts/docker-dev.sh`). All were verified by grep / Glob and confirmed not stale. Future survey passes should require agents to include grep-verifiable line refs or run their own grep first.
+
 ## [1.16.8] — 2026-04-06
 
 ### Changed
