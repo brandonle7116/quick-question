@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.27] — 2026-04-07
+
+Revert the bc146cb 'codex review subcommand' experiment and permanently route code-review.sh through codex exec. Two reasons: (1) codex-cli 0.118.x has a clap parser conflict where --base / --commit / --uncommitted are mutually exclusive with [PROMPT] despite --help listing both, so every Path A call with a custom prompt errored out with 'the argument --base <BRANCH> cannot be used with [PROMPT]' — bc146cb's manual validation happened to use a prompt-less invocation so the regression slipped through. (2) codex review natively has no --files / --ext scope, and flexible-scope review (not just branch diff) is the primary use case. Fix is surgical: drop HAVE_REVIEW_SUBCMD detection, USE_REVIEW_SUBCMD flag, the Path A branch, the per-run 'Path A disabled' note, and the surrounding if/else scaffolding; dedent the codex exec body; rewrite the header comment to document both reasons. Script drops from 301 to 239 lines (-62 / -20%). End-to-end verified across --base / --commits / --files / --ext in a throwaway git repo with a codex stub. Also fixes two stale claims in skills/codex-code-review/SKILL.md about the script preferring codex review + requiring >= 0.118 for the subcommand — both now correctly describe codex exec with the Unity 18-rule checklist inlined in the prompt.
+
+
+
 ## [1.16.26] — 2026-04-07
 
 Hot-fix v1.16.25 CI failure: skip clone_copy_tree hardlink fallback test on macOS. The macOS clonefile path (cp -cR) runs before hardlink is attempted, so allow_hardlink=True returns clonefile not copytree, making the fallback test premise unverifiable on that platform. Test 5 was already gated to macOS-skip; test 6 now matches. No production code change. v1.16.25 functionality is unchanged and verified on Linux/Windows where hardlink actually runs.
