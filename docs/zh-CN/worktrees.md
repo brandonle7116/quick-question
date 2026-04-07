@@ -68,9 +68,43 @@ python3 ./scripts/qq-worktree.py seed-runtime-cache --pretty
 - **在每个 worktree 中使用 `.qq/local.yaml`** 做任务级配置。
 - **通过 worktree 命令收尾**，不要手动操作 git。
 
-## 与 /qq:execute 集成
+## 与 /qq:execute 和 /qq:go 集成
 
-`/qq:execute plan.md --worktree` 在开始实现前创建隔离的 worktree。
+**Worktree 默认开启。** `/qq:execute` 和 `/qq:go` 都会在做任何工作之前自动进入隔离 worktree。**不需要传 `--worktree` 标志** —— 那是默认行为。
+
+如要关闭，传字面 `--no-worktree`：
+
+```
+/qq:execute plan.md --no-worktree
+/qq:go --no-worktree
+```
+
+skill 只接受字面 token —— skill 规范明确禁止 agent 自创"语义 bypass"（见 [skills/execute/SKILL.md](../../skills/execute/SKILL.md) Section 1）。
+
+### 自动跳过 worktree 的条件
+
+| Skill | 跳过条件（任一即可） |
+|---|---|
+| `/qq:execute` | 已在 git worktree 内；用户传了字面 `--no-worktree` token；plan 微小（≤3 步、≤3 文件、无 .cs 编译） |
+| `/qq:go` | 已在 worktree 内；字面 `--no-worktree` token；下一步要路由到只读 skill（`/qq:changes`、`/qq:deps`、`/qq:explain`、`/qq:brief`、`/qq:full-brief`、`/qq:timeline`） |
+
+skill 必须在第一条消息里说明跳过原因 —— 静默跳过被禁止。
+
+### 常见障碍的自动处理
+
+skill 检测到这些障碍时会修障碍，而不是绕过 worktree 检查：
+
+| 障碍 | skill 的处理 |
+|---|---|
+| Plan 文件未追踪 | 先 commit plan（`docs(plan): <slug>`），再进 worktree，这样 plan 通过 git 历史可访问 |
+| 工作树有不相关的未提交改动 | 让用户 commit 或 stash；绝不在 dirty main 上继续 |
+| `EnterWorktree` 工具不可用 | 退回到 `qq-worktree.py create --name <slug>`，告知用户在新路径重开会话并停止 |
+
+### EnterWorktree HEAD 验证
+
+skill 使用 Claude Code 的 `EnterWorktree` 工具时，会在调用前 capture 源分支的 `HEAD`，调用后用 `git merge-base --is-ancestor` 验证新 worktree 的 `HEAD` 是否包含源 `HEAD`。如果 `EnterWorktree` 静默地从错误 ref（例如 `develop` 而非当前 feature 分支）创建了 worktree，skill 会自动用 `git reset --hard $SOURCE_HEAD` 恢复。这保证新 worktree 的分支正确根植于源分支 —— 后续 `commit-push` merge-back 时会拿到正确的历史，code review 的 `git diff source...HEAD` 范围也保持准确。
+
+如果你手动通过 `qq-worktree.py create` 创建 worktree，这一验证不需要 —— `qq-worktree.py` 永远使用当前分支（或显式 `--source-branch`），从不会静默换 base。
 
 ## 相关文档
 
