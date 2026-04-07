@@ -2,6 +2,8 @@
 description: "Cross-model code review via Codex CLI — reviews uncommitted changes by default, loops until no critical issues remain. Use after /qq:test passes, before /qq:commit-push."
 ---
 
+> **Invoke scripts via `${CLAUDE_PLUGIN_ROOT}/bin/<name>`.** That env var is set by Claude Code for every plugin context and gives the absolute path to the marketplace clone — no PATH or cwd assumptions. Bare-command invocation (e.g. `code-review.sh`) is NOT reliable: the plugin never puts its scripts on PATH, so bare calls exit 127.
+
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
 Arguments: $ARGUMENTS
@@ -37,7 +39,7 @@ Before sending the diff to Codex, if `qq-policy-check.sh` is available, run it o
 
 Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
-code-review.sh $ARGUMENTS
+${CLAUDE_PLUGIN_ROOT}/bin/code-review.sh $ARGUMENTS
 ```
 The script prefers `codex review` (the dedicated review subcommand with native diff handling) and falls back to `codex exec` only when `--files` or `--ext` is used. **It always passes `-c model_reasoning_effort=high`** to avoid the shallow "No findings" result that Codex's default (`reasoning=none`) produces. Results are written to stdout and `Docs/qq/<branch-name>/codex-code-review_<timestamp>.md`.
 
@@ -48,7 +50,7 @@ Notify the user that the background task has been submitted and will continue pr
 
 **From round 2 onward:** If the previous round had findings deemed over-engineered, append `--prompt` to the original arguments, keeping `--base` and other flags from `$ARGUMENTS`:
 ```bash
-code-review.sh $ARGUMENTS --prompt "Review these code changes using the same criteria as round 1 (bugs, architecture, performance, security, style). Additional context: the following suggestions from the previous round were deemed over-engineered and replaced with simpler solutions: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Classify by severity: [Critical] [Moderate] [Suggestion]."
+${CLAUDE_PLUGIN_ROOT}/bin/code-review.sh $ARGUMENTS --prompt "Review these code changes using the same criteria as round 1 (bugs, architecture, performance, security, style). Additional context: the following suggestions from the previous round were deemed over-engineered and replaced with simpler solutions: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Classify by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### b. Read and Summarize Review Results

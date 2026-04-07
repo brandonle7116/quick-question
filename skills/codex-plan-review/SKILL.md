@@ -2,7 +2,7 @@
 description: "Send a design document to Codex CLI for review, then revise the document based on the findings. Automatically loops until no critical issues remain or 5 rounds are completed."
 ---
 
-> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+> **Invoke scripts via `${CLAUDE_PLUGIN_ROOT}/bin/<name>`.** That env var is set by Claude Code for every plugin context and gives the absolute path to the marketplace clone — no PATH or cwd assumptions. Bare-command invocation (e.g. `plan-review.sh`) is NOT reliable: the plugin never puts its scripts on PATH, so bare calls exit 127.
 
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
@@ -32,7 +32,7 @@ Each round:
 #### 2a. Send to Codex for Review
 Run the following command using the Bash tool with `run_in_background: true`:
 ```bash
-plan-review.sh <file_path>
+${CLAUDE_PLUGIN_ROOT}/bin/plan-review.sh <file_path>
 ```
 The script calls `codex exec --sandbox read-only`, outputting results to stdout and `<filename>_review.md`.
 The script automatically reads the project root's `CLAUDE.md` and includes the coding standards in the Codex prompt.
@@ -41,7 +41,7 @@ Inform the user that the background task has been submitted and will continue au
 
 **Round 2 onward:** If the previous round had findings marked as over-engineered, append a custom prompt with context:
 ```bash
-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
+${CLAUDE_PLUGIN_ROOT}/bin/plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
 ```
 This preserves the full review standards while preventing Codex from re-suggesting the same complex approaches.
 
@@ -107,4 +107,4 @@ After the review loop ends, recommend the next step:
 - **Watch out for over-engineering** — Codex tends to suggest maximally "correct" solutions (extra abstraction layers, splitting files for purity, adding generics). Always ask: "Is the fix proportionate to the problem?" If not, choose the simpler path and tell Codex why in the next round
 - Do not change design intent on your own initiative — only fix issues identified by the review
 - When editing, preserve the document's overall structure; only change what needs to change
-- Custom prompt usage: `plan-review.sh <file> "custom review prompt"`
+- Custom prompt usage: `${CLAUDE_PLUGIN_ROOT}/bin/plan-review.sh <file> "custom review prompt"`

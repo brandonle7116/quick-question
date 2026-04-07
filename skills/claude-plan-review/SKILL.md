@@ -2,7 +2,7 @@
 description: Send a design document to a Claude subagent for review, then revise the document based on findings. Automatically loops until no critical issues remain or 5 rounds are complete.
 ---
 
-> **Script path fallback**: qq scripts are invoked as bare commands (e.g. `unity-test.sh`). If "command not found", use `${CLAUDE_PLUGIN_ROOT}/bin/<command>` instead.
+> **Invoke scripts via `${CLAUDE_PLUGIN_ROOT}/bin/<name>`.** That env var is set by Claude Code for every plugin context and gives the absolute path to the marketplace clone — no PATH or cwd assumptions. Bare-command invocation (e.g. `claude-plan-review.sh`) is NOT reliable: the plugin never puts its scripts on PATH, so bare calls exit 127.
 
 Respond in the user's preferred language (detect from their recent messages, or fall back to the language setting in CLAUDE.md).
 
@@ -32,7 +32,7 @@ Each round:
 
 Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
-claude-plan-review.sh <file_path>
+${CLAUDE_PLUGIN_ROOT}/bin/claude-plan-review.sh <file_path>
 ```
 The script calls `claude -p`, with results output to stdout and `<filename>_review.md`.
 The script automatically reads the project root's `CLAUDE.md` and includes the coding standards in the Claude prompt.
@@ -41,7 +41,7 @@ Notify the user that the background task has been submitted and will continue pr
 
 **From round 2 onward:** If the previous round had findings deemed over-engineered, append a custom prompt with context:
 ```bash
-claude-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
+${CLAUDE_PLUGIN_ROOT}/bin/claude-plan-review.sh <file_path> "Review the updated document using the same review criteria as the first round (architecture, correctness, completeness, feasibility). Additional context: the following suggestions from the previous round were judged as over-engineered and replaced with simpler alternatives: <list items and rationale>. Do not re-suggest more complex approaches unless the simpler version introduces a real defect. Grade by severity: [Critical] [Moderate] [Suggestion]."
 ```
 
 #### 2b. Summarize Review Results
