@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.24] — 2026-04-07
+
+Comprehensive structural fix for the v1.16.22 README sync failure class. Four root causes are now mechanically enforced instead of relying on agent discipline: (a) NEW test.sh section 5f cross-language link discipline check — flags any docs/<lang>/X.md link to ../<other-lang>/Y.md when docs/<lang>/Y.md exists, with README.md ↔ README.md exempted as legitimate language switchers; (b) NEW qq-release.sh always-on pre-flight runs the README sync drift check (already in test.sh 5d) and the new cross-language link check at release time, BEFORE any commit, regardless of --skip-tests — closing the loophole where v1.16.22 was released because --skip-tests bypassed the entire section 5 pre-flight; (c) NEW HTML comment block above the Chinese half of root README explicitly warning agents that the section is auto-generated from docs/zh-CN/README.md, including the correct edit-then-sync workflow and noting that CI enforces it; (d) the existing test.sh 5d sync drift check is unchanged because it caught v1.16.22 at CI time, but B is its commit-time complement so the failure cannot reach remote in the first place. Together this means the v1.16.22 sequence (edit zh-CN README → forget to sync → use --skip-tests → push broken release → CI red → hot-fix release) is mechanically impossible going forward.
+
+
+
 ## [1.16.23] — 2026-04-07
 
 Hot-fix v1.16.22 readme rollout: (a) three links in docs/zh-CN/README.md were pointing to docs/en/* instead of the existing zh-CN siblings (tykit-mcp.md, tykit-api.md, worktrees.md), (b) the root README.md is a bilingual file whose Chinese half is generated from docs/zh-CN/README.md by scripts/qq-sync-readme-zh.py — v1.16.22 updated the English half and docs/zh-CN/README.md but never ran the sync, leaving the root README's Chinese half stuck on the old 12-line Quick Start and tripping the CI structural check 'root README Chinese half drifts from docs/zh-CN/README.md'. v1.16.23 fixes the three zh-CN links and runs the sync script, so the bilingual root README is now consistent across both halves and CI passes. Behavior unchanged — pure docs sync.
