@@ -14,13 +14,70 @@ Arguments: $ARGUMENTS
 - `--auto`: after completion, auto-select and run the next workflow step instead of asking the user (includes push — user should be aware)
 - No arguments: detect the plan source from conversation or `Docs/qq/`
 
-## 1. Worktree Guard
+## 1. Worktree Guard (strict — do NOT bypass)
 
-If already in a worktree, skip. If not, and `--no-worktree` was not passed:
-1. Derive a slug from the plan filename.
-2. Call `EnterWorktree` with `name: <slug>`.
-3. If unavailable, fall back to `qq-worktree.py create --name <slug>`, then tell the user to reopen in the new path and stop.
-4. Seed runtime cache: `qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"`
+**Worktree isolation is non-negotiable for `/qq:execute`.** Executing a multi-step plan directly on a shared branch pollutes main, blocks parallel work, and makes rollback surgical instead of trivial. You MUST enter a worktree unless one of these **three** conditions is explicitly met:
+
+1. **You are already inside a git worktree** (check with `git rev-parse --show-toplevel` — if it matches `.git/worktrees/<name>/` in the output of `git worktree list`, you're in one). Skip to step 2.
+2. **The user passed `--no-worktree` as a literal flag in `$ARGUMENTS`.** Not "semantically meant" — the exact token must be present. Agent-invented `--no-worktree semantics` is forbidden.
+3. **The plan is trivially small** (≤ 3 steps touching ≤ 3 files, and no .cs compilation). For anything larger, you need a worktree.
+
+**Do NOT invent other bypass conditions.** If you encounter an obstacle that seems to require skipping the worktree, **fix the obstacle**, don't skip the safety check. Common obstacles and their correct fixes:
+
+| Obstacle | ❌ Wrong reaction | ✅ Correct reaction |
+|---|---|---|
+| **Plan file is untracked** | "switching worktree loses plan → skip worktree" | `git add <plan_file> && git commit -m "docs(plan): <slug>"` → now plan is in git → enter worktree → plan is visible from worktree. |
+| **Uncommitted unrelated changes in working tree** | "dirty tree → can't worktree → skip" | Commit them (if related to this plan) or stash them (if unrelated). Then enter worktree. If user wants to keep them dirty, they must pass `--no-worktree` explicitly. |
+| **Conversation has ephemeral state** (open files, scratch edits) | "would lose context → skip" | Conversation state IS lost on worktree entry by design — that's the point of isolation. Re-load plan from disk in the new session. Do not skip for this reason. |
+| **`EnterWorktree` tool unavailable** | "no tool → skip" | Fall back to `${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py create --name <slug>`, tell the user to reopen in the new path, and **stop**. Don't proceed in the main dir. |
+
+**The procedure:**
+
+1. **Verify plan is in git.** If the plan file is untracked or has uncommitted changes:
+   ```bash
+   git status -- <plan_file>
+   ```
+   If dirty, commit it now:
+   ```bash
+   git add <plan_file>
+   git commit -m "docs(plan): <slug> plan document"
+   ```
+   Announce: "Committed plan doc before entering worktree so it's accessible from the new worktree."
+
+2. **Capture source state BEFORE creating the worktree** (required for verification in step 5):
+   ```bash
+   SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+   SOURCE_HEAD=$(git rev-parse HEAD)
+   echo "Source: $SOURCE_BRANCH @ $SOURCE_HEAD"
+   ```
+   Remember these — you'll verify the new worktree inherits them.
+
+3. **Derive a slug** from the plan filename (lowercase, dashes, no extension).
+
+4. **Enter the worktree:** call `EnterWorktree` with `name: <slug>`. If `EnterWorktree` is unavailable, fall back to `${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py create --name <slug>` (which uses current branch correctly by design), tell the user to reopen in the new path, and **stop**.
+
+5. **CRITICAL: Verify the new worktree inherited the source branch's HEAD.** `EnterWorktree` is documented as "based on HEAD" but in practice it sometimes creates the worktree branch from the repo's default branch (develop/main) instead of the current feature branch — silently losing your plan commit and any other recent commits. You MUST verify after every `EnterWorktree` call:
+
+   ```bash
+   WT_HEAD=$(git rev-parse HEAD)
+   if git merge-base --is-ancestor "$SOURCE_HEAD" HEAD 2>/dev/null; then
+       echo "✓ Worktree HEAD ($WT_HEAD) includes source HEAD ($SOURCE_HEAD)"
+   else
+       echo "✗ BUG: worktree HEAD ($WT_HEAD) does NOT include source HEAD ($SOURCE_HEAD)"
+       echo "  EnterWorktree branched from a different ref. Recovering..."
+       # Hard-reset the new worktree branch to the source HEAD.
+       # This works because the new worktree branch was just created and has no
+       # commits of its own yet (worst case it had a single auto-generated commit).
+       git reset --hard "$SOURCE_HEAD"
+       echo "  ✓ Reset worktree to $SOURCE_HEAD"
+   fi
+   ```
+
+   **Why this matters**: if you skip verification, the worktree's branch is silently rooted at develop. When you eventually `commit-push` and try to merge back, you'll be merging develop's history (zero source-branch commits) into your feature branch — losing the plan commit and any other source-branch context. **Do not skip this verification.** Cherry-pick is NOT a sufficient recovery — it brings over commits but the branch's merge-base is still wrong, which breaks `git diff source...HEAD`-style scoping later.
+
+6. **Seed runtime cache** in the new worktree: `${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"`
+
+**If you decide to skip the worktree under any condition above, state the exact reason in your first message** (e.g. "Skipping worktree: user passed `--no-worktree` in arguments" / "Skipping worktree: already inside `.git/worktrees/demo-loop`" / "Skipping worktree: plan is 2 steps, 1 file, no compile"). Do NOT skip silently.
 
 ## 2. Locate Plan & Resume
 

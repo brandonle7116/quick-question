@@ -30,23 +30,42 @@ Arguments: $ARGUMENTS
 - `--no-worktree`: skip automatic worktree creation for this invocation
 - No arguments: auto-detect from context
 
-## Worktree Isolation (before routing)
+## Worktree Isolation (before routing) — strict
 
 Before routing to any skill, ensure the session is in an isolated worktree. This runs automatically — the user does not need to pass any flags.
 
-**Skip if any of these are true:**
-- Already in a worktree (check `git rev-parse --is-inside-work-tree` + `git worktree list` to see if CWD is a linked worktree)
-- User passed `--no-worktree`
-- The recommended next step is a read-only action (e.g., `/qq:changes`, `/qq:deps`, `/qq:explain`)
+**Skip ONLY if one of these is explicitly true:**
+- Already in a worktree (check `git rev-parse --show-toplevel` matches an entry in `git worktree list` other than the main repo root)
+- User passed literal `--no-worktree` token in arguments (not "semantically meant" — agent-invented bypass is forbidden)
+- The recommended next step is a read-only action (`/qq:changes`, `/qq:deps`, `/qq:explain`, `/qq:brief`, `/qq:full-brief`, `/qq:timeline`)
 
-**Create worktree:**
+**Do NOT invent other skip conditions.** If you encounter an obstacle (untracked plan, dirty tree, ephemeral context), fix the obstacle, don't skip the safety check. See the obstacle/fix table in `/qq:execute` Section 1 for the canonical list — same rules apply here.
+
+**If you skip, state the exact reason in your first message** (e.g. "Skipping worktree: user passed `--no-worktree`" / "Skipping worktree: routing to read-only `/qq:explain`"). No silent skips.
+
+**Create worktree procedure:**
+
 1. Note the current working directory as `SOURCE_PROJECT` (needed for seeding later)
-2. Derive a slug from the task description (3-4 keywords, lowercase, hyphen-separated, e.g., `demo-loop-closure`)
-3. Call `EnterWorktree` tool with `name: <slug>`. This switches session CWD to `.claude/worktrees/<slug>/`
-4. If `EnterWorktree` is not available (non-Claude-Code host), fall back to `qq-worktree.py create --name <slug>`, then tell the user to reopen the session in the new worktree path and stop
-5. After entering, seed engine runtime cache (Unity Library, etc.):
+2. **Capture source state BEFORE creating the worktree** (required for verification in step 5):
    ```bash
-   qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"
+   SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+   SOURCE_HEAD=$(git rev-parse HEAD)
+   ```
+3. Derive a slug from the task description (3-4 keywords, lowercase, hyphen-separated, e.g., `demo-loop-closure`)
+4. Call `EnterWorktree` tool with `name: <slug>`. This switches session CWD to `.claude/worktrees/<slug>/`. If `EnterWorktree` is not available (non-Claude-Code host), fall back to `${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py create --name <slug>`, then tell the user to reopen the session in the new worktree path and stop.
+5. **CRITICAL: Verify the new worktree inherited the source HEAD.** `EnterWorktree` is documented as "based on HEAD" but sometimes branches from the repo's default branch (develop/main) instead of the current feature branch, silently losing recent commits. Verify and recover:
+   ```bash
+   if git merge-base --is-ancestor "$SOURCE_HEAD" HEAD 2>/dev/null; then
+       echo "✓ Worktree includes source HEAD"
+   else
+       echo "✗ BUG: worktree branched from wrong ref. Resetting to $SOURCE_HEAD"
+       git reset --hard "$SOURCE_HEAD"
+   fi
+   ```
+   Cherry-pick is NOT a sufficient recovery — it brings commits over but leaves the branch's merge-base wrong.
+6. Seed engine runtime cache (Unity Library, etc.):
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"
    ```
    The `--source` flag lets this work in non-qq-managed worktrees.
 
