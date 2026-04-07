@@ -63,11 +63,16 @@ Before routing to any skill, ensure the session is in an isolated worktree. This
    fi
    ```
    Cherry-pick is NOT a sufficient recovery — it brings commits over but leaves the branch's merge-base wrong.
-6. Seed engine runtime cache (Unity Library, etc.):
+6. Seed local runtime files (scripts/, AGENTS.md, CLAUDE.md, .mcp.json, qq.yaml, baseline state, run records, AND the `.qq/state/worktree.json` metadata that marks it as qq-managed):
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"
+   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-local-runtime --project . --source "<SOURCE_PROJECT>"
    ```
-   The `--source` flag lets this work in non-qq-managed worktrees.
+   Without this, `scripts/platform/detect.sh` is missing and every qq script call exits 127, and downstream consumers (`commit-push` Type B closeout, `qq-codex-exec --add-dir`, `qq-project-state.py`) see `isManagedWorktree=false`.
+
+7. Seed engine runtime cache (Unity Library, etc.). Step 6 has now written the metadata, so this command can read `sourceWorktreePath` from the same file and persist `runtimeCacheSeed` state back. Pass NO `--source` flag:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project .
+   ```
 
 Then continue to State Detection and routing below.
 

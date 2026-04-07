@@ -75,7 +75,15 @@ Arguments: $ARGUMENTS
 
    **Why this matters**: if you skip verification, the worktree's branch is silently rooted at develop. When you eventually `commit-push` and try to merge back, you'll be merging develop's history (zero source-branch commits) into your feature branch — losing the plan commit and any other source-branch context. **Do not skip this verification.** Cherry-pick is NOT a sufficient recovery — it brings over commits but the branch's merge-base is still wrong, which breaks `git diff source...HEAD`-style scoping later.
 
-6. **Seed runtime cache** in the new worktree: `${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project . --source "<SOURCE_PROJECT>"`
+6. **Seed local runtime files** in the new worktree (qq scripts, AGENTS.md, CLAUDE.md, .mcp.json, qq.yaml, baseline state, run records, AND the worktree.json metadata that registers it as qq-managed). Without this step, `EnterWorktree`-created worktrees lack `scripts/platform/detect.sh` (every qq script call exits 127), and downstream consumers like `commit-push` Type B closeout, `qq-codex-exec` `--add-dir` injection, and `qq-project-state.py` see `isManagedWorktree=false`.
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-local-runtime --project . --source "<SOURCE_PROJECT>"
+   ```
+
+7. **Seed runtime cache** (Unity `Library/`, etc.) in the new worktree. Now that step 6 has written `.qq/state/worktree.json` with `sourceWorktreePath`, this command can resolve the source from metadata and persist `runtimeCacheSeed` state back into the same file (so `qq-project-state` and `qq-doctor` see the seed completed). Pass NO `--source` flag — the metadata is now authoritative.
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/bin/qq-worktree.py seed-runtime-cache --project .
+   ```
 
 **If you decide to skip the worktree under any condition above, state the exact reason in your first message** (e.g. "Skipping worktree: user passed `--no-worktree` in arguments" / "Skipping worktree: already inside `.git/worktrees/demo-loop`" / "Skipping worktree: plan is 2 steps, 1 file, no compile"). Do NOT skip silently.
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -497,7 +498,45 @@ def copy_baseline_run_records(source_dir: Path, target_dir: Path) -> list[str]:
     return copied
 
 
-def clone_copy_tree(source_dir: Path, target_dir: Path) -> str:
+def _hardlink_tree(src: Path, dst: Path) -> None:
+    """Mirror src under dst using hard links for files. Caller must ensure
+    dst is empty (use a staging dir) so that partial failures don't leave
+    hard-linked files in the final target path — those would share inodes
+    with source files, and any subsequent fallback that opens them with
+    O_TRUNC would corrupt the source via the shared inode.
+    """
+    for src_path in src.rglob("*"):
+        rel = src_path.relative_to(src)
+        dst_path = dst / rel
+        if src_path.is_dir():
+            dst_path.mkdir(parents=True, exist_ok=True)
+        else:
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            os.link(src_path, dst_path)
+
+
+def clone_copy_tree(source_dir: Path, target_dir: Path, *, allow_hardlink: bool = False) -> str:
+    """Copy source_dir to target_dir using the fastest available strategy.
+
+    Strategies tried in order:
+      1. macOS: `cp -cR` (APFS clonefile, COW, instant)
+      2. rsync: `rsync -a --delete` if rsync is on PATH
+      3. hardlink (if allow_hardlink=True and not macOS): per-file `os.link`
+         staged into a sibling temp dir, atomic-renamed onto target on success.
+         **Caller must guarantee the cache directory is safe to alias** (i.e.,
+         the engine writes files atomically via `new file → rename` and never
+         in-place). As of 2026-04-07, only Unity `Library/` is known-safe;
+         Godot's `.godot/uid_cache.bin` and Unreal's UBT manifests are rewritten
+         in place and would corrupt the source if hardlinked.
+      4. shutil.copytree as final fallback.
+
+    The hardlink path uses a sibling staging directory to make success/failure
+    all-or-nothing. If `_hardlink_tree` raises partway through, the staging dir
+    is removed (no leftover hard-linked files anywhere on the filesystem) and
+    the function falls through to `shutil.copytree` on a clean target. This
+    prevents the catastrophic case where copytree's O_TRUNC on a partially
+    hard-linked file writes through the shared inode and corrupts source files.
+    """
     target_dir.mkdir(parents=True, exist_ok=True)
     if sys.platform == "darwin":
         clone_result = subprocess.run(
@@ -520,6 +559,24 @@ def clone_copy_tree(source_dir: Path, target_dir: Path) -> str:
         if rsync_result.returncode == 0:
             return "rsync"
         raise RuntimeError(rsync_result.stderr.strip() or rsync_result.stdout.strip() or "rsync failed")
+
+    # Hardlink path with staging — only when caller explicitly opts in.
+    if allow_hardlink and sys.platform != "darwin":
+        staging = target_dir.parent / (target_dir.name + ".hardlink-staging")
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        try:
+            _hardlink_tree(source_dir, staging)
+        except (OSError, NotImplementedError):
+            # Partial failure: rmtree the staging dir so no shared inodes leak
+            # into the filesystem, then fall through to copytree on a clean target.
+            shutil.rmtree(staging, ignore_errors=True)
+        else:
+            # All hardlinks succeeded — atomic rename onto target
+            if target_dir.exists():
+                shutil.rmtree(target_dir)
+            staging.rename(target_dir)
+            return "hardlink"
 
     shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
     return "copytree"
@@ -571,8 +628,15 @@ def ensure_runtime_cache_seed(project_dir: Path, source_worktree: Path | None, *
 
     if refresh and target_cache.exists():
         shutil.rmtree(target_cache, ignore_errors=True)
+    # Allow hardlink only for engines whose runtime cache is safe to alias.
+    # Unity Library uses atomic new-file-then-rename for artifacts, so
+    # cross-worktree hard links are safe. Godot's .godot/uid_cache.bin and
+    # Unreal's UBT manifests are rewritten in place — hardlinking would
+    # corrupt the source. See proposal Round 2 finding 4.
+    engine = resolve_project_engine(project_dir)
+    allow_hardlink = (engine == "unity")
     try:
-        strategy = clone_copy_tree(source_cache, target_cache)
+        strategy = clone_copy_tree(source_cache, target_cache, allow_hardlink=allow_hardlink)
     except Exception as exc:
         shutil.rmtree(target_cache, ignore_errors=True)
         return RuntimeCacheSeedResult(
@@ -856,6 +920,95 @@ def command_create(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def command_seed_local_runtime(args: argparse.Namespace) -> dict[str, Any]:
+    """Complete an EnterWorktree-created worktree by copying the LOCAL_RUNTIME_PATHS,
+    baseline state files, baseline run records, and writing .qq/state/worktree.json.
+
+    EnterWorktree (Claude Code built-in) only runs `git worktree add` and skips
+    qq's copy logic. This subcommand fills the gap. After running it, an
+    EnterWorktree-created worktree behaves identically to a command_create-created
+    one from the perspective of build_status, commit-push, qq-codex-exec, etc.
+    """
+    project_dir = Path(args.project).resolve()
+    source_dir = Path(args.source).resolve()
+
+    if not project_dir.is_dir():
+        raise RuntimeError(f"--project does not exist or is not a directory: {project_dir}")
+    if not source_dir.is_dir():
+        raise RuntimeError(f"--source does not exist or is not a directory: {source_dir}")
+    if project_dir == source_dir:
+        raise RuntimeError("--project and --source must be different directories")
+
+    # Verify both share the same git common-dir (i.e., are linked worktrees of the
+    # same repo). NOT --show-toplevel — linked worktrees have different toplevels by design.
+    src_common_result = run_git(source_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    dst_common_result = run_git(project_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    src_common = Path(src_common_result.stdout.strip()).resolve()
+    dst_common = Path(dst_common_result.stdout.strip()).resolve()
+    if src_common != dst_common:
+        raise RuntimeError(
+            f"--project and --source are not linked worktrees of the same repo "
+            f"(source common-dir: {src_common}, project common-dir: {dst_common})"
+        )
+
+    # ALSO verify project_dir is a registered worktree root (not just a subdirectory).
+    # Without this, seed-local-runtime would copy files into a non-worktree subdir
+    # and write .qq/state/worktree.json there, invisible to downstream consumers.
+    worktree_list = run_git(source_dir, "worktree", "list", "--porcelain").stdout
+    registered_paths: set[Path] = set()
+    for line in worktree_list.splitlines():
+        if line.startswith("worktree "):
+            registered_paths.add(Path(line[len("worktree "):]).resolve())
+    if project_dir not in registered_paths:
+        raise RuntimeError(
+            f"--project {project_dir} is not a registered git worktree of the source repo. "
+            f"Run `git worktree add` (or `qq-worktree.py create`) first, then re-run seed-local-runtime."
+        )
+
+    if load_metadata(project_dir).get("managedBy") == MANAGED_BY:
+        raise RuntimeError(
+            f"--project {project_dir} is already a qq-managed worktree (has .qq/state/worktree.json). "
+            f"Use seed-runtime-cache --refresh to refresh the runtime cache instead."
+        )
+
+    copied_local = copy_local_runtime_files(source_dir, project_dir)
+    copied_state = copy_baseline_state_files(source_dir, project_dir)
+    copied_run_records = copy_baseline_run_records(source_dir, project_dir)
+
+    project_branch = current_branch(project_dir)
+    source_branch = current_branch(source_dir)
+
+    metadata = {
+        "managedBy": MANAGED_BY,
+        "metadataVersion": METADATA_VERSION,
+        "createdAt": utc_now_iso(),
+        "engine": resolve_project_engine(project_dir),
+        "worktreeName": project_dir.name,
+        "branch": project_branch,
+        "sourceBranch": source_branch,
+        "sourceWorktreePath": str(source_dir),
+        "currentPath": str(project_dir),
+        "copiedLocalRuntimeFiles": copied_local,
+        "copiedBaselineStateFiles": copied_state,
+        "copiedBaselineRunRecords": copied_run_records,
+        "createdVia": "seed-local-runtime",
+    }
+    metadata_file = write_metadata(project_dir, metadata)
+
+    return {
+        "ok": True,
+        "action": "seed-local-runtime",
+        "projectDir": str(project_dir),
+        "sourceDir": str(source_dir),
+        "branch": project_branch,
+        "sourceBranch": source_branch,
+        "copiedLocalRuntimeFiles": copied_local,
+        "copiedBaselineStateFiles": copied_state,
+        "copiedBaselineRunRecords": copied_run_records,
+        "metadataPath": str(metadata_file),
+    }
+
+
 def command_status(args: argparse.Namespace) -> dict[str, Any]:
     payload = build_status(Path(args.project).resolve())
     payload["ok"] = True
@@ -1088,6 +1241,14 @@ def build_parser() -> argparse.ArgumentParser:
     seed_runtime_cache.add_argument("--refresh", action="store_true", help="Replace any existing local runtime cache before reseeding")
     seed_runtime_cache.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
 
+    seed_local_runtime = subparsers.add_parser(
+        "seed-local-runtime",
+        help="Complete an EnterWorktree-created worktree (copy LOCAL_RUNTIME_PATHS, baseline state, run records, write metadata)",
+    )
+    seed_local_runtime.add_argument("--project", required=True, help="Target worktree (created by EnterWorktree or `git worktree add`)")
+    seed_local_runtime.add_argument("--source", required=True, help="Source worktree to copy from (must be a linked worktree of the same repo)")
+    seed_local_runtime.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
+
     merge_back = subparsers.add_parser("merge-back", help="Merge the current qq-managed worktree branch back into its source branch")
     merge_back.add_argument("--project", default=".", help="Current worktree project root")
     merge_back.add_argument("--auto-yes", action="store_true", help="Use non-interactive merge defaults")
@@ -1119,6 +1280,8 @@ def main() -> int:
             payload = command_status(args)
         elif args.command == "seed-runtime-cache":
             payload = command_seed_runtime_cache(args)
+        elif args.command == "seed-local-runtime":
+            payload = command_seed_local_runtime(args)
         elif args.command == "merge-back":
             payload = command_merge_back(args)
         elif args.command == "cleanup":

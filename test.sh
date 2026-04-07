@@ -1575,6 +1575,264 @@ fi
 rm -f "$WORKTREE_STATUS_JSON" "$WORKTREE_MERGE_JSON" "$WORKTREE_CLEANUP_JSON"
 rm -rf "$WORKTREE_TEST_ROOT"
 
+# ── seed-local-runtime: complete an EnterWorktree-created worktree ──
+# v1.16.25: EnterWorktree (Claude Code built-in) does only `git worktree add`,
+# leaving the new worktree without LOCAL_RUNTIME_PATHS (scripts/, .mcp.json,
+# qq.yaml, AGENTS.md, CLAUDE.md), without baseline state files, and without
+# .qq/state/worktree.json metadata. The new `seed-local-runtime` subcommand
+# fills this gap so EnterWorktree-created worktrees behave like
+# command_create-created ones. See proposal:
+# docs/dev/proposals/2026-04-07-1906-worktree-local-runtime-fix.md
+echo -e "${CYAN}[seed-local-runtime] EnterWorktree worktree completion${NC}"
+
+SLR_SOURCE="$(mktemp -d)"
+SLR_PARENT="$(dirname "$SLR_SOURCE")"
+(
+  cd "$SLR_SOURCE" &&
+  git init -q &&
+  git config user.email qq@example.com &&
+  git config user.name "qq test" &&
+  mkdir -p ProjectSettings Packages scripts/platform .claude .qq/state &&
+  printf 'm_EditorVersion: 2022.3.51f1c1\n' > ProjectSettings/ProjectVersion.txt &&
+  printf '{"dependencies":{}}\n' > Packages/manifest.json &&
+  printf '#!/bin/bash\necho doctor\n' > scripts/qq-doctor.py &&
+  chmod +x scripts/qq-doctor.py &&
+  printf '#!/bin/bash\necho platform\n' > scripts/platform/detect.sh &&
+  chmod +x scripts/platform/detect.sh &&
+  printf '{"mcpServers":{}}\n' > .mcp.json &&
+  printf '{"enabledPlugins":{}}\n' > .claude/settings.local.json &&
+  printf 'work_mode: feature\n' > qq.yaml &&
+  printf '# project agents\n' > AGENTS.md &&
+  printf '# project guide\n' > CLAUDE.md &&
+  printf 'base\n' > README.md &&
+  printf '.qq/\n' > .gitignore &&
+  git add ProjectSettings Packages README.md .gitignore qq.yaml AGENTS.md CLAUDE.md scripts &&
+  git add -f .mcp.json .claude/settings.local.json &&
+  git commit -q -m "init" &&
+  git checkout -q -b feature/test-seed
+)
+
+# Seed source baseline state + run records (so seed-local-runtime has something to copy)
+SLR_RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$SLR_SOURCE" --stage compile --command source-compile --backend test --transport local --summary "source compile start")
+SLR_RUN_ID=$(printf '%s' "$SLR_RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$SLR_SOURCE" --run-id "$SLR_RUN_ID" --status passed --summary "source compile passed" >/dev/null
+SLR_RUN_JSON=$($QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" start --project "$SLR_SOURCE" --stage test --command source-test --backend test --transport local --summary "source test start")
+SLR_RUN_ID=$(printf '%s' "$SLR_RUN_JSON" | $QQ_PY -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')
+$QQ_PY "$SCRIPT_DIR/scripts/qq-run-record.py" finish --project "$SLR_SOURCE" --run-id "$SLR_RUN_ID" --status passed --summary "source test passed" >/dev/null
+
+# Use raw `git worktree add` to mimic what EnterWorktree does (bare git, no qq metadata)
+SLR_TARGET="$SLR_PARENT/seed-local-runtime-target-$$"
+rm -rf "$SLR_TARGET"
+(cd "$SLR_SOURCE" && git worktree add -b feature/test-seed-wt "$SLR_TARGET" feature/test-seed) >/dev/null 2>&1
+
+# Test 1: happy path — copies LOCAL_RUNTIME_PATHS + state files + run records + writes metadata
+SLR_OUT="$(mktemp)"
+if $QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" seed-local-runtime --project "$SLR_TARGET" --source "$SLR_SOURCE" --pretty > "$SLR_OUT" 2>/dev/null && \
+   $QQ_PY - "$SLR_OUT" "$SLR_TARGET" "$SLR_SOURCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+target = Path(sys.argv[2])
+source = Path(sys.argv[3])
+
+# Returned JSON shape
+assert payload["ok"] is True
+assert payload["action"] == "seed-local-runtime"
+assert "scripts" in payload["copiedLocalRuntimeFiles"]
+assert "qq.yaml" in payload["copiedLocalRuntimeFiles"]
+assert ".mcp.json" in payload["copiedLocalRuntimeFiles"]
+assert "AGENTS.md" in payload["copiedLocalRuntimeFiles"]
+assert "CLAUDE.md" in payload["copiedLocalRuntimeFiles"]
+assert ".qq/state/compile.json" in payload["copiedBaselineStateFiles"]
+assert ".qq/state/test.json" in payload["copiedBaselineStateFiles"]
+assert payload["copiedBaselineRunRecords"]
+
+# Files actually present in target
+assert (target / "scripts" / "qq-doctor.py").is_file()
+# This is the bug we're explicitly fixing (agent reported scripts/platform/ missing)
+assert (target / "scripts" / "platform" / "detect.sh").is_file()
+assert (target / ".mcp.json").is_file()
+assert (target / "qq.yaml").is_file()
+assert (target / "AGENTS.md").is_file()
+assert (target / "CLAUDE.md").is_file()
+assert (target / ".qq" / "state" / "compile.json").is_file()
+assert (target / ".qq" / "state" / "test.json").is_file()
+for record_path in payload["copiedBaselineRunRecords"]:
+    assert (target / record_path).is_file(), f"missing run record: {record_path}"
+
+# Metadata file written and consumable by build_status downstream
+metadata = json.loads((target / ".qq" / "state" / "worktree.json").read_text(encoding="utf-8"))
+assert metadata["managedBy"] == "qq"
+assert metadata["sourceBranch"] == "feature/test-seed"
+assert metadata["branch"] == "feature/test-seed-wt"
+assert Path(metadata["sourceWorktreePath"]).resolve() == source.resolve()
+assert metadata["createdVia"] == "seed-local-runtime"
+PY
+then
+  pass "seed-local-runtime copies LOCAL_RUNTIME_PATHS + state + run records + writes metadata"
+else
+  fail "seed-local-runtime copies LOCAL_RUNTIME_PATHS + state + run records + writes metadata"
+fi
+
+# Test 2: rejects --project == --source
+# Wrap python in subshell that always exits 0 because pipefail would otherwise
+# propagate python's expected exit 1, masking grep's match-success.
+SLR_ERR2="$(mktemp)"
+($QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" seed-local-runtime --project "$SLR_SOURCE" --source "$SLR_SOURCE" > "$SLR_ERR2" 2>&1 || true)
+if grep -qiE "must be different|same dir" "$SLR_ERR2"; then
+  pass "seed-local-runtime rejects identical --project and --source"
+else
+  fail "seed-local-runtime rejects identical --project and --source"
+fi
+rm -f "$SLR_ERR2"
+
+# Test 3: rejects --project = subdirectory of source repo (NOT a registered worktree)
+mkdir -p "$SLR_SOURCE/somesubdir"
+SLR_ERR3="$(mktemp)"
+($QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" seed-local-runtime --project "$SLR_SOURCE/somesubdir" --source "$SLR_SOURCE" > "$SLR_ERR3" 2>&1 || true)
+if grep -qiE "not a registered git worktree|not registered" "$SLR_ERR3"; then
+  pass "seed-local-runtime rejects non-worktree subdirectory of source repo"
+else
+  fail "seed-local-runtime rejects non-worktree subdirectory of source repo"
+fi
+rm -f "$SLR_ERR3"
+rm -rf "$SLR_SOURCE/somesubdir"
+
+# Test 4: rejects --project and --source from different repos
+SLR_OTHER="$(mktemp -d)"
+(cd "$SLR_OTHER" && git init -q && git config user.email q@e.x && git config user.name q && printf 'x\n' > x && git add x && git commit -q -m i)
+SLR_ERR4="$(mktemp)"
+($QQ_PY "$SCRIPT_DIR/scripts/qq-worktree.py" seed-local-runtime --project "$SLR_OTHER" --source "$SLR_SOURCE" > "$SLR_ERR4" 2>&1 || true)
+if grep -qiE "not linked worktrees of the same repo|different repo" "$SLR_ERR4"; then
+  pass "seed-local-runtime rejects --project and --source from different repos"
+else
+  fail "seed-local-runtime rejects --project and --source from different repos"
+fi
+rm -f "$SLR_ERR4"
+rm -rf "$SLR_OTHER"
+
+# Cleanup seed-local-runtime fixtures
+(cd "$SLR_SOURCE" && git worktree remove --force "$SLR_TARGET" 2>/dev/null) || rm -rf "$SLR_TARGET"
+rm -rf "$SLR_SOURCE" "$SLR_OUT"
+
+# ── clone_copy_tree hardlink path with staging atomic (v1.16.25) ──
+# Tests the new allow_hardlink parameter and the staging-dir + rename pattern
+# that protects source files from being corrupted on partial hardlink failure.
+echo -e "${CYAN}[clone_copy_tree] hardlink + staging atomic${NC}"
+
+# Test 5: hardlink success creates shared inodes (Linux + Windows only — macOS uses clonefile path)
+if [ "$(uname -s)" = "Darwin" ]; then
+  pass "clone_copy_tree(allow_hardlink=True) shares inodes (skipped on macOS — uses clonefile path)"
+else
+  CCT_SRC="$(mktemp -d)"
+  CCT_DST="${CCT_SRC}_dst"
+  rm -rf "$CCT_DST"
+  mkdir -p "$CCT_SRC/sub"
+  printf 'a\n' > "$CCT_SRC/file_a.txt"
+  printf 'b\n' > "$CCT_SRC/sub/file_b.txt"
+  CCT_HARDLINK_OUT="$(mktemp)"
+  ($QQ_PY - "$CCT_SRC" "$CCT_DST" "$SCRIPT_DIR" > "$CCT_HARDLINK_OUT" 2>&1 <<'PY'
+import importlib.util
+import os
+import sys
+from pathlib import Path
+
+scripts_dir = Path(sys.argv[3]) / "scripts"
+sys.path.insert(0, str(scripts_dir))  # qq-worktree.py imports from qq_engine, qq_internal_git, etc.
+spec = importlib.util.spec_from_file_location("qq_worktree", str(scripts_dir / "qq-worktree.py"))
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qq_worktree"] = mod  # required for @dataclass on Python 3.13+
+spec.loader.exec_module(mod)
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+strategy = mod.clone_copy_tree(src, dst, allow_hardlink=True)
+assert strategy == "hardlink", f"expected hardlink, got {strategy}"
+assert os.stat(src / "file_a.txt").st_ino == os.stat(dst / "file_a.txt").st_ino, "file_a inode mismatch"
+assert os.stat(src / "sub" / "file_b.txt").st_ino == os.stat(dst / "sub" / "file_b.txt").st_ino, "file_b inode mismatch"
+print("ok")
+PY
+  ) || true
+  if grep -q "^ok$" "$CCT_HARDLINK_OUT" 2>/dev/null; then
+    pass "clone_copy_tree(allow_hardlink=True) shares inodes between source and target"
+  else
+    fail "clone_copy_tree(allow_hardlink=True) shares inodes between source and target"
+    sed 's/^/    /' "$CCT_HARDLINK_OUT"
+  fi
+  rm -rf "$CCT_SRC" "$CCT_DST" "$CCT_HARDLINK_OUT"
+fi
+
+# Test 6: partial hardlink failure → staging cleaned up + fallback to copytree + source NOT corrupted
+CCT_SRC2="$(mktemp -d)"
+CCT_DST2="${CCT_SRC2}_dst"
+rm -rf "$CCT_DST2"
+mkdir -p "$CCT_SRC2"
+printf 'orig_content\n' > "$CCT_SRC2/keep.txt"
+CCT_FALLBACK_OUT="$(mktemp)"
+($QQ_PY - "$CCT_SRC2" "$CCT_DST2" "$SCRIPT_DIR" > "$CCT_FALLBACK_OUT" 2>&1 <<'PY'
+import importlib.util
+import os
+import sys
+from pathlib import Path
+
+scripts_dir = Path(sys.argv[3]) / "scripts"
+sys.path.insert(0, str(scripts_dir))
+spec = importlib.util.spec_from_file_location("qq_worktree", str(scripts_dir / "qq-worktree.py"))
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qq_worktree"] = mod  # required for @dataclass on Python 3.13+
+spec.loader.exec_module(mod)
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+
+# Capture source state BEFORE clone
+src_keep = src / "keep.txt"
+orig_inode = os.stat(src_keep).st_ino
+orig_links = os.stat(src_keep).st_nlink
+orig_content = src_keep.read_text()
+
+# Mock os.link to always fail (simulates cross-device error / unsupported FS / partial fail)
+real_link = os.link
+def faulty_link(s, d, **kwargs):
+    raise OSError(18, "EXDEV simulated")  # 18 = errno.EXDEV
+os.link = faulty_link
+try:
+    strategy = mod.clone_copy_tree(src, dst, allow_hardlink=True)
+finally:
+    os.link = real_link
+
+# Should have fallen back to copytree
+assert strategy == "copytree", f"expected copytree fallback after hardlink failure, got {strategy}"
+
+# Target file exists and has correct content
+assert (dst / "keep.txt").exists(), "target file missing after fallback"
+assert (dst / "keep.txt").read_text() == orig_content, "target file content wrong after fallback"
+
+# Source file is unchanged: same inode, same link count, same content
+assert os.stat(src_keep).st_ino == orig_inode, "source inode changed (corruption!)"
+assert os.stat(src_keep).st_nlink == orig_links, f"source link count changed: {orig_links} -> {os.stat(src_keep).st_nlink}"
+assert src_keep.read_text() == orig_content, "source content changed (catastrophic corruption!)"
+
+# Staging dir should be cleaned up (no <name>.hardlink-staging sibling left over)
+staging = dst.parent / (dst.name + ".hardlink-staging")
+assert not staging.exists(), f"staging dir leftover: {staging}"
+
+# Target should not be a hardlink to source (it was created by copytree, separate inode)
+assert os.stat(dst / "keep.txt").st_ino != orig_inode, "target shares inode with source — copytree should have created a new file"
+
+print("ok")
+PY
+) || true
+if grep -q "^ok$" "$CCT_FALLBACK_OUT" 2>/dev/null; then
+  pass "clone_copy_tree hardlink staging falls back to copytree without corrupting source"
+else
+  fail "clone_copy_tree hardlink staging falls back to copytree without corrupting source"
+  sed 's/^/    /' "$CCT_FALLBACK_OUT"
+fi
+rm -rf "$CCT_SRC2" "$CCT_DST2" "$CCT_FALLBACK_OUT"
+
 WORKTREE_REMOTE_ROOT="$(mktemp -d)"
 WORKTREE_REMOTE_BARE="${WORKTREE_REMOTE_ROOT}_remote.git"
 git init --bare -q "$WORKTREE_REMOTE_BARE"
