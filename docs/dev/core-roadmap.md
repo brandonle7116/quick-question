@@ -14,7 +14,7 @@ That means:
 - **Policy second**: project rules, verification, and safety defaults
 - **Workflow third**: lightweight orchestration, not mandatory methodology
 
-Unity is the current wedge and strongest implementation surface, but the core must stay adapter-friendly so the same runtime/policy model can later support Unreal, Godot, or custom engines.
+Unity has the deepest implementation surface (via tykit's in-process HTTP server), but Godot, Unreal, and S&box are now at runtime parity through Python bridges. The core stays adapter-friendly so the same runtime/policy model can keep absorbing new engines.
 
 ## What We Are Building
 
@@ -66,16 +66,14 @@ Each engine adapter is responsible for:
 - scene or asset operations where applicable
 - engine-specific policy checks
 
-Current strong adapter family:
+Current adapter family (all four engines at runtime parity):
 
-- Unity via `tykit`, direct scripts, and `tykit_mcp`
+- **Unity** via `tykit` (in-process HTTP), direct scripts, and `tykit_mcp` — deepest integration
+- **Godot** via `godot_bridge.py` and `qq_mcp` — runtime parity
+- **Unreal** via `unreal_bridge.py`, UnrealBuildTool, and editor commandlets — runtime parity
+- **S&box** via `sbox_bridge.py` and `dotnet build` — runtime parity
 
-Future adapters should fit the same capability contract:
-
-- `unity/*`
-- `godot/*`
-- `unreal/*`
-- `custom/*`
+New adapters should fit the same capability contract under `unity/*`, `godot/*`, `unreal/*`, `sbox/*`, or `custom/*`.
 
 ### 3. Policy
 

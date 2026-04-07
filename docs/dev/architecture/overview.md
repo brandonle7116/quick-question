@@ -35,13 +35,17 @@ Hooks fire automatically via the Claude Code hook system, defined in `hooks/hook
 
 | Trigger | Condition | Action |
 |---------|-----------|--------|
-| PostToolUse | Write or Edit `.cs`/`.gd` files | Auto-compile via engine-specific scripts |
+| PreToolUse | Edit or Write engine source files | Block on virgin project / red compile via `compile-gate-check.sh` |
+| PreToolUse | Edit or Write while review gate is active | Block edits until review verification completes |
+| PostToolUse | Write or Edit engine source files | Auto-compile via `qq-compile.sh` (multi-engine dispatcher) |
+| PostToolUse | Write or Edit skill files | Track via `skill-modified-track.sh` |
 | PostToolUse | Bash runs code-review or plan-review | Activate review gate (lock edits) |
 | PostToolUse | Agent subagent completes | Increment verification counter (release gate) |
-| PreToolUse | Edit or Write while gate is active | Block edits until review verification completes |
-| Stop | Session ending | Block if skills modified without `/qq:self-review`; clean up temp files |
+| Stop | Session ending | Block if skills modified without `/qq:self-review`, if review verification incomplete, or if `--auto` pipeline still running; clean up temp files |
+| SessionStart | (startup) | Sync plugin scripts via `auto-sync.sh` after plugin upgrade |
+| SessionStart | `compact` | Inject `/qq:execute` and auto-pipeline resume hints from `.qq/state/` |
 
-All temp files are keyed by `$PPID` for session isolation (e.g., `$QQ_TEMP_DIR/review-gate-$PPID`).
+All temp files are keyed by `$PPID` for session isolation (e.g., `$QQ_TEMP_DIR/review-gate-$PPID`, `$QQ_TEMP_DIR/compile-gate-$PPID`). Hook scripts read tool input from stdin via the shared `qq_hook_input` helper in `scripts/qq-runtime.sh` (jq-first, with a python3 fallback).
 
 ### Layer 3 -- Runtime Data
 
