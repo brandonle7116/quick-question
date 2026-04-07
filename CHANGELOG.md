@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.15] — 2026-04-07
+
+Documentation mirror pass: bring zh-CN, ja, and ko READMEs to parity with the v1.16.7 English restructure (new 'Why qq' / 'なぜ qq か' / '왜 qq인가' pitch, How it works 4-layer breakdown, Install agent table, all 26 commands including bootstrap / post-design-review / design-research that were previously missing, tykit v0.5.0 + listener-thread main-thread recovery story, refreshed FAQ). docs/zh-CN/hooks.md fully rewritten to mirror docs/en/hooks.md from v1.16.14 — adds compile-gate, auto-pipeline-stop, auto-sync, SessionStart resume hints, qq_hook_input fallback note, and an Implementation Notes section. docs/dev/architecture/overview.md hook table extended to cover the same set, with a sentence about the jq → python3 fallback. docs/dev/core-roadmap.md drops the stale 'Unity is the current wedge / can later support Unreal, Godot, custom engines' framing — Godot, Unreal, and S&box are now at runtime parity through Python bridges, not future work — and the Engine Adapters listing enumerates all four current adapters.
+
+
+
 ## [1.16.14] — 2026-04-07
 
 Documentation pass: rewrite docs/en/hooks.md to cover the full current hook surface (compile-gate, auto-pipeline-stop, auto-sync, SessionStart resume hints — none of which the previous version mentioned), replace the legacy review-gate-{check,set,count,stop}.sh references with the unified review-gate.sh subcommands, document qq_hook_input (jq-first, python3 fallback) so future hook authors stop calling jq directly, clarify pre-push-test.sh is wired through .claude/settings.json (not the plugin hooks.json), and add an Implementation Notes section. Also lands three docs/zh-CN updates: README.md tykit section rewritten for the v0.5.0 60+ command surface plus listener-thread recovery differentiator, configuration.md gains the .qq/state/session-decisions.json row, getting-started.md gains an engine-support callout noting the scenarios use Unity for concrete examples but the same flow works on Godot, Unreal, and S&box.
