@@ -7,6 +7,7 @@
 | `qq.yaml` | 是 | 项目级：默认 profile、规则、安装宿主 |
 | `.qq/local.yaml` | 否 | 每个 worktree 覆盖：工作模式、profile、信任等级 |
 | `CLAUDE.md` / `AGENTS.md` | 是 | 编码规范、架构规则 |
+| `.qq/state/session-decisions.json` | 否（自动生成） | 跨 skill 决策日志——`/qq:go` 会读它，让同一个 session 里后面的 skill 跟前面的决策保持一致 |
 
 ## qq.yaml 参考
 

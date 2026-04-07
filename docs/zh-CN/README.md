@@ -181,7 +181,7 @@ Edit .cs/.gd file
 
 ## tykit
 
-tykit 是 Unity Editor 进程内的轻量级 HTTP 服务器——零配置、无外部依赖、毫秒级响应。它通过 localhost 暴露编译、测试、Play/Stop、控制台和检视器命令。端口由项目路径哈希生成，存储在 `Temp/tykit.json`。
+tykit（当前 **v0.5.0**）是 Unity Editor 进程内的轻量级 HTTP 服务器——零配置、无外部依赖、毫秒级响应。它通过 localhost 暴露 60+ 命令，分为编译/测试、控制台、场景/层级、GameObject 生命周期、**反射**（`call-method` / `get-field` / `set-field`——不需要预埋脚手架就能调用任意组件方法）、预制体编辑、**物理查询**（raycast、overlap-sphere）、资源管理、UI 自动化、Editor 控制等类目。端口由项目路径哈希生成，存储在 `Temp/tykit.json`。
 
 ```bash
 PORT=$(python3 -c "import json; print(json.load(open('Temp/tykit.json'))['port'])")
@@ -189,7 +189,9 @@ curl -s -X POST http://localhost:$PORT/ -d '{"command":"compile"}' -H 'Content-T
 curl -s -X POST http://localhost:$PORT/ -d '{"command":"run-tests","args":{"mode":"editmode"}}' -H 'Content-Type: application/json'
 ```
 
-tykit 不依赖 qq 即可独立使用——只需添加 [UPM 包](../../packages/com.tyk.tykit/)。MCP 桥接（`tykit_mcp.py`）可供非 Claude agent 使用。参见 [tykit API 参考](tykit-api.md)获取完整 API，[tykit MCP 桥接](tykit-mcp.md)了解 MCP 集成。
+**关键差异**（v0.5.0）：当 Unity 主线程被 modal 对话框或后台节流的 domain reload 卡住时，tykit 的监听线程 `GET /health`、`GET /focus-unity`、`GET /dismiss-dialog` 端点可以在不依赖被卡住的主线程的情况下把 Unity 拉回工作状态。所有其他 Unity 桥接在这种场景下都会死，只有 tykit 能恢复。详见 [`tykit-api.md#主线程恢复`](tykit-api.md#主线程恢复)。
+
+tykit 不依赖 qq 即可独立使用——只需添加 [UPM 包](../../packages/com.tyk.tykit/)。MCP 桥接（`tykit_mcp.py`）可供非 Claude agent 使用。参见 [tykit API 参考](tykit-api.md) 获取完整 API，[tykit MCP 桥接](tykit-mcp.md) 了解 MCP 集成。
 
 ## 常见问题
 

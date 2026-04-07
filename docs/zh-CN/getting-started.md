@@ -2,6 +2,8 @@
 
 qq 已经装好了，接下来怎么做？从 `/qq:go` 开始——它会读取项目状态并推荐下一步。你也可以直接跳到任何 skill：`/qq:design`、`/qq:test`、`/qq:best-practice`。控制器会自适应，不需要你按固定顺序操作。
 
+> **引擎支持。** 下面的场景用 Unity 做具体例子（`.cs`、`EditMode`/`PlayMode`、`GetComponent`、`[SerializeField]`），但相同流程在 Godot、Unreal、S&box 上同样工作。运行时会自动检测你的引擎，只是示例文件扩展名和惯用语不同而已。
+
 ---
 
 ## 场景一：从零构建一个功能
