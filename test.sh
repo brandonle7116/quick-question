@@ -152,6 +152,23 @@ if [ -d "$TYKIT_SCRIPTS" ]; then
   done
 fi
 
+# tykit command coverage ratchet — enforce that the uncovered command count
+# does not grow. As new tests land in v1.17.x, lower TYKIT_MAX_UNCOVERED.
+# Run `python scripts/qq-tykit-coverage.py` standalone for the full report.
+TYKIT_MAX_UNCOVERED=78
+if [ -d "$SCRIPT_DIR/packages/com.tyk.tykit/Editor/Commands" ]; then
+  TYKIT_AUDIT_OUT=$("$QQ_PY" "$SCRIPT_DIR/scripts/qq-tykit-coverage.py" \
+    --project "$SCRIPT_DIR" --max-uncovered "$TYKIT_MAX_UNCOVERED" 2>&1)
+  TYKIT_AUDIT_EXIT=$?
+  TYKIT_UNCOVERED=$(printf '%s\n' "$TYKIT_AUDIT_OUT" | grep -oE 'uncovered: [0-9]+' | head -1 | awk '{print $2}')
+  if [ "$TYKIT_AUDIT_EXIT" -eq 0 ]; then
+    pass "tykit command coverage: ${TYKIT_UNCOVERED:-?} uncovered (max ${TYKIT_MAX_UNCOVERED})"
+  else
+    fail "tykit command coverage ratchet exceeded — ${TYKIT_UNCOVERED:-?} uncovered > max ${TYKIT_MAX_UNCOVERED}"
+    printf '%s\n' "$TYKIT_AUDIT_OUT" | sed 's/^/    /'
+  fi
+fi
+
 # ── 5. README consistency ──
 echo -e "${CYAN}[5/10] README consistency${NC}"
 
