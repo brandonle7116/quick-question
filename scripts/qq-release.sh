@@ -20,6 +20,12 @@
 #   - Refuses to push to main if working tree has unstaged changes outside the
 #     5 release-managed files (plugin.json, README.md, CHANGELOG.md).
 #   - Refuses to release if section 5 lint fails (unless --skip-tests).
+#   - Refuses to release if local is behind origin/main — fetch + ancestor
+#     check runs before version derivation, so stale local state can't compute
+#     a version that's already taken on the remote (v1.16.27 incident).
+#   - Watches CI by matching the pushed commit's full SHA, not just "latest
+#     Validate run on main", so concurrent pushes / registration lag can't
+#     make us watch the wrong run and report a false green.
 
 set -euo pipefail
 
@@ -86,6 +92,33 @@ else
     exit 1
   fi
 fi
+
+# ── safety: verify local is in sync with origin/main ──
+# Without this check, if origin advanced between your last pull and now
+# (another session, concurrent release, CI automation), the script reads
+# stale plugin.json, bumps to a version already taken on the remote, and
+# the push fails *after* the local release commit is already created —
+# forcing manual `git reset --hard` + rebase + retry. The v1.16.27 release
+# walked us through exactly this recovery loop, hence this pre-flight.
+echo "→ Pre-flight: checking local is in sync with origin/main..."
+if ! (cd "$REPO_ROOT" && git fetch origin main --quiet); then
+  echo "Error: git fetch origin main failed. Check network / remote access."
+  exit 1
+fi
+if ! (cd "$REPO_ROOT" && git merge-base --is-ancestor origin/main HEAD); then
+  BEHIND_BY="$(cd "$REPO_ROOT" && git rev-list --count HEAD..origin/main)"
+  echo "Error: local is $BEHIND_BY commits behind origin/main."
+  echo ""
+  echo "  Commits on origin you don't have:"
+  (cd "$REPO_ROOT" && git log --oneline HEAD..origin/main | head -10 | sed 's/^/    /')
+  echo ""
+  echo "  Fix: rebase your work onto origin/main first, then re-run this script"
+  echo "  (the version number will re-derive from the updated plugin.json):"
+  echo "    git pull --rebase origin main"
+  exit 1
+fi
+echo "  ✓ local is in sync with origin/main"
+echo ""
 
 # ── derive current + new version ──
 CURRENT_VERSION="$("$QQ_PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$PLUGIN_JSON")"
@@ -341,6 +374,7 @@ EOF
 )
 (cd "$REPO_ROOT" && git commit -m "$COMMIT_MSG")
 COMMIT_SHA="$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
+COMMIT_SHA_FULL="$(cd "$REPO_ROOT" && git rev-parse HEAD)"
 echo "  ✓ committed $COMMIT_SHA"
 
 if [[ "$NO_PUSH" -eq 1 ]]; then
@@ -356,12 +390,32 @@ echo "→ Pushing to origin main"
 (cd "$REPO_ROOT" && git push origin main)
 
 # ── watch CI ──
-echo "→ Watching latest CI run on main"
-sleep 2
-RUN_ID="$(gh run list --branch main --workflow Validate --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+# Bug fix: previously used `gh run list --limit 1` which grabs the most recent
+# Validate run regardless of which commit triggered it. If GitHub hadn't yet
+# registered our push (sleep 2 is often not enough), the script picked up the
+# *previous* release's run and reported green based on that — CLAUDE.md even
+# documents "always re-confirm with gh run list --limit 2 --branch main" as a
+# live workaround. Now we poll for a run whose headSha matches the commit we
+# just pushed, with exponential backoff (1+2+4+8+15 = 30s total patience).
+echo "→ Watching CI run on main for commit $COMMIT_SHA"
+RUN_ID=""
+for delay in 1 2 4 8 15; do
+  sleep "$delay"
+  RUN_ID="$(gh run list --branch main --workflow Validate --limit 10 \
+    --json databaseId,headSha \
+    --jq ".[] | select(.headSha == \"$COMMIT_SHA_FULL\") | .databaseId" \
+    2>/dev/null | head -1 || true)"
+  if [[ -n "$RUN_ID" ]]; then
+    break
+  fi
+  echo "  (waiting for GitHub to register Validate run for $COMMIT_SHA...)"
+done
 if [[ -z "$RUN_ID" ]]; then
-  echo "  (could not find a Validate run id; skipping watch — check manually with 'gh run list')"
+  echo "  Warning: no Validate run found for $COMMIT_SHA after 30s; skipping watch."
+  echo "  The run may show up late — verify manually:"
+  echo "    gh run list --branch main --limit 3"
 else
+  echo "  Found Validate run $RUN_ID for $COMMIT_SHA"
   gh run watch "$RUN_ID" --exit-status || {
     echo ""
     echo "Error: CI failed for v$NEW_VERSION (run $RUN_ID)"
