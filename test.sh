@@ -1765,6 +1765,11 @@ PY
 fi
 
 # Test 6: partial hardlink failure → staging cleaned up + fallback to copytree + source NOT corrupted
+# Skip on macOS — the clonefile path (cp -cR) runs first and succeeds before hardlink
+# is even attempted, so the fallback test premise doesn't apply.
+if [ "$(uname -s)" = "Darwin" ]; then
+  pass "clone_copy_tree hardlink staging falls back to copytree (skipped on macOS — uses clonefile path)"
+else
 CCT_SRC2="$(mktemp -d)"
 CCT_DST2="${CCT_SRC2}_dst"
 rm -rf "$CCT_DST2"
@@ -1832,6 +1837,7 @@ else
   sed 's/^/    /' "$CCT_FALLBACK_OUT"
 fi
 rm -rf "$CCT_SRC2" "$CCT_DST2" "$CCT_FALLBACK_OUT"
+fi  # /Darwin skip for test 6
 
 WORKTREE_REMOTE_ROOT="$(mktemp -d)"
 WORKTREE_REMOTE_BARE="${WORKTREE_REMOTE_ROOT}_remote.git"
