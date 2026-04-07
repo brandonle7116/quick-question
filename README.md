@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The control plane for game-dev agents.</strong><br>
-  Close the loop — compile, test, review, and ship — verified inside Unity, Godot, Unreal, and S&box.<br>
+  Close the loop — compile, test, review, and ship — across Unity, Godot, Unreal, and S&box.<br>
   <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>-first.
   Open to any agent via HTTP and MCP.
 </p>
@@ -61,6 +61,10 @@
 
 ---
 
+> **✅ Verified path:** **Claude Code + Unity 2021.3+ on macOS or Windows.** Daily-driven, end-to-end battle-tested. This is the recommended setup if you want everything in this README to "just work".
+>
+> **🧪 Experimental — contributions welcome:** Godot, Unreal, and S&box adapters ship as scaffolds. The bridge code, command surface, and CI smoke tests are in place, but **no one has yet shipped a real game using any non-Unity adapter** — they have not been validated in actual development use. Same caveat for non-Claude hosts (Codex CLI, Cursor, Continue, other MCP hosts): the runtime is agent-agnostic *by design*, but the verified loop is Claude Code-only. If you're building with one of these, your bug reports and PRs are how the adapter graduates to "verified" — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Why qq
 
 AI agents can write code. They cannot, by default, tell you whether the code compiles, the tests pass, the behavior is right, or whether they just produced 500 lines of plausible-looking nonsense. In a game project — where "running" means the editor opens, the scene loads, and frame N+1 looks like you wanted — that gap is the entire problem.
@@ -97,12 +101,12 @@ See [Architecture Overview](docs/dev/architecture/overview.md), [Hook System](do
 
 | Engine | Compile | Test | Editor control | Bridge |
 |--------|---------|------|----------------|--------|
-| **Unity 2021.3+** | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
-| **Godot 4.x** | GDScript check via headless editor | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
-| **Unreal 5.x** | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
-| **S&box** | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
+| **Unity 2021.3+** ✅ verified | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
+| **Godot 4.x** 🧪 preview | GDScript check via headless editor | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
+| **Unreal 5.x** 🧪 preview | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
+| **S&box** 🧪 preview | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
 
-Unity has the deepest integration via tykit (in-process HTTP, millisecond response). Godot, Unreal, and S&box are at runtime parity — compile, test, editor control, and structured run records all work — with active development continuing.
+Unity is the verified path — daily-driven via tykit's in-process HTTP server (millisecond response). Godot, Unreal, and S&box ship as **experimental scaffolds**: the adapter code, bridge surfaces, and CI smoke tests are in place, but no one has yet built a real game on top of any non-Unity adapter. Treat them as starting points for contributors, not as production-ready paths — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Install
 
@@ -262,6 +266,10 @@ tykit requires Unity 2021.3+. MCP alternatives: [mcp-unity](https://github.com/n
 
 <h2 align="center">中文</h2>
 
+> **✅ 已验证路径**：**Claude Code + Unity 2021.3+，macOS 或 Windows**。每天实战、端到端经过验证。这是想让 README 里所有内容"开箱即用"时的推荐配置。
+>
+> **🧪 实验性 — 欢迎贡献**：Godot、Unreal、S&box 适配器目前只是**脚手架**。桥接代码、命令接口和 CI smoke test 都到位了，但**还没有人用任何非 Unity 适配器实际开发过游戏**——它们没有经过真实开发场景的验证。非 Claude 宿主（Codex CLI、Cursor、Continue 等其他 MCP 宿主）同理——运行时的*设计*是 agent 无关的，但已验证的工作流仅限 Claude Code。如果你正在用其中之一开发，你的 bug 报告和 PR 就是该适配器晋级到"已验证"的路径——参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 为什么是 qq
 
 AI agent 能写代码。但默认情况下，它无法告诉你代码能不能编译、测试有没有过、行为是否正确，或者它是不是刚生产了 500 行看起来合理的废话。在游戏项目里——"能跑"意味着编辑器打开、场景加载、第 N+1 帧看起来跟你想的一样——这个落差就是全部问题所在。
@@ -298,12 +306,12 @@ quick-question 就是把这个落差闭环起来的运行时层。它把四个�
 
 | 引擎 | 编译 | 测试 | 编辑器控制 | 桥接 |
 |------|------|------|-----------|------|
-| **Unity 2021.3+** | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
-| **Godot 4.x** | 通过无头编辑器做 GDScript 检查 | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
-| **Unreal 5.x** | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
-| **S&box** | `dotnet build` | 运行时测试 | Editor 桥接 | `sbox_bridge.py` |
+| **Unity 2021.3+** ✅ verified | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
+| **Godot 4.x** 🧪 preview | 通过无头编辑器做 GDScript 检查 | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
+| **Unreal 5.x** 🧪 preview | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
+| **S&box** 🧪 preview | `dotnet build` | 运行时测试 | Editor 桥接 | `sbox_bridge.py` |
 
-Unity 集成最深，通过 tykit 做进程内 HTTP（毫秒级响应）。Godot、Unreal、S&box 已达到运行时对等——编译、测试、编辑器控制和结构化运行记录均可用——持续开发中。
+Unity 是已验证路径，每天通过 tykit 进程内 HTTP 实战使用（毫秒级响应）。Godot、Unreal、S&box 以**实验性脚手架**形式出货：适配器代码、桥接接口和 CI smoke test 都到位了，但还没有人用任何非 Unity 适配器实际开发过游戏。把它们当成贡献者的起点，而不是生产就绪的路径——参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 安装
 

@@ -4,6 +4,10 @@
 
 ---
 
+> **✅ 検証済みパス**：**Claude Code + Unity 2021.3+（macOS または Windows）**。日常的に使われ、エンドツーエンドで検証済み。この README の内容を「そのまま動かしたい」場合の推奨構成です。
+>
+> **🧪 実験的 — コントリビューション歓迎**：Godot、Unreal、S&box アダプタは**スキャフォールド**として出荷されています。ブリッジコード、コマンドサーフェス、CI スモークテストは整っていますが、**Unity 以外のアダプタで実際にゲームを出荷した人はまだいません** — 実際の開発シナリオで検証されていません。Claude 以外のホスト（Codex CLI、Cursor、Continue その他の MCP ホスト）も同様です — ランタイムは*設計上*エージェント非依存ですが、検証済みのループは Claude Code のみです。これらのいずれかで開発している場合、あなたのバグ報告と PR がそのアダプタを「検証済み」に昇格させる道です — [CONTRIBUTING.md](../../CONTRIBUTING.md) を参照してください。
+
 ## なぜ qq か
 
 AI エージェントはコードを書ける。しかしデフォルトでは、そのコードがコンパイルできるのか、テストが通るのか、振る舞いが正しいのか、それとも単に 500 行のもっともらしいナンセンスを生成しただけなのか、エージェント自身は教えてくれない。ゲームプロジェクト ―― 「動く」とはエディタが開き、シーンがロードされ、N+1 フレーム目があなたの想像通りに見えること ―― ではこのギャップが問題のすべてだ。
@@ -40,12 +44,12 @@ Edit .cs/.gd/.cpp file
 
 | エンジン | コンパイル | テスト | エディタ制御 | ブリッジ |
 |----------|-----------|--------|-------------|----------|
-| **Unity 2021.3+** | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
-| **Godot 4.x** | GDScript check via headless editor | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
-| **Unreal 5.x** | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
-| **S&box** | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
+| **Unity 2021.3+** ✅ verified | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
+| **Godot 4.x** 🧪 preview | GDScript check via headless editor | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
+| **Unreal 5.x** 🧪 preview | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
+| **S&box** 🧪 preview | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
 
-Unity は最も深い統合を持つ（tykit のインプロセス HTTP、ミリ秒応答）。Godot、Unreal、S&box はランタイムパリティに到達 ―― コンパイル、テスト、エディタ制御、構造化された実行記録すべてが動作する ―― 開発は継続中。
+Unity は検証済みのパスで、tykit のインプロセス HTTP サーバー（ミリ秒応答）を通じて日常的に使用されています。Godot、Unreal、S&box は**実験的なスキャフォールド**として出荷されています：アダプタコード、ブリッジサーフェス、CI スモークテストは整っていますが、Unity 以外のアダプタで実際にゲームを構築した人はまだいません。これらは本番運用可能なパスではなく、コントリビューターの出発点として扱ってください — [CONTRIBUTING.md](../../CONTRIBUTING.md) を参照。
 
 ## インストール
 

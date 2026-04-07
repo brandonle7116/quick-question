@@ -4,6 +4,10 @@
 
 ---
 
+> **✅ 검증된 경로**: **Claude Code + Unity 2021.3+ (macOS 또는 Windows)**. 매일 사용되고 엔드 투 엔드로 검증되었습니다. 이 README의 모든 내용이 "그대로 동작"하길 원할 때의 권장 구성입니다.
+>
+> **🧪 실험적 — 기여 환영**: Godot, Unreal, S&box 어댑터는 **스캐폴드**로만 출시됩니다. 브리지 코드, 명령 표면, CI 스모크 테스트는 모두 갖춰져 있지만, **Unity 외의 어떤 어댑터로도 실제 게임을 출시한 사람이 아직 없습니다** — 실제 개발 시나리오에서 검증되지 않았습니다. 비-Claude 호스트(Codex CLI, Cursor, Continue 및 기타 MCP 호스트)도 마찬가지입니다 — 런타임은 *설계상* 에이전트 무관이지만, 검증된 루프는 Claude Code 전용입니다. 이들 중 하나로 개발 중이라면, 여러분의 버그 리포트와 PR이 어댑터를 "검증됨"으로 승격시키는 길입니다 — [CONTRIBUTING.md](../../CONTRIBUTING.md) 참조.
+
 ## 왜 qq인가
 
 AI 에이전트는 코드를 쓸 수 있다. 하지만 기본적으로는 그 코드가 컴파일되는지, 테스트가 통과하는지, 동작이 올바른지, 아니면 그저 500줄의 그럴듯한 헛소리를 만들어냈는지 알려주지 못한다. 게임 프로젝트에서 ―― "실행된다"는 것이 에디터가 열리고, 씬이 로드되고, N+1 프레임이 당신이 원하던 모습으로 보인다는 의미라면 ―― 그 간극이 문제의 전부다.
@@ -40,12 +44,12 @@ Edit .cs/.gd/.cpp file
 
 | 엔진 | 컴파일 | 테스트 | 에디터 제어 | 브리지 |
 |------|--------|--------|------------|--------|
-| **Unity 2021.3+** | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
-| **Godot 4.x** | headless editor를 통한 GDScript 검사 | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
-| **Unreal 5.x** | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
-| **S&box** | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
+| **Unity 2021.3+** ✅ verified | tykit / editor trigger / batch | EditMode + PlayMode | tykit HTTP server | `tykit_bridge.py` |
+| **Godot 4.x** 🧪 preview | headless editor를 통한 GDScript 검사 | GUT / GdUnit4 | Editor addon | `godot_bridge.py` |
+| **Unreal 5.x** 🧪 preview | UnrealBuildTool + editor commandlet | Automation tests | Editor command (Python) | `unreal_bridge.py` |
+| **S&box** 🧪 preview | `dotnet build` | Runtime tests | Editor bridge | `sbox_bridge.py` |
 
-Unity가 가장 깊은 통합을 가진다(tykit의 인프로세스 HTTP, 밀리초 응답). Godot, Unreal, S&box는 런타임 패리티에 도달했다 ―― 컴파일, 테스트, 에디터 제어, 구조화된 실행 기록 모두 작동하며 ―― 활발히 개발 중이다.
+Unity는 검증된 경로로, tykit의 인프로세스 HTTP 서버(밀리초 응답)를 통해 매일 사용된다. Godot, Unreal, S&box는 **실험적 스캐폴드**로 출시된다: 어댑터 코드, 브리지 표면, CI 스모크 테스트가 모두 갖춰져 있지만, Unity 외의 어떤 어댑터로도 실제 게임을 만든 사람이 아직 없다. 프로덕션 준비된 경로가 아닌, 기여자를 위한 출발점으로 취급하라 — [CONTRIBUTING.md](../../CONTRIBUTING.md) 참조.
 
 ## 설치
 
