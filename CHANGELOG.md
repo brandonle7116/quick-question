@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.23] — 2026-04-07
+
+Hot-fix v1.16.22 readme rollout: (a) three links in docs/zh-CN/README.md were pointing to docs/en/* instead of the existing zh-CN siblings (tykit-mcp.md, tykit-api.md, worktrees.md), (b) the root README.md is a bilingual file whose Chinese half is generated from docs/zh-CN/README.md by scripts/qq-sync-readme-zh.py — v1.16.22 updated the English half and docs/zh-CN/README.md but never ran the sync, leaving the root README's Chinese half stuck on the old 12-line Quick Start and tripping the CI structural check 'root README Chinese half drifts from docs/zh-CN/README.md'. v1.16.23 fixes the three zh-CN links and runs the sync script, so the bilingual root README is now consistent across both halves and CI passes. Behavior unchanged — pure docs sync.
+
+
+
 ## [1.16.22] — 2026-04-07
 
 Rewrite README Quick Start as an ROI-focused 5-step onboarding guide (en + zh-CN). The previous Quick Start was 12 lines — a flat code block + one sentence — which left new users with no guidance on which of the 26 commands actually matter, when to escalate work_mode, what to skip in week one, or how to avoid the most common ceremony pitfalls. The new version follows the 80/20 principle: (1) work_mode selection table with the explicit warning that the most common new-user mistake is leaving the project on hardening by default, (2) the 4-command happy path /qq:go → /qq:execute → /qq:test → /qq:best-practice covering 90% of work, (3) three concrete templates for feature dev / bug fix / pre-merge gate, (4) a 'do not touch in week one' list (bootstrap, heavy doc ceremony, cross-model review on every change, --auto, custom profiles), (5) CLAUDE.md customization with 6 example Unity-project hard rules positioned as the highest-ROI customization. Adds two explicit anti-patterns (do not read raw .qq/runs/*.json in prompts, do not run cross-model review after every small edit) and four week-one self-check questions for diagnosing whether the workflow is actually saving time vs just adding ceremony noise. ja/ko READMEs not yet updated and remain on the old thin Quick Start until the next i18n batch.
