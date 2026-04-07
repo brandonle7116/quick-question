@@ -39,8 +39,11 @@ Use the Bash tool with `run_in_background: true` to run in the background:
 ```bash
 code-review.sh $ARGUMENTS
 ```
-The script calls `codex exec --sandbox read-only`, with results output to stdout and `Docs/qq/<branch-name>/codex-code-review_<timestamp>.md`.
-Codex review typically takes 5-10 minutes. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
+The script prefers `codex review` (the dedicated review subcommand with native diff handling) and falls back to `codex exec` only when `--files` or `--ext` is used. **It always passes `-c model_reasoning_effort=high`** to avoid the shallow "No findings" result that Codex's default (`reasoning=none`) produces. Results are written to stdout and `Docs/qq/<branch-name>/codex-code-review_<timestamp>.md`.
+
+Override reasoning effort per run with `--effort low|medium|high` (default: high) or globally via `QQ_CODEX_EFFORT` env var.
+
+Codex review typically takes 5-10 minutes at reasoning=high. Using background execution, the system will automatically notify when the command completes — no need to sleep or poll.
 Notify the user that the background task has been submitted and will continue processing automatically when complete. You may continue other conversations while waiting.
 
 **From round 2 onward:** If the previous round had findings deemed over-engineered, append `--prompt` to the original arguments, keeping `--base` and other flags from `$ARGUMENTS`:
@@ -111,7 +114,8 @@ After the review loop ends, recommend the next step:
 **`--auto` mode:** run `qq-execute-checkpoint.py pipeline-advance --project . --completed-skill "/qq:codex-code-review" --next-skill "/qq:test"`, then invoke `/qq:test --auto`.
 
 ## Notes
-- The review script is at `code-review.sh` and requires Codex CLI to be configured
+- The review script is at `code-review.sh` and requires Codex CLI to be configured (>= 0.118 recommended, for `codex review` subcommand)
 - **Never blindly trust Codex review results** — Codex may misread code, reference wrong line numbers, or infer from assumptions. Every finding must be verified by reading the code
+- **"No findings" is suspicious on large diffs.** A 20+ file change returning zero findings is almost always a symptom of: (a) Codex's `reasoning` effort was left at `none` (the script forces `high` now, but verify the stdout says `reasoning=high`), or (b) the review was interrupted by env/tooling errors. Re-run with `--effort high` and inspect stdout for error noise before accepting a clean result.
 - **Beware of over-engineering** — Codex tends to suggest maximally "pure" solutions (extra layers, file splitting, generics). Always ask: "Is the fix proportionate to the problem?" If not, choose the simpler path and tell Codex why in the next round
 - When fixing, only address the actual issues Codex identified — do not opportunistically refactor surrounding code

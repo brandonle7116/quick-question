@@ -5,6 +5,11 @@
 #   ./scripts/plan-review.sh <document>                    # Default review
 #   ./scripts/plan-review.sh <document> "custom prompt"    # Custom prompt
 #
+# Environment:
+#   QQ_CODEX_EFFORT — reasoning effort (low/medium/high, default: high)
+#                     Codex defaults to `none` which produces shallow reviews.
+#                     Always force at least medium for meaningful review.
+#
 # Output:
 #   Review saved to <document_name>_review.md (same directory)
 #   Also printed to stdout
@@ -13,6 +18,12 @@ set -euo pipefail
 
 DOC_FILE="${1:?Usage: $0 <document> [custom_prompt]}"
 CUSTOM_PROMPT="${2:-}"
+CODEX_EFFORT="${QQ_CODEX_EFFORT:-high}"
+
+case "$CODEX_EFFORT" in
+  low|medium|high) ;;
+  *) echo "Error: QQ_CODEX_EFFORT must be low/medium/high (got: $CODEX_EFFORT)" >&2; exit 1 ;;
+esac
 
 if [[ ! -f "$DOC_FILE" ]]; then
   echo "Error: file not found: $DOC_FILE" >&2
@@ -68,9 +79,12 @@ Read the CLAUDE.md file at the project root for coding standards.
 
 Read ${DOC_ABS_PATH} for the full document content."
 
-echo ">>> Sending ${DOC_FILE} to Codex for review..." >&2
+echo ">>> codex exec (plan-review: ${DOC_FILE}, reasoning=${CODEX_EFFORT})" >&2
 
-codex exec --sandbox read-only "$FULL_PROMPT" | tee "$REVIEW_FILE"
+codex exec \
+  --sandbox read-only \
+  -c "model_reasoning_effort=\"${CODEX_EFFORT}\"" \
+  "$FULL_PROMPT" | tee "$REVIEW_FILE"
 
 echo "" >&2
 echo ">>> Review saved to: ${REVIEW_FILE}" >&2
