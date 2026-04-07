@@ -62,6 +62,8 @@ Present the summary to the user. **Do not fix code directly — enter the verifi
 #### c. Independent Verification (required, parallel subagents, gate-enforced)
 For each critical and moderate issue, **dispatch a subagent to verify each finding in depth** — do not skim code in the main session and draw quick conclusions. Every finding must be verified against the code, no exceptions.
 
+> **Verify against runtime state, not just source.** When a finding is about *current behavior* ("this field has wrong value", "this method isn't called", "this state machine gets stuck"), the verifying subagent should query the live Unity Editor with tykit (`unity_query` / `unity_object` / `get-field` / `call-method` / `console`) — not just read the source. Source tells you what *could* happen; tykit shows what *is* happening. See [`shared/tykit-first.md`](../../shared/tykit-first.md) for the decision rule and [`shared/tykit-reference.md`](../../shared/tykit-reference.md) for the command map.
+
 > **Review Gate:** After the review script runs, a PreToolUse hook blocks Edit/Write on `.cs` and `Docs/*.md` files until at least 1 verification subagent completes. This is a mechanical constraint — you cannot edit code until findings are verified.
 
 **Execution:** Group all findings that need verification, and for each (or a related set), dispatch a subagent using the Agent tool (`subagent_type: "general-purpose"`, `model: "opus"`), running in parallel. Each subagent's prompt must include the original finding (verbatim), relevant file paths, and the instructions from [../../shared/verification-prompt.md](../../shared/verification-prompt.md).

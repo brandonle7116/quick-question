@@ -6,6 +6,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Review changes from the most recent interaction via a subagent review loop. Automatically loops until no critical issues remain or 5 rounds are completed.
 
+> **For Unity changes**: when verifying that a runtime/scene change actually behaves as intended, use tykit live queries (`unity_query` / `get-field` / `console`) instead of re-reading the diff. See [`shared/tykit-first.md`](../../shared/tykit-first.md).
+
 ## Steps
 
 ### 1. Collect changed files

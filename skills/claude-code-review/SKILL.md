@@ -63,6 +63,8 @@ Present the summary to the user. **Do not fix code yet — proceed to the verifi
 
 For each critical and moderate issue, **dispatch a subagent to verify it in depth** — do not draw conclusions from a quick scan in the main session.
 
+> **Verify against runtime state, not just source.** When a finding is about *current behavior* (wrong values, missed call sites, broken state), the verifying subagent should query the live Unity Editor with tykit (`unity_query` / `unity_object` / `get-field` / `call-method` / `console`) — not just read source. See [`shared/tykit-first.md`](../../shared/tykit-first.md) for the rule, [`shared/tykit-reference.md`](../../shared/tykit-reference.md) for commands.
+
 **How to execute:** Group all findings that need verification, and for each one (or a cluster of related ones) dispatch a subagent using the Agent tool (`subagent_type: "general-purpose"`, `model: "opus"`), running in parallel. Each subagent's prompt must include the original finding (verbatim), relevant file paths, and the instructions from [../../shared/verification-prompt.md](../../shared/verification-prompt.md).
 
 After dispatching all verification subagents, write the expected count to the gate file so the gate knows when all verifications are complete:

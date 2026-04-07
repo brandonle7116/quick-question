@@ -698,7 +698,8 @@ EDITOR_ACTIONS = {
     "editor_prefs": ("editor-prefs", {"key": "key", "value": "value", "type": "type", "delete": "delete"}),
     "player_prefs": ("player-prefs", {"key": "key", "value": "value", "type": "type", "delete": "delete"}),
     "focus_unity": ("focus-unity", {}),
-    "dismiss_dialog": ("dismiss-dialog", {})
+    "dismiss_dialog": ("dismiss-dialog", {}),
+    "request_script_reload": ("request-script-reload", {})
 }
 
 OBJECT_ACTIONS = {

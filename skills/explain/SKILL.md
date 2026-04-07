@@ -6,6 +6,8 @@ Respond in the user's preferred language (detect from their recent messages, or 
 
 Explain the architecture and logic of a specified module or design in plain, approachable language.
 
+> **In a Unity project**: when explaining "how does X work right now", complement source-reading with live state queries via tykit (`get-properties` / `get-field` / `get-array` / `inspect`). This catches the common failure mode of explaining what the code *says* it does vs what it *actually* does. See [`shared/tykit-first.md`](../../shared/tykit-first.md).
+
 Arguments: $ARGUMENTS
 - Module or design name (e.g., "PlayerController", "inventory system", "save system")
 

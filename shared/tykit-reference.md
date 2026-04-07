@@ -4,6 +4,8 @@
 
 > This is a **reference doc**, not a user-facing skill. Agents load it when they need to decide *how* to interact with Unity. Users should not `/tykit` anything — they use `/qq:test`, `/qq:execute`, or just describe what they want.
 
+> **Read first**: [`tykit-first.md`](./tykit-first.md) — *when* to use tykit vs read code. The single most common Unity-agent failure mode is reaching for code-reading when tykit would answer the question in 2 calls. That doc is short; this one is the lookup table.
+
 ## Backend selection (read this first)
 
 Three mutually-exclusive paths. Detect which one is available at the start of every Unity task:
