@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.14] — 2026-04-07
+
+Documentation pass: rewrite docs/en/hooks.md to cover the full current hook surface (compile-gate, auto-pipeline-stop, auto-sync, SessionStart resume hints — none of which the previous version mentioned), replace the legacy review-gate-{check,set,count,stop}.sh references with the unified review-gate.sh subcommands, document qq_hook_input (jq-first, python3 fallback) so future hook authors stop calling jq directly, clarify pre-push-test.sh is wired through .claude/settings.json (not the plugin hooks.json), and add an Implementation Notes section. Also lands three docs/zh-CN updates: README.md tykit section rewritten for the v0.5.0 60+ command surface plus listener-thread recovery differentiator, configuration.md gains the .qq/state/session-decisions.json row, getting-started.md gains an engine-support callout noting the scenarios use Unity for concrete examples but the same flow works on Godot, Unreal, and S&box.
+
+
+
 ## [1.16.13] — 2026-04-07
 
 Ship the actual tykit doc content described in v1.16.12's release notes. The v1.16.12 commit bumped the version and added the CHANGELOG entry but qq-release.sh only auto-staged the 3 release-managed files (plugin.json, README badge, CHANGELOG), not the 5 supporting tykit doc rewrites — so the changelog described content that hadn't shipped yet. This release contains: docs/en/tykit-api.md (full ~60-command rewrite organized by category, plus Two HTTP Channels and Main Thread Recovery sections), docs/zh-CN/tykit-api.md (mirror), docs/en/tykit-mcp.md (standard profile 11→15 tools, new examples for unity_physics / unity_object reflection / unity_main_thread_health, dedicated Main Thread Recovery section, Fast-Path Routing now mentions qq-compile.sh), docs/zh-CN/tykit-mcp.md (mirror), and packages/com.tyk.tykit/README.md (en/zh full rewrite + ja/ko summary refresh). Also fixes qq-release.sh itself: the 'these will be included in the release commit' warning was a lie — it didn't actually stage the listed files. v1.16.13 makes the warning true by auto-staging extra dirty files into the release commit.
