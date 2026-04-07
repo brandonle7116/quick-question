@@ -131,7 +131,84 @@ if [[ -n "$DIRTY_OTHER" ]]; then
   echo ""
 fi
 
-# ── pre-flight: section 5 lint ──
+# ── pre-flight: critical structural checks (ALWAYS runs, never skipped) ──
+# These are <1 second each and catch the v1.16.22 class of bugs:
+#   - Root README's Chinese half drifted from docs/zh-CN/README.md
+#   - docs/<lang>/X.md links to ../<other-lang>/Y.md when docs/<lang>/Y.md exists
+# --skip-tests bypasses the heavyweight test.sh run but NOT these.
+echo "→ Pre-flight: critical structural checks (always runs)..."
+
+# Check 1: README Chinese sync drift
+SYNC_SCRIPT="$REPO_ROOT/scripts/qq-sync-readme-zh.py"
+if [[ -f "$SYNC_SCRIPT" && -f "$REPO_ROOT/docs/zh-CN/README.md" ]]; then
+  if ! "$QQ_PY" "$SYNC_SCRIPT" --project "$REPO_ROOT" --check >/dev/null 2>&1; then
+    echo "Error: root README's Chinese half has drifted from docs/zh-CN/README.md."
+    echo "Fix: python scripts/qq-sync-readme-zh.py --write"
+    exit 1
+  fi
+  echo "  ✓ root README Chinese half in sync with docs/zh-CN/README.md"
+fi
+
+# Check 2: cross-language link discipline (zh-CN linking to ../en/X when docs/zh-CN/X exists)
+CROSS_LANG_RESULT="$("$QQ_PY" - "$REPO_ROOT" <<'PY' 2>&1
+import re
+import sys
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+docs = repo / 'docs'
+if not docs.is_dir():
+    sys.exit(0)
+LANG_DIRS = {p.name for p in docs.iterdir() if p.is_dir() and p.name not in ('dev', 'evals', 'superpowers', 'main', 'images', 'qq')}
+link_re = re.compile(r'\[[^\]]*\]\(([^)\s]+)\)')
+violations = []
+for lang in LANG_DIRS:
+    lang_dir = docs / lang
+    for path in lang_dir.rglob('*.md'):
+        if path.name.endswith('_review.md'):
+            continue
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeDecodeError):
+            continue
+        in_fence = False
+        fence = chr(96) * 3
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith(fence):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for m in link_re.finditer(line):
+                url = m.group(1).strip()
+                if url.startswith(('http://', 'https://', 'mailto:', '#')):
+                    continue
+                cm = re.match(r'^\.\./([^/]+)/(.+)$', url)
+                if not cm:
+                    continue
+                other_lang = cm.group(1)
+                other_path = cm.group(2).split('#', 1)[0].split('?', 1)[0]
+                if other_lang == lang or other_lang not in LANG_DIRS:
+                    continue
+                if path.name == 'README.md' and other_path == 'README.md':
+                    continue
+                if (lang_dir / other_path).exists():
+                    rel = path.relative_to(repo).as_posix()
+                    violations.append(f'{rel}:{lineno} -> ../{other_lang}/{other_path}')
+if violations:
+    print('\n'.join(violations))
+    sys.exit(1)
+PY
+)" || {
+    echo "Error: cross-language link discipline violations (link should be same-language sibling):"
+    printf '%s\n' "$CROSS_LANG_RESULT" | head -10 | sed 's/^/  /'
+    echo "Fix: change ../<other-lang>/X.md to X.md (same-language sibling)"
+    exit 1
+}
+echo "  ✓ no cross-language links where same-language sibling exists"
+echo ""
+
+# ── pre-flight: section 5 lint (skipped by --skip-tests) ──
 if [[ "$SKIP_TESTS" -ne 1 ]]; then
   echo "→ Pre-flight: running test.sh section 5 (README consistency)..."
   if [[ ! -x "$TEST_SCRIPT" ]]; then

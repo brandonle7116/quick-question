@@ -316,6 +316,86 @@ else
   fi
 fi
 
+# 5f: cross-language link discipline — when a doc inside docs/<lang>/ links
+# to a sibling in another language (e.g. docs/zh-CN/foo.md -> ../en/bar.md),
+# verify that docs/<lang>/bar.md does NOT exist. If it does, the link should
+# have been to the same-language sibling. Catches the v1.16.22 class of bug
+# where zh-CN README's tykit-mcp / tykit-api / worktrees links pointed to
+# ../en/ even though docs/zh-CN/ had identical filenames.
+CROSS_LANG_STATUS=0
+CROSS_LANG_OUTPUT="$($QQ_PY - "$SCRIPT_DIR" <<'PY' 2>&1
+import re
+import sys
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+docs = repo / 'docs'
+if not docs.is_dir():
+    sys.exit(0)
+
+# Discover language directories: docs/<lang>/ where <lang> looks like a
+# language code (en, zh-CN, ja, ko, etc — heuristic: contains a letter or dash).
+LANG_DIRS = {p.name for p in docs.iterdir() if p.is_dir() and p.name not in ('dev', 'evals', 'superpowers', 'main')}
+
+link_re = re.compile(r'\[[^\]]*\]\(([^)\s]+)\)')
+violations: list[str] = []
+
+for lang in LANG_DIRS:
+    lang_dir = docs / lang
+    for path in lang_dir.rglob('*.md'):
+        if path.name.endswith('_review.md'):
+            continue
+        try:
+            text = path.read_text(encoding='utf-8')
+        except (OSError, UnicodeDecodeError):
+            continue
+        in_fence = False
+        fence = chr(96) * 3
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith(fence):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for m in link_re.finditer(line):
+                url = m.group(1).strip()
+                if url.startswith(('http://', 'https://', 'mailto:', '#')):
+                    continue
+                # Look for ../<other-lang>/ pattern
+                cross_match = re.match(r'^\.\./([^/]+)/(.+)$', url)
+                if not cross_match:
+                    continue
+                other_lang = cross_match.group(1)
+                other_path = cross_match.group(2).split('#', 1)[0].split('?', 1)[0]
+                if other_lang == lang or other_lang not in LANG_DIRS:
+                    continue
+                # Exempt language-switcher links: README.md cross-language links
+                # are intentional (the "English | 中文 | 日本語 | 한국어" header).
+                # Both source and target must be README.md to qualify as a switcher.
+                if path.name == 'README.md' and other_path == 'README.md':
+                    continue
+                # Check if the same file exists in our own language directory
+                same_lang_target = lang_dir / other_path
+                if same_lang_target.exists():
+                    rel = path.relative_to(repo).as_posix()
+                    violations.append(
+                        f'{rel}:{lineno} links to ../{other_lang}/{other_path} '
+                        f'but docs/{lang}/{other_path} exists — link should be same-language sibling'
+                    )
+
+if violations:
+    print('\n'.join(violations))
+    sys.exit(1)
+PY
+)" || CROSS_LANG_STATUS=$?
+if [ "$CROSS_LANG_STATUS" -eq 0 ]; then
+  pass "no cross-language links where same-language sibling exists"
+else
+  CROSS_COUNT=$(printf '%s' "$CROSS_LANG_OUTPUT" | grep -c "->.*\.md\|links to" || echo 0)
+  fail "cross-language link discipline violations ($CROSS_COUNT — should be same-language sibling)"
+  printf '%s\n' "$CROSS_LANG_OUTPUT" | head -10 | sed 's/^/    /'
+fi
+
 # ── 6. SKILL.md frontmatter ──
 echo -e "${CYAN}[6/10] SKILL.md frontmatter${NC}"
 

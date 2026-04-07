@@ -356,6 +356,24 @@ tykit requires Unity 2021.3+. MCP alternatives: [mcp-unity](https://github.com/n
 
 ---
 
+<!--
+  ╔════════════════════════════════════════════════════════════════════════╗
+  ║  ⚠️  DO NOT EDIT THE CHINESE SECTION BELOW DIRECTLY                    ║
+  ║                                                                        ║
+  ║  The Chinese half of this README is AUTO-GENERATED from                ║
+  ║      docs/zh-CN/README.md                                              ║
+  ║  by scripts/qq-sync-readme-zh.py.                                      ║
+  ║                                                                        ║
+  ║  To update Chinese content:                                            ║
+  ║    1. Edit  docs/zh-CN/README.md                                       ║
+  ║    2. Run   python scripts/qq-sync-readme-zh.py --write                ║
+  ║    3. Commit BOTH docs/zh-CN/README.md AND README.md                   ║
+  ║                                                                        ║
+  ║  CI enforces sync via test.sh section 4 and qq-release.sh pre-flight.  ║
+  ║  Direct edits below this comment will be overwritten on next sync.     ║
+  ╚════════════════════════════════════════════════════════════════════════╝
+-->
+
 <h2 align="center">中文</h2>
 
 > **✅ 已验证路径**：**Claude Code + Unity 2021.3+，macOS 或 Windows**。每天实战、端到端经过验证。这是想让 README 里所有内容"开箱即用"时的推荐配置。
