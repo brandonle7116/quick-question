@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.17] — 2026-04-07
+
+Add tykit command coverage audit (scripts/qq-tykit-coverage.py) and integrate it into test.sh as a regression ratchet, complementing v1.16.16's bridge coverage work. Where v1.16.16 closed the Python MCP bridge gap (89/89 tykit commands now ergonomically exposed via unity_editor instead of unity_raw_command), this release closes the test coverage visibility gap on the C# side: the audit walks packages/com.tyk.tykit/Editor/Commands/*Commands.cs to extract every CommandRegistry.Describe call, then walks Tests/Editor/*.cs to check whether each command name appears as a literal string in any test file. Result: 89 registered tykit commands, only 11 with test references (12%), 78 uncovered. test.sh section 4 enforces TYKIT_MAX_UNCOVERED=78 — the gap cannot grow, only shrink. As tests land in v1.17.x the threshold ratchets down each release until parity. The audit script supports --strict, --max-uncovered N, --json, --project flags for both standalone use and CI integration. Why this matters: tykit v0.5.0 shipped roughly 50 new commands across reflection / prefab / physics / asset / UI / prefs / batch / main-thread recovery (commits dfbe63b, fabc8a3, 81b0bbe) but C# test coverage did not follow at the same pace, leaving 9 of 13 command classes (Animation, Hierarchy, Input, Physics, Prefab, Screenshot, Test, UI, Visual) with zero dedicated tests. This audit makes that gap visible and is a prerequisite for promoting the Evaluator layer (core-roadmap.md short-term) which depends on tykit being a trustworthy capability provider. Also closes issue #3 (claude-plan-review.sh script-name mismatch + codex CLI dependency + Windows git-bash failures) — all three points were resolved across v1.13.x through v1.16.x and verified by test.sh review-script-symmetry section.
+
+
+
 ## [1.16.16] — 2026-04-07
 
 Tykit MCP bridge now exposes 89/89 commands ergonomically (added request-script-reload to unity_editor action dict, closing the last raw-command-only gap). New shared/tykit-first.md captures the when-to-use-tykit-vs-read-code decision rule with 14 concrete scenarios, linked from tykit-reference.md and from the codex-code-review, claude-code-review, explain, and self-review skills so verification subagents reach for live runtime queries before falling back to source reading.
