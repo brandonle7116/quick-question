@@ -88,16 +88,108 @@ rm -rf /tmp/qq
 
 ## 快速开始
 
-```bash
-/qq:go                                       # 检测阶段，推荐下一步
-/qq:design "inventory with drag-and-drop"    # 写一份设计文档
-/qq:plan                                     # 生成实现计划
-/qq:execute                                  # 实现——每次编辑自动编译
-/qq:test                                     # 跑测试，浮出运行时错误
-/qq:commit-push                              # 批量提交并推送
+> **80/20 原则**：qq 有 26 个命令，但绝大部分价值集中在其中 4 个。这一节是最快的 ROI 路径——掌握那 20% 真正重要的，剩下的等到你真的需要再说。
+
+### 第一步 —— 设置默认 work_mode
+
+`work_mode` 控制流程的严格程度。**选最轻量的模式** 来匹配任务，需要时再升级。
+
+| 模式 | 适用场景 | 它做什么 |
+|---|---|---|
+| `prototype` | 试玩法、灰盒、fun check | 只要编译绿灯。跳过正式文档和审阅。 |
+| `feature` ⭐ | **常规功能开发的默认值** | 计划 + 实现 + 测试 + 定向审阅。平衡型。 |
+| `fix` | 复现并修复明确 bug | 先复现，最小安全修复，回归测试。 |
+| `hardening` | 合并前 / 发版前 / 高风险重构 | 测试 + 审阅 + 文档对比 + 最佳实践。严格闸门。 |
+
+在 `.qq/local.yaml` 里设一次：
+
+```yaml
+work_mode: feature
 ```
 
-`/qq:go` 跟着你的 `work_mode` 自适应。在 `prototype` 它保持轻量（编译绿灯、保持可玩）；在 `hardening` 它强制测试、审阅、文档/代码一致性后才能发版。详细场景演练参见 [快速上手](getting-started.md)。
+**新用户最常犯的错误是默认让项目停在 `hardening`**，然后抱怨 qq "太啰嗦"。日常待在 `feature`，只在 merge 前切到 `hardening`。
+
+### 第二步 —— 学一条主循环，不是 26 个命令
+
+90% 的任务，你只需要这 4 个命令：
+
+```bash
+/qq:go "你想做的事情"      # 根据 .qq/state 和 work_mode 决定下一步
+/qq:execute                # 实现——每次 .cs 编辑自动编译
+/qq:test                   # 跑测试 + 从 Editor.log 抓运行时错误
+/qq:best-practice          # 快速反模式 + 性能扫描
+```
+
+`/qq:go` 是自适应入口——它读 `.qq/state` 和你的 `work_mode`，自动路由到正确的 skill。**任务清晰** 时直接跳到 `/qq:execute`；**任务模糊** 时让 `/qq:go` 路由你先走 `/qq:design` → `/qq:plan`。
+
+让这套设置回本的关键是 auto-compile hook：每次 `.cs` 编辑触发编译，**编译失败时 compile gate 会阻止进一步编辑**，直到你修好。这条循环消灭的最大时间黑洞就是"我以为编过了，明天再确认"。
+
+### 第三步 —— 三个覆盖大部分工作的模板
+
+**新功能开发**
+```bash
+/qq:go "给船员系统加疲劳恢复机制"
+/qq:execute
+/qq:test
+/qq:best-practice
+```
+
+**修 bug**（qq 进入 `fix` 模式 → 复现 → 最小修复 → 回归测试）
+```bash
+/qq:go "修复港口靠岸 bug，先复现"
+/qq:execute
+/qq:test
+```
+
+**合并前闸门**（只在你准备 push 或开 PR 时跑）
+```bash
+/qq:best-practice
+/qq:claude-code-review        # 或 /qq:codex-code-review 跨模型审阅
+/qq:doc-drift
+/qq:test
+/qq:commit-push
+```
+
+### 第四步 —— 第一周先不要碰这些
+
+主循环跑顺之前，**忍住别用** 这些：
+
+- **`/qq:bootstrap`** —— 等你信任主循环之后再说
+- **重度文档 ceremony**（每个任务都 `/qq:design` → `/qq:plan` → `/qq:doc-drift`）—— design/plan 是给真模糊的任务用的，不是每个任务的税
+- **每次改动都跑跨模型审阅** —— `/qq:codex-code-review` 留给 merge 闸门或大重构。每轮 5–10 分钟，每改几行就跑会拖垮节奏。
+- **`/qq:go --auto`** —— 端到端自动化是真的能跑，但先在手动模式建立"可预测感"
+- **自定义 profile / pack / 模块切换** —— 默认值在第一周完全够用
+
+### 第五步 —— 把 `CLAUDE.md` 改成真正的护栏
+
+安装时会复制一份 `CLAUDE.md` 模板到你的项目。**把模板里的套话替换成你项目真正在乎的 5–8 条硬规则**，不要写成作文。Unity 游戏项目的示例规则：
+
+- Runtime 逻辑禁止反射
+- 未明确要求时不要改 UI / prefab 命名 / inspector 暴露字段
+- `Update` / `FixedUpdate` 路径里禁止 `GetComponent` / `FindObjectOfType`
+- 改完 `.cs` 必须验证编译绿灯才能汇报"完成"
+- 优先沿用现有模式，不要发明第二套框架
+- 不要为假设的未来需求增加抽象层
+
+这是 ROI 最高的一项定制——它直接降低模型"自作聪明往错方向走"的频率。
+
+### 两个警告
+
+1. **不要把 `.qq/runs/*.json` 原始日志塞进 prompt。** 那是运维 telemetry，不是上下文。真需要状态时跑 `qq-project-state.py --pretty` 拿结构化快照。
+2. **不要每改一点就跑跨模型审阅。** 它会让循环感觉很慢，你会因为错误的原因开始讨厌 qq。Cross-model review 留给 merge 闸门和大重构。
+
+### 第一周自检
+
+一周后，问自己 4 个问题：
+
+1. 手动回 Unity 查编译结果的次数有没有明显下降？
+2. 因为 AI "说完成了但其实没好"导致的返工有没有下降？
+3. 中型功能的收尾时间有没有变短？
+4. 审阅闸门 / ceremony 有没有开始让你觉得烦？
+
+如果 1–3 改善了、4 还可以接受，就继续加码。如果 4 让你受不了，把项目降到 `feature` 或 `prototype`，只在 merge 前临时切 `hardening`——profile 系统本来就是为这种分层设计的。
+
+→ 更深入的演练：[快速上手](getting-started.md) · [配置参考](configuration.md) · [Worktrees](../en/worktrees.md)
 
 ## 命令
 

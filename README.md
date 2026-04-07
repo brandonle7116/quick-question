@@ -145,16 +145,108 @@ For non-Unity engines, call the bridge scripts directly (e.g. `python3 ./scripts
 
 ## Quick start
 
-```bash
-/qq:go                                       # detect phase, recommend next step
-/qq:design "inventory with drag-and-drop"    # write a design doc
-/qq:plan                                     # generate implementation plan
-/qq:execute                                  # implement with auto-compile on every edit
-/qq:test                                     # run tests, surface runtime errors
-/qq:commit-push                              # batch commit and push
+> **80/20 principle.** qq has 26 commands but most of the value comes from 4. This section is the fastest path to ROI — learn the 20% that matters, ignore the rest until you actually need it.
+
+### Step 1 — Set your default work mode
+
+`work_mode` controls how strict the workflow is. Pick the lightest mode that fits the task; escalate later only when needed.
+
+| Mode | When | What it does |
+|---|---|---|
+| `prototype` | Trying ideas, gray-box, fun check | Compile-green only. Skips formal docs and review. |
+| `feature` ⭐ | **Default for normal feature work** | Plan + execute + test + targeted review. Balanced. |
+| `fix` | Reproducing and fixing a known bug | Repro first, smallest safe fix, regression test. |
+| `hardening` | Pre-merge, pre-release, risky refactor | Tests + review + doc-drift + best-practice. The strict gate. |
+
+Set it once in `.qq/local.yaml`:
+
+```yaml
+work_mode: feature
 ```
 
-`/qq:go` adapts to your `work_mode`. In `prototype` it stays light (compile green, stay playable). In `hardening` it forces tests, review, and document/code consistency before shipping. See [Getting Started](docs/en/getting-started.md) for walkthroughs.
+**The most common new-user mistake is leaving the project on `hardening` by default**, then complaining qq is "too noisy". Stay in `feature` and only flip to `hardening` at merge time.
+
+### Step 2 — Learn one loop, not 26 commands
+
+For 90% of tasks this is all you need:
+
+```bash
+/qq:go "what you want to do"   # picks the right next step from .qq/state + work_mode
+/qq:execute                     # implement (auto-compile on every .cs edit)
+/qq:test                        # run tests + scrape runtime errors from Editor.log
+/qq:best-practice               # quick anti-pattern + perf scan
+```
+
+`/qq:go` is the adaptive entry point — it reads `.qq/state` and your `work_mode`, then routes to the right skill. For clear tasks, jump straight to `/qq:execute`. For vague ones, let `/qq:go` route you through `/qq:design` → `/qq:plan` first.
+
+The auto-compile hook is what makes this worth the setup: every `.cs` edit triggers compile, and the **compile gate blocks further edits while compilation is red** until you fix it. The single biggest time sink the loop kills is "I think it builds — let me find out tomorrow".
+
+### Step 3 — Three templates that cover most work
+
+**Feature development**
+```bash
+/qq:go "add a fatigue recovery system to crew"
+/qq:execute
+/qq:test
+/qq:best-practice
+```
+
+**Bug fix** (qq enters `fix` mode → repro → minimal patch → regression test)
+```bash
+/qq:go "fix the harbor docking bug, repro first"
+/qq:execute
+/qq:test
+```
+
+**Pre-merge gate** (only when you're about to push or PR)
+```bash
+/qq:best-practice
+/qq:claude-code-review        # or /qq:codex-code-review for cross-model
+/qq:doc-drift
+/qq:test
+/qq:commit-push
+```
+
+### Step 4 — What to skip in your first week
+
+Resist using these until the basic loop above is predictable:
+
+- **`/qq:bootstrap`** — wait until you trust the loop
+- **Heavy doc ceremony** (`/qq:design` → `/qq:plan` → `/qq:doc-drift` for every task) — only use design/plan when the task is genuinely vague. They're not a tax.
+- **Cross-model review on every change** — save `/qq:codex-code-review` for merge gates or large refactors. It's 5–10 min per round; running it after every small edit kills the rhythm.
+- **`/qq:go --auto`** — end-to-end automation works, but build trust in manual runs first
+- **Custom profiles / packs / module switching** — defaults are fine for week one
+
+### Step 5 — Customize `CLAUDE.md` as real guardrails
+
+Install copies a `CLAUDE.md` template to your project. **Replace the boilerplate with 5–8 hard rules that match your project**, not an essay. Example rules for a Unity game project:
+
+- Runtime logic must not use reflection
+- Do not modify UI / prefab names / inspector fields unless asked
+- No `GetComponent` / `FindObjectOfType` in `Update` / `FixedUpdate` paths
+- After editing `.cs`, must verify compile-green before reporting "done"
+- Prefer existing patterns; do not invent a second framework
+- No abstraction layers for hypothetical future requirements
+
+This is the single highest-ROI customization — it cuts the rate at which the model "gets clever" in the wrong direction.
+
+### Two warnings
+
+1. **Don't read raw `.qq/runs/*.json` logs in your prompts.** They're operational telemetry, not context. Use `qq-project-state.py --pretty` for the structured snapshot when you actually need state.
+2. **Don't run cross-model review after every small edit.** It makes the loop feel slow and you'll start hating qq for the wrong reason. Reserve it for merge gates and large refactors.
+
+### Success check (week 1)
+
+After a week, ask yourself:
+
+1. Did manual "back to Unity to check compile" trips drop noticeably?
+2. Did "AI says done but it isn't" rework drop?
+3. Did mid-size feature wrap-up time get shorter?
+4. Did review-gate ceremony start feeling annoying?
+
+If 1–3 improved and 4 is tolerable, scale up. If 4 dominates, drop the project to `feature` or `prototype` and only flip to `hardening` at merge time — that's exactly what the profile system is designed for.
+
+→ Deeper walkthroughs: [Getting Started](docs/en/getting-started.md) · [Configuration](docs/en/configuration.md) · [Worktrees](docs/en/worktrees.md)
 
 ## Commands
 
