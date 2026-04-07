@@ -81,8 +81,8 @@ rm -rf /tmp/qq
 |-------|---------|--------|
 | **Claude Code** | `/plugin marketplace add tykisgod/quick-question`<br>`/plugin install qq@quick-question-marketplace` | 全部 26 个 `/qq:*` slash 命令、自动编译 hook、审阅门、MCP——完整体验 |
 | **Codex CLI** | `python3 ./scripts/qq-codex-mcp.py install --pretty` | 项目本地 MCP 桥接；用 `qq-codex-exec.py` 固定工作根目录 |
-| **Cursor / Continue / 其他 MCP 宿主** | 在宿主配置的 `mcpServers` 加 `qq`：`command: python3`、`args: ["./scripts/qq_mcp.py"]`、`cwd: /path/to/project` | 编译、测试、控制台、编辑器控制作为 MCP tool——参见 [`docs/en/tykit-mcp.md`](../en/tykit-mcp.md) |
-| **任何 HTTP 客户端** | 从 `Temp/tykit.json` 读端口，POST JSON 到 `localhost:$PORT/` | 直接访问 tykit——参见 [`docs/en/tykit-api.md`](../en/tykit-api.md) |
+| **Cursor / Continue / 其他 MCP 宿主** | 在宿主配置的 `mcpServers` 加 `qq`：`command: python3`、`args: ["./scripts/qq_mcp.py"]`、`cwd: /path/to/project` | 编译、测试、控制台、编辑器控制作为 MCP tool——参见 [`docs/zh-CN/tykit-mcp.md`](tykit-mcp.md) |
+| **任何 HTTP 客户端** | 从 `Temp/tykit.json` 读端口，POST JSON 到 `localhost:$PORT/` | 直接访问 tykit——参见 [`docs/zh-CN/tykit-api.md`](tykit-api.md) |
 
 非 Unity 引擎直接调用桥接脚本（如 `python3 ./scripts/godot_bridge.py compile`）。
 
@@ -189,7 +189,7 @@ work_mode: feature
 
 如果 1–3 改善了、4 还可以接受，就继续加码。如果 4 让你受不了，把项目降到 `feature` 或 `prototype`，只在 merge 前临时切 `hardening`——profile 系统本来就是为这种分层设计的。
 
-→ 更深入的演练：[快速上手](getting-started.md) · [配置参考](configuration.md) · [Worktrees](../en/worktrees.md)
+→ 更深入的演练：[快速上手](getting-started.md) · [配置参考](configuration.md) · [Worktrees](worktrees.md)
 
 ## 命令
 
