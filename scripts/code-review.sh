@@ -2,12 +2,12 @@
 # code-review.sh — Send code changes to Codex CLI for review
 #
 # Usage:
-#   ./scripts/code-review.sh                           # Default: main...HEAD (--base)
+#   ./scripts/code-review.sh                           # Default: main...HEAD
 #   ./scripts/code-review.sh --base main               # Custom base branch
-#   ./scripts/code-review.sh --commits                 # Last commit only (--commit HEAD)
-#   ./scripts/code-review.sh --ext "*.py"              # Filter by extension (files mode only)
+#   ./scripts/code-review.sh --commits                 # Last commit only (HEAD~1...HEAD)
+#   ./scripts/code-review.sh --ext "*.py"              # Filter by extension
 #   ./scripts/code-review.sh --prompt "custom prompt"  # Custom prompt
-#   ./scripts/code-review.sh --files "a.cs b.cs"       # Specific files (legacy path)
+#   ./scripts/code-review.sh --files "a.cs b.cs"       # Specific files
 #   ./scripts/code-review.sh --effort high             # Override reasoning effort (low/medium/high)
 #
 # Environment:
@@ -26,13 +26,6 @@ source "$(dirname "$0")/platform/detect.sh"
 if ! command -v codex &>/dev/null; then
   echo "Error: codex CLI not found. Install with: npm install -g @openai/codex" >&2
   exit 1
-fi
-
-# Detect whether `codex review` subcommand exists (codex-cli >= 0.x).
-# If not, fall back to legacy `codex exec` path with a warning.
-HAVE_REVIEW_SUBCMD=0
-if codex review --help >/dev/null 2>&1; then
-  HAVE_REVIEW_SUBCMD=1
 fi
 
 # Auto-detect default base branch: develop > main > master
@@ -81,7 +74,7 @@ OUT_DIR="Docs/${BRANCH}"
 mkdir -p "$OUT_DIR"
 REVIEW_FILE="${OUT_DIR}/codex-code-review_${TIMESTAMP}.md"
 
-# Build the review prompt body (shared across both paths)
+# Build the review prompt body
 if [[ -n "$CUSTOM_PROMPT" ]]; then
   REVIEW_PROMPT="$CUSTOM_PROMPT"
 else
@@ -140,135 +133,91 @@ Code Quality:
 18. Missing documentation comments on public classes"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Path selection: prefer native `codex review` subcommand when possible.
+# 为什么用 `codex exec` 而不是 `codex review`：
 #
-# `codex review` is the purpose-built review mode with native diff handling
-# and review-specific prompting. It handles branch / single-commit / uncommitted
-# scopes natively, and a multi-commit branch diff (36 files across 10 commits)
-# works exactly the same as a single-file change — the full diff is analyzed
-# as one coherent review.
+# `codex review` 子命令看起来更合适（自带 git diff 感知 + review 专属 prompting），
+# bc146cb 曾经切过去。后来退回来有两个原因：
 #
-# Fall back to `codex exec` + manual diff construction for:
-#   (a) --files explicit file list — codex review has no native "these files only"
-#   (b) --ext extension filter — codex review has no native extension filter
+# 1. codex-cli 0.118.x 的 clap 解析器冲突：`--base` / `--commit` / `--uncommitted`
+#    与 `[PROMPT]` positional 参数被标记为互斥（尽管 --help 同时列出两者），任何带
+#    自定义 PROMPT 的调用都会直接报错：
+#      error: the argument '--base <BRANCH>' cannot be used with '[PROMPT]'
+#    连 `-` 读 stdin 的写法也同样被拒。
 #
-# In both paths we force `model_reasoning_effort=high` to avoid the shallow
-# "No findings" result that the default (`none`) produces.
+# 2. `codex review` 原生不支持 --files / --ext 这类更灵活的 scope——而我们经常
+#    需要对特定文件或未提交变更做 review，不只是 branch diff。灵活性本身就让
+#    `codex exec` 成为更合适的长期方案。
+#
+# 所以统一走 `codex exec` + 手工构造 diff，prompt 和 Unity 18 条 checklist 通过
+# FULL_PROMPT 直接注入。Force `model_reasoning_effort=high` 避免默认 `none` 返回
+# 浅层 "No findings" 结果。
 # ═══════════════════════════════════════════════════════════════════════════
 
-USE_REVIEW_SUBCMD=0
-if [[ $HAVE_REVIEW_SUBCMD -eq 1 && -z "$EXT_FILTER" && "$MODE" != "files" ]]; then
-  USE_REVIEW_SUBCMD=1
+# Build diff command args
+DIFF_ARGS=()
+if [[ -n "$EXT_FILTER" ]]; then
+  DIFF_ARGS+=(-- "$EXT_FILTER")
 fi
 
-if [[ $USE_REVIEW_SUBCMD -eq 1 ]]; then
-  # ─────────────────────────────────────────────────────────────────────────
-  # Path A: native `codex review` subcommand (no manual diff)
-  # ─────────────────────────────────────────────────────────────────────────
-
-  MODE_ARGS=()
-  case "$MODE" in
-    branch)
-      # Pre-check: if branch diff is empty, fall back to --uncommitted so we
-      # still review whatever the user has in progress. (Old behavior preserved.)
-      if git diff --quiet "${BASE_BRANCH}...HEAD" 2>/dev/null; then
-        echo ">>> No committed changes on ${BASE_BRANCH}...HEAD. Falling back to --uncommitted..." >&2
-        MODE_ARGS=(--uncommitted)
-        DIFF_DESC="uncommitted changes"
-      else
-        MODE_ARGS=(--base "$BASE_BRANCH")
-        DIFF_DESC="${BASE_BRANCH}...HEAD"
+case "$MODE" in
+  branch)
+    DIFF=$(git diff "${BASE_BRANCH}...HEAD" "${DIFF_ARGS[@]+"${DIFF_ARGS[@]}"}")
+    DIFF_DESC="${BASE_BRANCH}...HEAD"
+    ;;
+  commits)
+    DIFF=$(git diff "HEAD~1...HEAD" "${DIFF_ARGS[@]+"${DIFF_ARGS[@]}"}")
+    DIFF_DESC="HEAD~1...HEAD"
+    ;;
+  files)
+    DIFF=""
+    for f in "${FILES_LIST[@]}"; do
+      if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+        file_diff=$(git diff HEAD -- "$f")
+        if [[ -n "$file_diff" ]]; then
+          DIFF="${DIFF}${file_diff}"$'\n'
+        fi
+      elif [[ -f "$f" ]]; then
+        # 未跟踪的新文件：生成合成 diff
+        DIFF="${DIFF}$(git diff --no-index /dev/null "$f" 2>/dev/null || true)"$'\n'
       fi
-      ;;
-    commits)
-      MODE_ARGS=(--commit HEAD)
-      DIFF_DESC="commit HEAD"
-      ;;
-  esac
+    done
+    DIFF_DESC="files: ${FILES_LIST[*]}"
+    ;;
+esac
 
-  echo ">>> codex review (${DIFF_DESC}, reasoning=${CODEX_EFFORT})" >&2
-
-  codex review \
-    -c "model_reasoning_effort=\"${CODEX_EFFORT}\"" \
-    "${MODE_ARGS[@]}" \
-    "$PROMPT_BODY" | tee "$REVIEW_FILE"
-
-else
-  # ─────────────────────────────────────────────────────────────────────────
-  # Path B: legacy `codex exec` with manual diff construction
-  # Used when --ext filter or explicit --files list is in play, since
-  # `codex review` has no native support for these scopes.
-  # ─────────────────────────────────────────────────────────────────────────
-
-  if [[ $HAVE_REVIEW_SUBCMD -eq 0 ]]; then
-    echo ">>> Note: codex CLI lacks 'review' subcommand; using legacy 'exec' path" >&2
-  fi
-
-  # Build diff command args
-  DIFF_ARGS=()
-  if [[ -n "$EXT_FILTER" ]]; then
-    DIFF_ARGS+=(-- "$EXT_FILTER")
-  fi
-
-  case "$MODE" in
-    branch)
-      DIFF=$(git diff "${BASE_BRANCH}...HEAD" "${DIFF_ARGS[@]+"${DIFF_ARGS[@]}"}")
-      DIFF_DESC="${BASE_BRANCH}...HEAD"
-      ;;
-    commits)
-      DIFF=$(git diff "HEAD~1...HEAD" "${DIFF_ARGS[@]+"${DIFF_ARGS[@]}"}")
-      DIFF_DESC="HEAD~1...HEAD"
-      ;;
-    files)
-      DIFF=""
-      for f in "${FILES_LIST[@]}"; do
-        if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-          file_diff=$(git diff HEAD -- "$f")
-          if [[ -n "$file_diff" ]]; then
-            DIFF="${DIFF}${file_diff}"$'\n'
-          fi
-        elif [[ -f "$f" ]]; then
-          # 未跟踪的新文件：生成合成 diff
-          DIFF="${DIFF}$(git diff --no-index /dev/null "$f" 2>/dev/null || true)"$'\n'
+# Fallback: if branch diff is empty, try uncommitted changes
+if [[ -z "$DIFF" && "$MODE" == "branch" ]]; then
+  echo ">>> No committed changes (${DIFF_DESC}). Trying uncommitted changes..." >&2
+  UNCOMMITTED_FILES=$(git diff --name-only HEAD 2>/dev/null || true)
+  UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+  ALL_FILES=$(printf '%s\n%s' "$UNCOMMITTED_FILES" "$UNTRACKED_FILES" | sort -u | grep -v '^$' || true)
+  if [[ -n "$ALL_FILES" ]]; then
+    MODE="files"
+    mapfile -t FILES_LIST <<< "$ALL_FILES"
+    for f in "${FILES_LIST[@]}"; do
+      if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+        file_diff=$(git diff HEAD -- "$f")
+        if [[ -n "$file_diff" ]]; then
+          DIFF="${DIFF}${file_diff}"$'\n'
         fi
-      done
-      DIFF_DESC="files: ${FILES_LIST[*]}"
-      ;;
-  esac
-
-  # Fallback: if branch diff is empty, try uncommitted changes
-  if [[ -z "$DIFF" && "$MODE" == "branch" ]]; then
-    echo ">>> No committed changes (${DIFF_DESC}). Trying uncommitted changes..." >&2
-    UNCOMMITTED_FILES=$(git diff --name-only HEAD 2>/dev/null || true)
-    UNTRACKED_FILES=$(git ls-files --others --exclude-standard 2>/dev/null || true)
-    ALL_FILES=$(printf '%s\n%s' "$UNCOMMITTED_FILES" "$UNTRACKED_FILES" | sort -u | grep -v '^$' || true)
-    if [[ -n "$ALL_FILES" ]]; then
-      MODE="files"
-      mapfile -t FILES_LIST <<< "$ALL_FILES"
-      for f in "${FILES_LIST[@]}"; do
-        if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-          file_diff=$(git diff HEAD -- "$f")
-          if [[ -n "$file_diff" ]]; then
-            DIFF="${DIFF}${file_diff}"$'\n'
-          fi
-        elif [[ -f "$f" ]]; then
-          DIFF="${DIFF}$(git diff --no-index /dev/null "$f" 2>/dev/null || true)"$'\n'
-        fi
-      done
-      DIFF_DESC="uncommitted changes (${#FILES_LIST[@]} files)"
-    fi
+      elif [[ -f "$f" ]]; then
+        DIFF="${DIFF}$(git diff --no-index /dev/null "$f" 2>/dev/null || true)"$'\n'
+      fi
+    done
+    DIFF_DESC="uncommitted changes (${#FILES_LIST[@]} files)"
   fi
+fi
 
-  if [[ -z "$DIFF" ]]; then
-    echo "No code changes found (${DIFF_DESC})" >&2
-    exit 0
-  fi
+if [[ -z "$DIFF" ]]; then
+  echo "No code changes found (${DIFF_DESC})" >&2
+  exit 0
+fi
 
-  # Write diff to temp file so Codex reads it from disk (avoids ARG_MAX)
-  DIFF_FILE=$(mktemp "$QQ_TEMP_DIR/code-review-diff-XXXXXXXX")
-  printf '%s' "$DIFF" > "$DIFF_FILE"
+# Write diff to temp file so Codex reads it from disk (avoids ARG_MAX)
+DIFF_FILE=$(mktemp "$QQ_TEMP_DIR/code-review-diff-XXXXXXXX")
+printf '%s' "$DIFF" > "$DIFF_FILE"
 
-  FULL_PROMPT="${PROMPT_BODY}
+FULL_PROMPT="${PROMPT_BODY}
 
 ---
 
@@ -276,16 +225,15 @@ else
 
 Read ${DIFF_FILE} for the full diff."
 
-  echo ">>> codex exec (${DIFF_DESC}, reasoning=${CODEX_EFFORT})" >&2
-  echo ">>> Diff written to ${DIFF_FILE} ($(wc -l < "$DIFF_FILE") lines)" >&2
+echo ">>> codex exec (${DIFF_DESC}, reasoning=${CODEX_EFFORT})" >&2
+echo ">>> Diff written to ${DIFF_FILE} ($(wc -l < "$DIFF_FILE") lines)" >&2
 
-  codex exec \
-    --sandbox read-only \
-    -c "model_reasoning_effort=\"${CODEX_EFFORT}\"" \
-    "$FULL_PROMPT" | tee "$REVIEW_FILE"
+codex exec \
+  --sandbox read-only \
+  -c "model_reasoning_effort=\"${CODEX_EFFORT}\"" \
+  "$FULL_PROMPT" | tee "$REVIEW_FILE"
 
-  rm -f "$DIFF_FILE"
-fi
+rm -f "$DIFF_FILE"
 
 echo "" >&2
 echo ">>> Review saved to: ${REVIEW_FILE}" >&2
