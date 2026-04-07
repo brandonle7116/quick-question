@@ -121,3 +121,10 @@ There is no build step or package manager for this repo itself. The scripts and 
 - `install.sh` output uses the current plugin skill names (`/qq:test`, `/qq:commit-push`, etc.)
 - `.gitattributes` enforces LF line endings for `.sh` and `.py` so Windows checkouts don't corrupt hook scripts
 - Comments and side-effects in hook scripts must remain idempotent; hooks may fire twice on the same input
+
+## Windows release gotchas
+
+Two recurring traps when releasing from a Windows host. Both have bitten CI more than once — see commits `eedebe2`, `64bce1d`.
+
+- **`chmod +x` on Windows does not write the git index mode bit.** New `.sh` / `.py` scripts ship as `100644` even after a successful local `chmod`, and `test.sh` section 7 (Script permissions) catches it on Linux CI as `NOT executable`. When adding any new executable script, run `git update-index --chmod=+x <path>` and verify with `git ls-files --stage <path>` (look for `100755`, not `100644`) **before** committing. The Edit / Write tool path is the most common offender — Bash `chmod` is invisible to git index.
+- **`qq-release.sh --watch` has a fetch race.** It calls `gh run list` *before* the new commit's CI run has been registered, so the "CI green" message at the end of `qq-release.sh patch ...` may be reporting the *previous* release's run, not the one you just triggered. After the script claims success, always re-confirm with `gh run list --limit 2 --branch main` to make sure the latest run on top is actually green for the commit you just pushed.
