@@ -2,6 +2,12 @@
 
 All notable changes to quick-question are documented here.
 
+## [1.16.19] — 2026-04-07
+
+Fix 4 review skills (codex-plan-review, codex-code-review, claude-plan-review, claude-code-review) that told agents to invoke scripts as bare commands like 'plan-review.sh <file>'. The qq plugin never puts its scripts on PATH, and install.sh's permission allowlist only covers relative-path variants ('./scripts/X', 'scripts/X'), so bare invocation was unreliable from day one — it only 'worked' when agents happened to use relative paths or jumped straight to the fallback. Today a real agent hit exit 127 on 'plan-review.sh' and had to manually switch to the ${CLAUDE_PLUGIN_ROOT}/bin/ fallback mid-run. All four SKILL.md files now use ${CLAUDE_PLUGIN_ROOT}/bin/<script>.sh as the canonical invocation (absolute path, cwd-independent, env var injected by Claude Code for every plugin context), and the top-of-skill callout was reworded from 'bare command with fallback' to 'use ${CLAUDE_PLUGIN_ROOT}/bin/, bare is NOT reliable'. Non-review scripts like unity-test.sh are untouched — they continue to work through install.sh's relative-path allowlist.
+
+
+
 ## [1.16.18] — 2026-04-07
 
 Honest sourcing pass on the README. Adds a verified/experimental status callout to all five language READMEs (English half + Chinese half of root README, plus docs/zh-CN, docs/ja, docs/ko) right under the language nav, before the Why qq section. The callout makes the actual support level visible: Claude Code + Unity 2021.3+ on macOS or Windows is the verified path (daily-driven, end-to-end battle-tested), and Godot / Unreal / S&box adapters plus non-Claude hosts (Codex CLI, Cursor, Continue, other MCP hosts) are experimental scaffolds. The non-Unity adapters have CI smoke tests and bridge code in place but no one has yet shipped a real game on any of them. Bug reports and PRs are how an adapter graduates to verified. Also tags non-Unity rows in the Engines table with 🧪 preview markers (Unity gets ✅ verified) and rewrites the prose under the table to drop the previous runtime parity framing. Hero tagline corrected from 'verified inside Unity, Godot, Unreal, and S&box' to the neutral 'across Unity, Godot, Unreal, and S&box'. The previous wording overclaimed and could lead users to expect a level of support that does not yet exist for non-Unity engines.
